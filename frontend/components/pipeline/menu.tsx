@@ -1,0 +1,86 @@
+"use client";
+import { Edge, useReactFlow, XYPosition } from "@xyflow/react";
+import { IMenu, NodeType, TAllNodes } from "./types";
+import { Dispatch, SetStateAction, useMemo, useState } from "react";
+import { nanoid } from "nanoid";
+import { SOURCE_HANDLE, TARGET_HANDLE } from "./constants";
+import { CARD } from "@/constants/class-names";
+
+interface IMenuProps {
+  nodeId?: string | null; // 节点id
+  handleId?: string | null; // 连接点id
+  handleType?: string | null; // 连接点类型
+  position: XYPosition;
+  setNodes: Dispatch<SetStateAction<TAllNodes[]>>;
+  setEdges: Dispatch<SetStateAction<Edge[]>>;
+  setNodeEnd?: () => void;
+}
+
+const Menu = ({
+  nodeId,
+  handleId,
+  handleType,
+  position,
+  setNodes,
+  setEdges,
+  setNodeEnd,
+}: IMenuProps) => {
+  const { screenToFlowPosition } = useReactFlow();
+
+  const addNode = (type: NodeType) => {
+    const newNode: TAllNodes = {
+      id: nanoid(),
+      position: screenToFlowPosition(position),
+      type,
+      data: type === NodeType.TextNode ? { text: "" } : { url: "" },
+    } as TAllNodes;
+
+    setNodes((nds) => nds.concat(newNode));
+
+    if (nodeId) {
+      setEdges((eds) => {
+        if (handleType === "target") {
+          return eds.concat({
+            id: nanoid(),
+            source: newNode.id,
+            sourceHandle: SOURCE_HANDLE,
+            target: nodeId,
+            targetHandle: handleId || TARGET_HANDLE,
+            animated: true,
+          });
+        }
+        return eds.concat({
+          id: nanoid(),
+          source: nodeId,
+          sourceHandle: handleId || SOURCE_HANDLE,
+          target: newNode.id,
+          targetHandle: TARGET_HANDLE,
+          animated: true,
+        });
+      });
+    }
+    setNodeEnd?.();
+  };
+
+  return (
+    <div
+      className={`${CARD} absolute z-50 flex-col p-0! overflow-hidden`}
+      style={{ top: position.y, left: position.x }}
+    >
+      <button
+        className="block w-full text-left px-4 py-2 text-sm hover:bg-black/90 cursor-pointer text-white/50 hover:text-white"
+        onClick={() => addNode(NodeType.TextNode)}
+      >
+        文本节点 (Text)
+      </button>
+      <button
+        className="block w-full text-left px-4 py-2 text-sm hover:bg-black/90 cursor-pointer text-white/50 hover:text-white"
+        onClick={() => addNode(NodeType.ImageNode)}
+      >
+        图片节点 (Image)
+      </button>
+    </div>
+  );
+};
+
+export default Menu;

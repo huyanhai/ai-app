@@ -1,0 +1,33 @@
+import { ReactNode, useMemo } from "react";
+import { NodeType } from "../types";
+import { FileImage, FileText } from "lucide-react";
+
+interface INodeTypeTag {
+  type: string;
+}
+
+const typeMap: Record<string, { label: string; icon: ReactNode }> = {
+  [NodeType.TextNode]: {
+    label: "文本节点",
+    icon: <FileText size={14} />,
+  },
+  [NodeType.ImageNode]: {
+    label: "图片节点",
+    icon: <FileImage size={14} />,
+  },
+};
+
+const NodeTypeTag = ({ type }: INodeTypeTag) => {
+  const info = useMemo(() => {
+    return typeMap[type];
+  }, [type]);
+
+  return (
+    <div className="absolute -top-5 left-0 flex items-center gap-1">
+      {info?.icon}
+      <span className="text-xs font-medium">{info?.label}</span>
+    </div>
+  );
+};
+
+export default NodeTypeTag;

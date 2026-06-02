@@ -20,3 +20,10 @@ export type TNodeText = Node<TNodeTextData>;
 export type TNodeImage = Node<TNodeImageData>;
 
 export type TAllNodes = TNodeText | TNodeImage;
+
+export interface IMenu {
+  id: string;
+  position: { x: number; y: number };
+  top: number;
+  left: number;
+}

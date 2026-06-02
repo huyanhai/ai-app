@@ -7,8 +7,9 @@ import {
   useMemo,
   useState,
 } from "react";
-import { NodeType, TAllNodes, TNodeTextData } from "./types";
+import { NodeType, TAllNodes } from "./types";
 import { sseFetch } from "@/lib/sse";
+import { Forward } from "lucide-react";
 
 const ChatInput = <T extends TAllNodes>(props: {
   setNodes: Dispatch<SetStateAction<T[]>>;
@@ -85,9 +86,9 @@ const ChatInput = <T extends TAllNodes>(props: {
       <div className="flex justify-end">
         <button
           onClick={submit}
-          className="h-9 items-center px-4 rounded-md bg-white text-slate-600 transition"
+          className={`flex size-8 items-center justify-center rounded-full bg-white/50 hover:bg-white transition text-black ${text ? "cursor-pointer bg-white!" : "cursor-not-allowed"}`}
         >
-          发送
+          <Forward size={18} />
         </button>
       </div>
     </div>

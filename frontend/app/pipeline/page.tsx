@@ -1,5 +1,10 @@
 "use client";
-import { ComponentType, useCallback } from "react";
+import {
+  useCallback,
+  useRef,
+  useState,
+  MouseEvent as ReactMouseEvent,
+} from "react";
 import {
   Background,
   MiniMap,
@@ -10,14 +15,30 @@ import {
   Edge,
   NodeToolbar,
   Position,
+  ReactFlowProvider,
+  addEdge,
+  Connection,
+  OnConnectStartParams,
+  XYPosition,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import nodeTypes from "@/components/pipeline";
+import nodeTypes from "@/components/pipeline/nodes";
 import ChatInput from "@/components/pipeline/chat-input";
 import { usePipelineStore } from "@/store/pipeline-store";
-import { NodeType, TAllNodes } from "@/components/pipeline/types";
+import { TAllNodes } from "@/components/pipeline/types";
+import Menu from "@/components/pipeline/menu";
 
-const page = () => {
+const Flow = () => {
+  const [endPos, setEndPos] = useState<XYPosition | null>(null);
+  const [nodes, setNodes, onNodesChange] = useNodesState<TAllNodes>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+
+  const connectingNodeId = useRef<string | null>(null);
+  const connectingHandleId = useRef<string | null>(null);
+  const connectingHandleType = useRef<string | null>(null);
+  const connectionSuccessful = useRef(false);
+  const lastConnectEnd = useRef<number>(0);
+
   const setCurrentSelectNode = usePipelineStore(
     (state) => state.setCurrentSelectNode,
   );
@@ -25,32 +46,41 @@ const page = () => {
     (state) => state.currentSelectNode,
   );
 
-  const [nodes, setNodes, onNodesChange] = useNodesState<TAllNodes>([
-    {
-      id: "1",
-      position: {
-        x: 0,
-        y: 0,
-      },
-      type: NodeType.TextNode,
-      data: {
-        text: "123",
-      },
+  const onConnect = useCallback(
+    (params: Connection) => {
+      connectionSuccessful.current = true;
+      setEdges((eds) => addEdge(params, eds));
     },
-    {
-      id: "2",
-      position: {
-        x: 100,
-        y: 100,
-      },
-      type: NodeType.ImageNode,
-      data: {
-        url: "https://dashscope-7c2c.oss-accelerate.aliyuncs.com/7d/d7/20260602/51613171/c6fb38f2-c917-484d-a943-4d67f591a802.png?Expires=1780970893&OSSAccessKeyId=LTAI5tPxpiCM2hjmWrFXrym1&Signature=yw%2Fl1FFs5ZIBQ6sNfsXIViE1%2FpA%3D",
-      },
-    },
-  ]);
+    [setEdges],
+  );
 
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const onConnectStart = useCallback(
+    (
+      _: MouseEvent | TouchEvent,
+      { nodeId, handleId, handleType }: OnConnectStartParams,
+    ) => {
+      connectionSuccessful.current = false;
+      connectingNodeId.current = nodeId;
+      connectingHandleId.current = handleId;
+      connectingHandleType.current = handleType;
+    },
+    [],
+  );
+
+  const onConnectEnd = useCallback((event: any) => {
+    if (!connectingNodeId.current) return;
+    if (connectionSuccessful.current) return;
+
+    const targetIsPane = event.target.classList.contains("react-flow__pane");
+
+    if (targetIsPane) {
+      lastConnectEnd.current = Date.now();
+      // Remove wrapper bounds in order to get the correct position
+      const { clientX, clientY } =
+        "changedTouches" in event ? event.changedTouches[0] : event;
+      setEndPos({ x: clientX, y: clientY });
+    }
+  }, []);
 
   const onSelectionChange = useCallback(
     ({ nodes }: OnSelectionChangeParams<TAllNodes, Edge>) => {
@@ -59,32 +89,92 @@ const page = () => {
     [setCurrentSelectNode],
   );
 
-  return (
-    <ReactFlow
-      nodes={nodes}
-      edges={edges}
-      onNodesChange={onNodesChange}
-      onEdgesChange={onEdgesChange}
-      onSelectionChange={onSelectionChange}
-      nodeTypes={nodeTypes}
-      panOnScroll={true}
-      fitView
-      fitViewOptions={{ minZoom: 1, maxZoom: 1 }}
-    >
-      <Background />
-      <MiniMap />
+  // 右键显示菜单
+  const onPaneContextMenu = useCallback(
+    (event: ReactMouseEvent | MouseEvent) => {
+      event.preventDefault();
+      connectingNodeId.current = null;
+      connectingHandleId.current = null;
+      connectingHandleType.current = null;
+      const clientX =
+        "clientX" in event
+          ? event.clientX
+          : (event as any).touches?.[0]?.clientX;
+      const clientY =
+        "clientY" in event
+          ? event.clientY
+          : (event as any).touches?.[0]?.clientY;
+      setEndPos({ x: clientX, y: clientY });
+    },
+    [],
+  );
 
-      {currentSelectNode && (
-        <NodeToolbar
-          nodeId={currentSelectNode.id}
-          position={Position.Bottom}
-          isVisible={true}
-        >
-          <ChatInput setNodes={setNodes} />
-        </NodeToolbar>
+  // 点击空白处
+  const onPaneClick = useCallback(() => {
+    if (Date.now() - lastConnectEnd.current < 100) {
+      return;
+    }
+    setEndPos(null);
+  }, []);
+
+  function setNodeEnd() {
+    setEndPos(null);
+  }
+
+  return (
+    <div className="w-full h-full relative">
+      <ReactFlow
+        colorMode="dark"
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        onConnectStart={onConnectStart}
+        onConnectEnd={onConnectEnd}
+        onSelectionChange={onSelectionChange}
+        onPaneContextMenu={onPaneContextMenu}
+        onPaneClick={onPaneClick}
+        nodeTypes={nodeTypes}
+        panOnScroll={true}
+        fitView
+        fitViewOptions={{ minZoom: 1, maxZoom: 1 }}
+      >
+        <Background />
+        <MiniMap />
+
+        {currentSelectNode && (
+          <NodeToolbar
+            nodeId={currentSelectNode.id}
+            position={Position.Bottom}
+            isVisible={true}
+          >
+            <ChatInput setNodes={setNodes} />
+          </NodeToolbar>
+        )}
+      </ReactFlow>
+
+      {endPos && (
+        <Menu
+          position={endPos}
+          nodeId={connectingNodeId.current}
+          handleId={connectingHandleId.current}
+          handleType={connectingHandleType.current}
+          setEdges={setEdges}
+          setNodes={setNodes}
+          setNodeEnd={setNodeEnd}
+        />
       )}
-    </ReactFlow>
+    </div>
   );
 };
 
-export default page;
+const Page = () => {
+  return (
+    <ReactFlowProvider>
+      <Flow />
+    </ReactFlowProvider>
+  );
+};
+
+export default Page;

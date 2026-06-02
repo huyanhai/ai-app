@@ -1,0 +1,24 @@
+{
+  "name": "ai",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "backend": "pnpm --filter backend run dev",
+    "frontend": "pnpm --filter frontend run dev",
+    "dev": "pnpm -r --parallel dev"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.13.1",
+  "dependencies": {
+    "cloakbrowser": "^0.3.28",
+    "eslint": "^10.4.0",
+    "typescript": "^6.0.3",
+    "zod": "^4.4.3",
+    "backend": "workspace:*",
+    "frontend": "workspace:*"
+  }
+}

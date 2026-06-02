@@ -1,0 +1,55 @@
+@import "tailwindcss";
+/* @plugin "@tailwindcss/typography"; */
+
+@theme inline {
+  --color-background: #cbcbcb;
+  --color-surface: #e8e8e8;
+  --color-card: #dddcd7;
+  --color-foreground: #1a1a1a;
+  --color-muted: #6b6b68;
+  --color-border: #cacaca;
+  --color-accent: #0755bb;
+  --color-accent-light: rgba(7, 85, 187, 0.32);
+  --color-white: #ffffff;
+  --font-serif: "Playfair Display", Georgia, serif;
+  --font-mono: "IBM Plex Mono", monospace;
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-display: "Playfair Display", Georgia, serif;
+}
+
+@layer base {
+  @font-face {
+    font-family: "Playfair Display";
+    font-style: normal;
+    font-weight: 400 900;
+    font-display: swap;
+    src: url("https://fonts.gstatic.com/s/playfairdisplay/v37/nuFvD-vYSZviVYUb_rj3ij__anPXJzDwcbmjWBN2PKdFvXDXbtM.woff2")
+      format("woff2");
+  }
+
+  @font-face {
+    font-family: "IBM Plex Mono";
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url("https://fonts.gstatic.com/s/ibmplexmono/v20/-F6qfjptAgt5VM-kVkqdyU8n3twJ8lJPg-IUDNg.woff2")
+      format("woff2");
+  }
+
+  @font-face {
+    font-family: "IBM Plex Mono";
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url("https://fonts.gstatic.com/s/ibmplexmono/v20/-F6qfjptAgt5VM-kVkqdyU8n3oQI8lJPg-IUDNg.woff2")
+      format("woff2");
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}

@@ -7,9 +7,11 @@ import {
   useMemo,
   useState,
 } from "react";
-import { NodeType, TAllNodes } from "./types";
+import { NodeType, TAllNodes, TNodeImage, TNodeText } from "./types";
 import { sseFetch } from "@/lib/sse";
 import { Forward } from "lucide-react";
+import Editor from "./editor";
+import { Node, useNodeConnections, useReactFlow } from "@xyflow/react";
 
 const ChatInput = <T extends TAllNodes>(props: {
   setNodes: Dispatch<SetStateAction<T[]>>;
@@ -18,6 +20,32 @@ const ChatInput = <T extends TAllNodes>(props: {
   const currentSelectNode = usePipelineStore(
     (state) => state.currentSelectNode,
   );
+
+  const { getNode } = useReactFlow();
+
+  const connections = useNodeConnections({
+    id: currentSelectNode?.id || "",
+    handleType: "source",
+  });
+
+  const allNodes = useMemo(() => {
+    const textNodes: TNodeText[] = [];
+    const imageNodes: TNodeImage[] = [];
+
+    connections.forEach((con) => {
+      const node = getNode(con.target);
+      if (node?.type === NodeType.TextNode) {
+        textNodes.push(node as TNodeText);
+      }
+      if (node?.type === NodeType.ImageNode) {
+        imageNodes.push(node as TNodeImage);
+      }
+    });
+
+    console.log(textNodes, imageNodes);
+
+    return { textNodes, imageNodes };
+  }, [connections]);
 
   const nodeType = useMemo(() => {
     return currentSelectNode?.type;
@@ -45,16 +73,6 @@ const ChatInput = <T extends TAllNodes>(props: {
     setText("");
   }, [currentSelectNode, text]);
 
-  const onKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        submit();
-      }
-    },
-    [submit],
-  );
-
   function updateNodeData<T extends TAllNodes["data"]>(id: string, data: T) {
     props.setNodes((nodes) => {
       return nodes.map((node) => {
@@ -74,15 +92,12 @@ const ChatInput = <T extends TAllNodes>(props: {
 
   return (
     <div className={`${CARD} flex-col w-[400px] h-[120px]`}>
-      <textarea
+      <Editor
         value={text}
-        onChange={(e) => {
-          setText(e.target.value);
-        }}
-        onKeyDown={onKeyDown}
-        placeholder="请输入需求"
-        className="flex-1 bg-transparent border-0 outline-none w-full h-full resize-none text-sm"
-      ></textarea>
+        onChange={setText}
+        onSubmit={submit}
+        images={allNodes.imageNodes}
+      />
       <div className="flex justify-end">
         <button
           onClick={submit}

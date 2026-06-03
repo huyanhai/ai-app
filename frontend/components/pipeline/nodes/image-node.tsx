@@ -1,6 +1,5 @@
 "use client";
 import { CARD } from "@/constants/class-names";
-
 import { TNodeImage } from "../types";
 import { Handle, NodeProps, Position } from "@xyflow/react";
 import { SOURCE_HANDLE, TARGET_HANDLE } from "../constants";

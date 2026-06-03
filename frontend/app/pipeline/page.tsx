@@ -30,7 +30,32 @@ import Menu from "@/components/pipeline/menu";
 
 const Flow = () => {
   const [endPos, setEndPos] = useState<XYPosition | null>(null);
-  const [nodes, setNodes, onNodesChange] = useNodesState<TAllNodes>([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<TAllNodes>([
+    {
+      id: "2",
+      type: "textNode",
+      data: {
+        text: "12",
+      },
+      position: { x: 100, y: 100 },
+    },
+    {
+      id: "1",
+      type: "imageNode",
+      data: {
+        url: "https://gips2.baidu.com/it/u=195724436,3554684702&fm=3028&app=3028&f=JPEG&fmt=auto",
+      },
+      position: { x: 0, y: 0 },
+    },
+    {
+      id: "3",
+      type: "imageNode",
+      data: {
+        url: "",
+      },
+      position: { x: 200, y: 200 },
+    },
+  ]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   const connectingNodeId = useRef<string | null>(null);

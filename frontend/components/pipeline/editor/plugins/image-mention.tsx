@@ -61,10 +61,12 @@ const ImageMentionPlugin = ({ images }: { images: TNodeImage[] }) => {
         const nodeKey = nodeToReplace?.getKey();
         editor.update(() => {
           const node = nodeKey ? $getNodeByKey(nodeKey) : null;
-          const spaceNode = $createTextNode(" ");
           if (node?.isAttached()) {
-            node.replace($createImageNode(option.url));
-            // node.insertAfter(spaceNode);
+            const imageNode = $createImageNode(option.url);
+            const spaceNode = $createTextNode(" ");
+            node.replace(imageNode);
+            imageNode.insertAfter(spaceNode);
+            spaceNode.select(0, 0);
           }
         });
 

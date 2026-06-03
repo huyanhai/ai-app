@@ -51,6 +51,14 @@ const Flow = () => {
       id: "3",
       type: "imageNode",
       data: {
+        url: "https://gips0.baidu.com/it/u=3602773692,1512483864&fm=3028&app=3028&f=JPEG&fmt=auto?w=960&h=1280",
+      },
+      position: { x: 20, y: 0 },
+    },
+    {
+      id: "4",
+      type: "imageNode",
+      data: {
         url: "",
       },
       position: { x: 200, y: 200 },

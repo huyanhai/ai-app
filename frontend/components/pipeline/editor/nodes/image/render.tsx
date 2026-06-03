@@ -42,11 +42,16 @@ export class ImageNodeRender extends DecoratorNode<ReactNode> {
     const dom = document.createElement("span");
     dom.style.display = "inline-flex";
     dom.style.verticalAlign = "middle";
+    dom.contentEditable = "false";
     return dom;
   }
 
   updateDOM(): boolean {
     return false;
+  }
+
+  isInline(): boolean {
+    return true;
   }
 
   decorate(): ReactNode {

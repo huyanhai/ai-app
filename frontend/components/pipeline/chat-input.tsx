@@ -11,7 +11,7 @@ import { NodeType, TAllNodes, TNodeImage, TNodeText } from "./types";
 import { sseFetch } from "@/lib/sse";
 import { Forward } from "lucide-react";
 import Editor from "./editor";
-import { Node, useNodeConnections, useReactFlow } from "@xyflow/react";
+import { useNodeConnections, useReactFlow } from "@xyflow/react";
 
 const ChatInput = <T extends TAllNodes>(props: {
   setNodes: Dispatch<SetStateAction<T[]>>;
@@ -91,13 +91,17 @@ const ChatInput = <T extends TAllNodes>(props: {
   }
 
   return (
-    <div className={`${CARD} flex-col w-[400px] h-[120px]`}>
-      <Editor
-        value={text}
-        onChange={setText}
-        onSubmit={submit}
-        images={allNodes.imageNodes}
-      />
+    <div
+      className={`${CARD} nodrag nopan nowheel flex-col w-[400px] h-[120px]`}
+    >
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <Editor
+          value={text}
+          onChange={setText}
+          onSubmit={submit}
+          images={allNodes.imageNodes}
+        />
+      </div>
       <div className="flex justify-end">
         <button
           onClick={submit}

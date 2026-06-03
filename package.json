@@ -14,11 +14,12 @@
   "license": "ISC",
   "packageManager": "pnpm@10.13.1",
   "dependencies": {
+    "backend": "workspace:*",
     "cloakbrowser": "^0.3.28",
     "eslint": "^10.4.0",
+    "frontend": "workspace:*",
+    "superjson": "^2.2.6",
     "typescript": "^6.0.3",
-    "zod": "^4.4.3",
-    "backend": "workspace:*",
-    "frontend": "workspace:*"
+    "zod": "^4.4.3"
   }
 }

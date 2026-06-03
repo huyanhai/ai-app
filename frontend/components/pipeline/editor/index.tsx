@@ -1,18 +1,16 @@
-import { useEffect } from "react";
 import {
   $createParagraphNode,
   $createTextNode,
   $getRoot,
-  COMMAND_PRIORITY_LOW,
-  KEY_ENTER_COMMAND,
+  SerializedEditorState,
 } from "lexical";
+import superjson from "superjson";
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
 import {
   InitialConfigType,
   LexicalComposer,
 } from "@lexical/react/LexicalComposer";
-import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
@@ -21,75 +19,46 @@ import { TNodeImage } from "../types";
 import { ImageNodeRender } from "./nodes";
 
 import ImageMentionPlugin from "./plugins/image-mention";
-
-function SyncValuePlugin({ value }: { value: string }) {
-  const [editor] = useLexicalComposerContext();
-
-  useEffect(() => {
-    editor.update(() => {
-      const root = $getRoot();
-      const currentText = root.getTextContent();
-
-      if (currentText === value) {
-        return;
-      }
-
-      root.clear();
-
-      if (!value) {
-        return;
-      }
-
-      const paragraph = $createParagraphNode();
-      paragraph.append($createTextNode(value));
-      root.append(paragraph);
-    });
-  }, [editor, value]);
-
-  return null;
-}
-
-function SubmitOnEnterPlugin({ onSubmit }: { onSubmit: () => void }) {
-  const [editor] = useLexicalComposerContext();
-
-  useEffect(() => {
-    return editor.registerCommand(
-      KEY_ENTER_COMMAND,
-      (event) => {
-        if (event?.shiftKey) {
-          return false;
-        }
-
-        event?.preventDefault();
-        onSubmit();
-        return true;
-      },
-      COMMAND_PRIORITY_LOW,
-    );
-  }, [editor, onSubmit]);
-
-  return null;
-}
-
-const initialConfig: InitialConfigType = {
-  namespace: "PipelineChatInput",
-  onError(error: Error) {
-    throw error;
-  },
-  nodes: [ImageNodeRender],
-};
+import SubmitOnEnterPlugin from "./plugins/submit-on-enter";
 
 const Editor = ({
-  value,
-  onChange,
   onSubmit,
   images,
+  initialState,
+  onStateChange,
 }: {
-  value: string;
-  onChange: (value: string) => void;
   onSubmit: () => void;
   images: TNodeImage[];
+  initialState: string;
+  onStateChange?: (state: string) => void;
 }) => {
+  // 在 initialConfig 中通过 editorState 设置初始内容，LexicalComposer 在挂载时
+  // 会先处理 editorState，再注册子插件，因此不会触发 OnChangePlugin 且不影响历史记录
+  const initialConfig: InitialConfigType = {
+    namespace: "PipelineChatInput",
+    onError(error: Error) {
+      throw error;
+    },
+    nodes: [ImageNodeRender],
+    editorState(editor) {
+      if (!initialState) return;
+      const parsed = superjson.parse<SerializedEditorState>(initialState);
+
+      // 如果只是纯文本
+      if (typeof parsed === "string") {
+        editor.update(() => {
+          const root = $getRoot();
+          root.clear();
+          const paragraph = $createParagraphNode();
+          paragraph.append($createTextNode(parsed));
+          root.append(paragraph);
+        });
+      } else {
+        editor.setEditorState(editor.parseEditorState(parsed));
+      }
+    },
+  };
+
   return (
     <LexicalComposer initialConfig={initialConfig}>
       <PlainTextPlugin
@@ -105,12 +74,9 @@ const Editor = ({
       />
       <OnChangePlugin
         onChange={(editorState) => {
-          editorState.read(() => {
-            onChange($getRoot().getTextContent());
-          });
+          onStateChange?.(superjson.stringify(editorState.toJSON()));
         }}
       />
-      <SyncValuePlugin value={value} />
       <SubmitOnEnterPlugin onSubmit={onSubmit} />
       <ImageMentionPlugin images={images} />
       <HistoryPlugin />

@@ -1,4 +1,9 @@
-import { DecoratorNode, LexicalNode, NodeKey, SerializedLexicalNode } from "lexical";
+import {
+  DecoratorNode,
+  LexicalNode,
+  NodeKey,
+  SerializedLexicalNode,
+} from "lexical";
 import ImageNode from "./node";
 import { ReactNode } from "react";
 
@@ -26,15 +31,15 @@ export class ImageNodeRender extends DecoratorNode<ReactNode> {
     );
   }
 
-  static importJSON(data: IImageNode): LexicalNode {
+  static importJSON(data: IImageNode): ImageNodeRender {
     return $createImageNode(data.url);
   }
 
-  static exportJSON(node: ImageNodeRender): IImageNode {
+  exportJSON(): IImageNode {
     return {
       type: "image",
       version: 1,
-      url: node.__url,
+      url: this.__url,
     };
   }
 

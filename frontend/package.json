@@ -13,6 +13,7 @@
     "@chenglou/pretext": "^0.0.7",
     "@gsap/react": "^2.1.2",
     "@lexical/react": "^0.45.0",
+    "@lexical/utils": "^0.45.0",
     "@tailwindcss/typography": "^0.5.19",
     "@tanstack/react-query": "^5.100.10",
     "@xyflow/react": "^12.10.2",

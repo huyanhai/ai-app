@@ -62,6 +62,12 @@ export class ImageNodeRender extends DecoratorNode<ReactNode> {
   decorate(): ReactNode {
     return <ImageNode url={this.__url} isSelected status="success" />;
   }
+
+  getConfig() {
+    return {
+      url: this.__url,
+    };
+  }
 }
 
 export function $createImageNode(url: string): ImageNodeRender {

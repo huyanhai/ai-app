@@ -1,8 +1,11 @@
+import { forwardRef, useImperativeHandle, useRef, ForwardedRef } from "react";
 import {
   $createParagraphNode,
   $createTextNode,
   $getRoot,
+  $isTextNode,
   SerializedEditorState,
+  LexicalEditor,
 } from "lexical";
 import superjson from "superjson";
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
@@ -15,25 +18,38 @@ import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
 import { PlainTextPlugin } from "@lexical/react/LexicalPlainTextPlugin";
-import { TNodeImage } from "../types";
-import { ImageNodeRender } from "./nodes";
+import { EditorRefPlugin } from "@lexical/react/LexicalEditorRefPlugin";
+import { $dfs } from "@lexical/utils";
+
+import { TNodeImage, TSendMessageContent } from "../types";
+import { $isImageNode, ImageNodeRender } from "./nodes";
 
 import ImageMentionPlugin from "./plugins/image-mention";
 import SubmitOnEnterPlugin from "./plugins/submit-on-enter";
 
-const Editor = ({
-  onSubmit,
-  images,
-  initialState,
-  onStateChange,
-  onEmptyStateChange,
-}: {
+interface IEditorProps {
   onSubmit: () => void;
   images: TNodeImage[];
   initialState: string;
   onStateChange?: (state: string) => void;
   onEmptyStateChange?: (state: boolean) => void;
-}) => {
+}
+
+export interface IEditorRef {
+  getEditor: () => Promise<TSendMessageContent[]>;
+}
+
+const Editor = (
+  {
+    onSubmit,
+    images,
+    initialState,
+    onStateChange,
+    onEmptyStateChange,
+  }: IEditorProps,
+  ref: ForwardedRef<IEditorRef>,
+) => {
+  const editorRef = useRef<LexicalEditor>(null);
   // 在 initialConfig 中通过 editorState 设置初始内容，LexicalComposer 在挂载时
   // 会先处理 editorState，再注册子插件，因此不会触发 OnChangePlugin 且不影响历史记录
   const initialConfig: InitialConfigType = {
@@ -60,6 +76,39 @@ const Editor = ({
       }
     },
   };
+
+  useImperativeHandle(ref, () => ({
+    getEditor: () => {
+      return new Promise<TSendMessageContent[]>((resolve) => {
+        editorRef.current?.read(() => {
+          const allNodes = $dfs();
+          const messages: TSendMessageContent[] = [];
+
+          allNodes.forEach(({ node, depth }) => {
+            if ($isTextNode(node)) {
+              const text = node.getTextContent().trim();
+              if (text) {
+                messages.push({
+                  type: "text",
+                  text,
+                });
+              }
+            }
+            if ($isImageNode(node)) {
+              messages.push({
+                type: "image_url",
+                image_url: {
+                  url: node.getConfig().url,
+                },
+              });
+            }
+          });
+
+          resolve(messages);
+        });
+      });
+    },
+  }));
 
   return (
     <LexicalComposer initialConfig={initialConfig}>
@@ -93,8 +142,9 @@ const Editor = ({
       <ImageMentionPlugin images={images} />
       <HistoryPlugin />
       <AutoFocusPlugin />
+      <EditorRefPlugin editorRef={editorRef} />
     </LexicalComposer>
   );
 };
 
-export default Editor;
+export default forwardRef<IEditorRef, IEditorProps>(Editor);

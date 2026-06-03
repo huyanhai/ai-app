@@ -1,4 +1,5 @@
 import { Node } from "@xyflow/react";
+import { HumanMessage } from "langchain";
 
 export enum NodeType {
   TextNode = "textNode",
@@ -20,6 +21,8 @@ export type TNodeText = Node<TNodeTextData>;
 export type TNodeImage = Node<TNodeImageData>;
 
 export type TAllNodes = TNodeText | TNodeImage;
+
+export type TSendMessageContent = HumanMessage["content"][0];
 
 export interface IMenu {
   id: string;

@@ -6,11 +6,13 @@ import {
   useCallback,
   useMemo,
   useState,
+  useRef,
+  Ref,
 } from "react";
 import { NodeType, TAllNodes, TNodeImage, TNodeText } from "./types";
 import { sseFetch } from "@/lib/sse";
 import { Forward } from "lucide-react";
-import Editor from "./editor";
+import Editor, { IEditorRef } from "./editor";
 import { useNodeConnections, useReactFlow } from "@xyflow/react";
 
 const cacheInputNodePrompts = new Map<string, string>();
@@ -18,6 +20,8 @@ const cacheInputNodePrompts = new Map<string, string>();
 const ChatInput = <T extends TAllNodes>(props: {
   setNodes: Dispatch<SetStateAction<T[]>>;
 }) => {
+  const editorRef = useRef<IEditorRef>(null);
+
   const { getNode } = useReactFlow();
 
   const currentSelectNode = usePipelineStore(
@@ -59,14 +63,16 @@ const ChatInput = <T extends TAllNodes>(props: {
     return allNodes.textNodes[0]?.data.text ?? "";
   }, [nodeId, allNodes.textNodes]);
 
-  const submit = useCallback(() => {
+  const submit = useCallback(async () => {
+    const messages = await editorRef.current?.getEditor();
+
     const url =
       nodeType === NodeType.TextNode ? "/pipeline/text" : "/pipeline/image";
     const abortController = new AbortController();
     sseFetch({
       url,
       body: JSON.stringify({
-        message: cacheInputNodePrompts.get(currentSelectNode?.id ?? "") ?? "",
+        message: messages,
       }),
       abortController,
       cb: (data) => {
@@ -81,8 +87,8 @@ const ChatInput = <T extends TAllNodes>(props: {
     });
 
     // 提交后清空当前节点的缓存，下次切回时输入框为空
-    if (currentSelectNode?.id) {
-      cacheInputNodePrompts.delete(currentSelectNode.id);
+    if (nodeId) {
+      cacheInputNodePrompts.delete(nodeId!);
     }
   }, [currentSelectNode]);
 
@@ -112,11 +118,10 @@ const ChatInput = <T extends TAllNodes>(props: {
   }
 
   return (
-    <div
-      className={`${CARD} nodrag nopan nowheel flex-col w-[400px] h-[120px]`}
-    >
+    <div className={`${CARD} nodrag nopan nowheel flex-col w-100 h-30`}>
       <div className="flex-1 min-h-0 overflow-y-auto">
         <Editor
+          ref={editorRef}
           key={nodeId}
           onSubmit={submit}
           images={allNodes.imageNodes}

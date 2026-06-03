@@ -26,11 +26,13 @@ const Editor = ({
   images,
   initialState,
   onStateChange,
+  onEmptyStateChange,
 }: {
   onSubmit: () => void;
   images: TNodeImage[];
   initialState: string;
   onStateChange?: (state: string) => void;
+  onEmptyStateChange?: (state: boolean) => void;
 }) => {
   // 在 initialConfig 中通过 editorState 设置初始内容，LexicalComposer 在挂载时
   // 会先处理 editorState，再注册子插件，因此不会触发 OnChangePlugin 且不影响历史记录
@@ -74,6 +76,16 @@ const Editor = ({
       />
       <OnChangePlugin
         onChange={(editorState) => {
+          const node = editorState.read(() => {
+            const root = $getRoot();
+            return (
+              root.getAllTextNodes().filter((node) => {
+                return node.getTextContent().trim() !== "";
+              }).length + (root.getDirection()?.length || 0)
+            );
+          });
+
+          onEmptyStateChange?.(!node);
           onStateChange?.(superjson.stringify(editorState.toJSON()));
         }}
       />

@@ -1,6 +1,12 @@
 import { CARD } from "@/constants/class-names";
 import { usePipelineStore } from "@/store/pipeline-store";
-import { Dispatch, SetStateAction, useCallback, useMemo } from "react";
+import {
+  Dispatch,
+  SetStateAction,
+  useCallback,
+  useMemo,
+  useState,
+} from "react";
 import { NodeType, TAllNodes, TNodeImage, TNodeText } from "./types";
 import { sseFetch } from "@/lib/sse";
 import { Forward } from "lucide-react";
@@ -22,6 +28,8 @@ const ChatInput = <T extends TAllNodes>(props: {
     id: currentSelectNode?.id || "",
     handleType: "source",
   });
+
+  const [isEmpty, setIsEmpty] = useState(true);
 
   const allNodes = useMemo(() => {
     const textNodes: TNodeText[] = [];
@@ -114,12 +122,13 @@ const ChatInput = <T extends TAllNodes>(props: {
           images={allNodes.imageNodes}
           initialState={initialState}
           onStateChange={updatePromptWithJson}
+          onEmptyStateChange={setIsEmpty}
         />
       </div>
       <div className="flex justify-end">
         <button
           onClick={submit}
-          className={`flex size-8 items-center justify-center rounded-full bg-white/50 hover:bg-white transition text-black ${initialState ? "cursor-pointer bg-white!" : "cursor-not-allowed"}`}
+          className={`flex size-8 items-center justify-center rounded-full bg-white/50 hover:bg-white transition text-black ${!isEmpty ? "cursor-pointer bg-white!" : "cursor-not-allowed"}`}
         >
           <Forward size={18} />
         </button>

@@ -7,34 +7,41 @@ import {
   useMemo,
   useState,
   useRef,
-  Ref,
 } from "react";
-import { NodeType, TAllNodes, TNodeImage, TNodeText } from "./types";
+import { NodeType, TAllNodes, TNodeImage, TNodeText } from "../types";
 import { sseFetch } from "@/lib/sse";
 import { Forward } from "lucide-react";
-import Editor, { IEditorRef } from "./editor";
+import Editor, { IEditorRef } from "../editor";
 import { useNodeConnections, useReactFlow } from "@xyflow/react";
+import Config from "./config";
 
 const cacheInputNodePrompts = new Map<string, string>();
 
 const ChatInput = <T extends TAllNodes>(props: {
   setNodes: Dispatch<SetStateAction<T[]>>;
 }) => {
+  const [isEmpty, setIsEmpty] = useState(true);
   const editorRef = useRef<IEditorRef>(null);
 
   const { getNode } = useReactFlow();
 
-  const currentSelectNode = usePipelineStore(
-    (state) => state.currentSelectNode,
-  );
+  const pipelineStore = usePipelineStore();
 
+  const [nodeType, nodeId, nodeData] = useMemo(() => {
+    return [
+      pipelineStore.currentSelectNode?.type,
+      pipelineStore.currentSelectNode?.id,
+      pipelineStore.currentSelectNode?.data,
+    ];
+  }, [pipelineStore.currentSelectNode]);
+
+  // 当前节点的连线
   const connections = useNodeConnections({
-    id: currentSelectNode?.id || "",
+    id: nodeId || "",
     handleType: "source",
   });
 
-  const [isEmpty, setIsEmpty] = useState(true);
-
+  // 跟当前节点相连的节点
   const allNodes = useMemo(() => {
     const textNodes: TNodeText[] = [];
     const imageNodes: TNodeImage[] = [];
@@ -51,10 +58,6 @@ const ChatInput = <T extends TAllNodes>(props: {
     return { textNodes, imageNodes };
   }, [connections]);
 
-  const [nodeType, nodeId] = useMemo(() => {
-    return [currentSelectNode?.type, currentSelectNode?.id];
-  }, [currentSelectNode]);
-
   // 计算当前节点的初始内容：优先用缓存的输入，其次用节点已有数据
   const initialState = useMemo(() => {
     if (!nodeId) return "";
@@ -65,6 +68,7 @@ const ChatInput = <T extends TAllNodes>(props: {
 
   const submit = useCallback(async () => {
     const messages = await editorRef.current?.getEditor();
+    editorRef.current?.clear();
 
     const url =
       nodeType === NodeType.TextNode ? "/pipeline/text" : "/pipeline/image";
@@ -73,14 +77,15 @@ const ChatInput = <T extends TAllNodes>(props: {
       url,
       body: JSON.stringify({
         message: messages,
+        config: nodeData?.config,
       }),
       abortController,
       cb: (data) => {
         if (data.type === "msg_chunk") {
           if (nodeType === NodeType.TextNode) {
-            updateNodeData(currentSelectNode?.id || "", { text: data.content });
+            updateNodeData(nodeId || "", { text: data.content });
           } else {
-            updateNodeData(currentSelectNode?.id || "", { url: data.content });
+            updateNodeData(nodeId || "", { url: data.content });
           }
         }
       },
@@ -90,7 +95,7 @@ const ChatInput = <T extends TAllNodes>(props: {
     if (nodeId) {
       cacheInputNodePrompts.delete(nodeId!);
     }
-  }, [currentSelectNode]);
+  }, [pipelineStore.currentSelectNode]);
 
   // 更新当前选中的节点上的数据
   function updateNodeData<T extends TAllNodes["data"]>(id: string, data: T) {
@@ -130,7 +135,22 @@ const ChatInput = <T extends TAllNodes>(props: {
           onEmptyStateChange={setIsEmpty}
         />
       </div>
-      <div className="flex justify-end">
+      <div className="flex justify-between items-center">
+        <div className="flex gap-2">
+          {nodeType === NodeType.ImageNode && (
+            <Config
+              key={nodeId}
+              config={nodeData?.config}
+              changeConfig={(config) => {
+                pipelineStore.updateSelectNodeData(config);
+                updateNodeData(nodeId || "", {
+                  ...nodeData,
+                  config,
+                } as TAllNodes["data"]);
+              }}
+            />
+          )}
+        </div>
         <button
           onClick={submit}
           className={`flex size-8 items-center justify-center rounded-full bg-white/50 hover:bg-white transition text-black ${!isEmpty ? "cursor-pointer bg-white!" : "cursor-not-allowed"}`}

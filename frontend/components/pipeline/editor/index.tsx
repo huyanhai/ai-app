@@ -37,6 +37,7 @@ interface IEditorProps {
 
 export interface IEditorRef {
   getEditor: () => Promise<TSendMessageContent[]>;
+  clear: () => void;
 }
 
 const Editor = (
@@ -60,19 +61,23 @@ const Editor = (
     nodes: [ImageNodeRender],
     editorState(editor) {
       if (!initialState) return;
-      const parsed = superjson.parse<SerializedEditorState>(initialState);
+      try {
+        const parsed = superjson.parse<SerializedEditorState>(initialState);
 
-      // 如果只是纯文本
-      if (typeof parsed === "string") {
-        editor.update(() => {
-          const root = $getRoot();
-          root.clear();
-          const paragraph = $createParagraphNode();
-          paragraph.append($createTextNode(parsed));
-          root.append(paragraph);
-        });
-      } else {
-        editor.setEditorState(editor.parseEditorState(parsed));
+        // 如果只是纯文本
+        if (typeof parsed === "string" || !parsed) {
+          editor.update(() => {
+            const root = $getRoot();
+            root.clear();
+            const paragraph = $createParagraphNode();
+            paragraph.append($createTextNode(parsed || initialState));
+            root.append(paragraph);
+          });
+        } else {
+          editor?.setEditorState(editor?.parseEditorState(parsed));
+        }
+      } catch (error) {
+        console.log(error);
       }
     },
   };
@@ -97,15 +102,19 @@ const Editor = (
             if ($isImageNode(node)) {
               messages.push({
                 type: "image_url",
-                image_url: {
-                  url: node.getConfig().url,
-                },
+                image_url: node.getConfig().url,
               });
             }
           });
 
           resolve(messages);
         });
+      });
+    },
+    clear: () => {
+      editorRef.current?.update(() => {
+        const root = $getRoot();
+        root.clear();
       });
     },
   }));

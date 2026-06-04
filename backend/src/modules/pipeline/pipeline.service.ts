@@ -5,22 +5,18 @@ import { AsyncQueue } from '@/common/utils/async-queue';
 import { SSE_EVENT, SSE_ROLE } from '@/common/utils/stream-constants';
 
 import { Injectable } from '@nestjs/common';
+import { HumanMessage } from 'langchain';
+import { StreamDto } from './dto/stream.dto';
 
 @Injectable()
 export class PipelineService {
-  async *text(message: string) {
+  async *text({ message }: StreamDto) {
     const queue = new AsyncQueue<StreamEvent>();
     queue.push({ type: SSE_EVENT.MSG_START, role: SSE_ROLE.ASSISTANT });
     const response = await senModel.invoke([
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'text',
-            text: message,
-          },
-        ],
-      },
+      new HumanMessage({
+        content: message,
+      } as any),
     ]);
     queue.push({ type: SSE_EVENT.MSG_CHUNK, content: response.text });
     queue.push({ type: SSE_EVENT.MSG_END });
@@ -28,7 +24,10 @@ export class PipelineService {
     yield* queue.generator();
   }
 
-  async *image(message: string) {
+  async *image({ message, config }: StreamDto) {
+    if (config?.ratio) {
+      message.push({ type: 'text', text: `图片尺寸：${config.ratio}` });
+    }
     const queue = new AsyncQueue<StreamEvent>();
     queue.push({ type: SSE_EVENT.MSG_START, role: SSE_ROLE.ASSISTANT });
     const { content } = await genImage(message);

@@ -1,0 +1,24 @@
+import {
+  IsNotEmpty,
+  IsString,
+  IsArray,
+  IsOptional,
+  IsObject,
+} from 'class-validator';
+import { HumanMessage } from 'langchain';
+
+export class ConfigDto {
+  @IsString()
+  @IsNotEmpty()
+  ratio: string;
+}
+
+export class StreamDto {
+  @IsArray()
+  @IsNotEmpty()
+  message: HumanMessage['content'][0][];
+
+  @IsObject()
+  @IsOptional()
+  config?: ConfigDto;
+}

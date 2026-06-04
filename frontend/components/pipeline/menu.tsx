@@ -1,7 +1,7 @@
 "use client";
 import { Edge, useReactFlow, XYPosition } from "@xyflow/react";
-import { IMenu, NodeType, TAllNodes } from "./types";
-import { Dispatch, SetStateAction, useMemo, useState } from "react";
+import { NodeType, TAllNodes } from "./types";
+import { Dispatch, SetStateAction } from "react";
 import { nanoid } from "nanoid";
 import { SOURCE_HANDLE, TARGET_HANDLE } from "./constants";
 import { CARD } from "@/constants/class-names";
@@ -71,13 +71,13 @@ const Menu = ({
         className="block w-full text-left px-4 py-2 text-sm hover:bg-black/90 cursor-pointer text-white/50 hover:text-white"
         onClick={() => addNode(NodeType.TextNode)}
       >
-        文本节点 (Text)
+        文本节点
       </button>
       <button
         className="block w-full text-left px-4 py-2 text-sm hover:bg-black/90 cursor-pointer text-white/50 hover:text-white"
         onClick={() => addNode(NodeType.ImageNode)}
       >
-        图片节点 (Image)
+        图片节点
       </button>
     </div>
   );

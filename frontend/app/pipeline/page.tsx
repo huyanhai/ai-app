@@ -25,12 +25,21 @@ import "@xyflow/react/dist/style.css";
 import nodeTypes from "@/components/pipeline/nodes";
 import ChatInput from "@/components/pipeline/chat-input";
 import { usePipelineStore } from "@/store/pipeline-store";
-import { TAllNodes } from "@/components/pipeline/types";
+import { NodeType, TAllNodes } from "@/components/pipeline/types";
 import Menu from "@/components/pipeline/menu";
 
 const Flow = () => {
   const [endPos, setEndPos] = useState<XYPosition | null>(null);
-  const [nodes, setNodes, onNodesChange] = useNodesState<TAllNodes>([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<TAllNodes>([
+    {
+      id: "1",
+      type: NodeType.VideoNode,
+      position: { x: 0, y: 0 },
+      data: {
+        url: "",
+      },
+    },
+  ]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   const connectingNodeId = useRef<string | null>(null);

@@ -13,7 +13,8 @@ import { sseFetch } from "@/lib/sse";
 import { Forward } from "lucide-react";
 import Editor, { IEditorRef } from "../editor";
 import { useNodeConnections, useReactFlow } from "@xyflow/react";
-import Config from "./config";
+import RatioConfig from "./ratio-config";
+import Popper from "../popper";
 
 const cacheInputNodePrompts = new Map<string, string>();
 
@@ -143,7 +144,7 @@ const ChatInput = <T extends TAllNodes>(props: {
       <div className="flex justify-between items-center">
         <div className="flex gap-2">
           {nodeType === NodeType.ImageNode && (
-            <Config
+            <RatioConfig
               key={nodeId}
               config={nodeData?.config}
               changeConfig={(config) => {
@@ -154,6 +155,9 @@ const ChatInput = <T extends TAllNodes>(props: {
                 } as TAllNodes["data"]);
               }}
             />
+          )}
+          {nodeType === NodeType.VideoNode && (
+            <Popper content={<div>123</div>} trigger={<div>122</div>} />
           )}
         </div>
         <button

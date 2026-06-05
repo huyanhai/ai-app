@@ -82,6 +82,12 @@ const Menu = ({
       >
         图片节点
       </button>
+      <button
+        className="block w-full text-left px-4 py-2 text-sm hover:bg-black/90 cursor-pointer text-white/50 hover:text-white"
+        onClick={() => addNode(NodeType.VideoNode)}
+      >
+        视频节点
+      </button>
     </div>
   );
 };

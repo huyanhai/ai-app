@@ -1,6 +1,6 @@
 import { ReactNode, useMemo } from "react";
 import { NodeType } from "../types";
-import { FileImage, FileText } from "lucide-react";
+import { FileImage, FileText, Video } from "lucide-react";
 
 interface INodeTypeTag {
   type: string;
@@ -14,6 +14,10 @@ const typeMap: Record<string, { label: string; icon: ReactNode }> = {
   [NodeType.ImageNode]: {
     label: "图片节点",
     icon: <FileImage size={14} />,
+  },
+  [NodeType.VideoNode]: {
+    label: "视频节点",
+    icon: <Video size={14} />,
   },
 };
 

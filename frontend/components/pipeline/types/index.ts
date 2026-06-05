@@ -11,6 +11,7 @@ export enum Placement {
 export enum NodeType {
   TextNode = "textNode",
   ImageNode = "imageNode",
+  VideoNode = "videoNode",
 }
 
 export type TNodeBase = {

@@ -1,38 +1,39 @@
-import { usePipelineStore } from "@/store/pipeline-store";
-import { useClickOutSide } from "@/hooks/use-click-outside";
 import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-
+import React, {
+  ForwardedRef,
+  forwardRef,
+  ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useImperativeHandle,
+} from "react";
 import { Placement } from "../types";
 import { CARD } from "@/constants/class-names";
-import Ratio from "./ratio";
-import { TNodeBase } from "../types/index";
+import { createPortal } from "react-dom";
+import { useClickOutSide } from "@/hooks/use-click-outside";
+import { ChevronDown } from "lucide-react";
 
-const RATIO_CONFIG: `${number}:${number}`[] = [
-  "1:1",
-  "9:16",
-  "16:9",
-  "3:4",
-  "4:3",
-  "3:2",
-  "2:3",
-  "4:5",
-  "5:4",
-  "21:9",
-];
-
-interface IConfigProps extends TNodeBase {
-  changeConfig: (config: TNodeBase["config"]) => void;
+interface IPopperProps {
+  trigger: ReactNode;
+  content: ReactNode;
 }
 
-const Config = ({ config, changeConfig }: IConfigProps) => {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const popoverRef = useRef<HTMLDivElement>(null);
+export interface IPopperRef {
+  closePopper: () => void;
+}
 
+const Popper = (
+  { trigger, content }: IPopperProps,
+  ref: ForwardedRef<IPopperRef>,
+) => {
+  const [open, setOpen] = useState(false);
   const [placement, setPlacement] = useState<Placement>(Placement.Top);
   const [popoverStyle, setPopoverStyle] = useState<React.CSSProperties>({});
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   // 点击外部关闭：同时排除触发按钮和 Portal 弹出层，避免点击弹出层内部误触发关闭
   useClickOutSide([containerRef, popoverRef], () => setOpen(false), open);
@@ -72,17 +73,9 @@ const Config = ({ config, changeConfig }: IConfigProps) => {
     setOpen((prev) => !prev);
   }
 
-  // 滚动或 resize 时同步位置
-  useEffect(() => {
-    if (!open) return;
-    const sync = () => updatePopoverPosition();
-    window.addEventListener("scroll", sync, true);
-    window.addEventListener("resize", sync);
-    return () => {
-      window.removeEventListener("scroll", sync, true);
-      window.removeEventListener("resize", sync);
-    };
-  }, [open, updatePopoverPosition]);
+  useImperativeHandle(ref, () => ({
+    closePopper: () => setOpen(false),
+  }));
 
   const popover = (
     <AnimatePresence>
@@ -96,37 +89,39 @@ const Config = ({ config, changeConfig }: IConfigProps) => {
           style={popoverStyle}
           className={`${CARD} backdrop-blur-xs bg-black/70 grid grid-cols-4 gap-2`}
         >
-          {RATIO_CONFIG.map((item, index) => (
-            <Ratio
-              className={
-                config?.ratio === item
-                  ? "border border-white/20 bg-black/50 rounded-md"
-                  : "border border-white/0 rounded-md cursor-pointer hover:border-white/20 hover:bg-white/5"
-              }
-              key={index}
-              ratio={item}
-              onClick={() => {
-                changeConfig({ ratio: item });
-                setOpen(false);
-              }}
-            />
-          ))}
+          {trigger}
         </motion.div>
       )}
     </AnimatePresence>
   );
 
+  // 滚动或 resize 时同步位置
+  useEffect(() => {
+    if (!open) return;
+    const sync = () => updatePopoverPosition();
+    window.addEventListener("scroll", sync, true);
+    window.addEventListener("resize", sync);
+    return () => {
+      window.removeEventListener("scroll", sync, true);
+      window.removeEventListener("resize", sync);
+    };
+  }, [open, updatePopoverPosition]);
+
   return (
-    <div className="relative" ref={containerRef}>
+    <div ref={containerRef}>
       <button
         onClick={configHandle}
-        className="text-xs text-white/60 hover:text-white/90 transition px-1 py-0.5 rounded hover:bg-white/10"
+        className="flex items-center text-xs text-white/60 hover:text-white/90 transition px-1 py-0.5 rounded hover:bg-white/10 gap-1 cursor-pointer"
       >
-        <span>{config?.ratio}</span>
+        {content}{" "}
+        <ChevronDown
+          size={14}
+          className={`${open ? "rotate-180" : ""} transition-transform duration-300`}
+        />
       </button>
       {typeof document !== "undefined" && createPortal(popover, document.body)}
     </div>
   );
 };
 
-export default Config;
+export default forwardRef<IPopperRef, IPopperProps>(Popper);

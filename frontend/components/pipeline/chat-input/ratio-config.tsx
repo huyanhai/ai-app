@@ -3,6 +3,7 @@ import { useRef } from "react";
 import Ratio from "./ratio";
 import { TNodeBase } from "../types/index";
 import Popper, { IPopperRef } from "../popper";
+import { BUTTON_ACTIVE, BUTTON_NORMAL } from "@/constants/class-names";
 
 const RATIO_CONFIG: `${number}:${number}`[] = [
   "1:1",
@@ -29,14 +30,10 @@ const RadioConfig = ({ config, changeConfig }: IConfigProps) => {
       ref={popperRef}
       content={config?.ratio}
       trigger={
-        <>
+        <div className="grid grid-cols-4 gap-2 w-[300px]">
           {RATIO_CONFIG.map((item, index) => (
             <Ratio
-              className={
-                config?.ratio === item
-                  ? "border border-white/20 bg-black/50 rounded-md"
-                  : "border border-white/0 rounded-md cursor-pointer hover:border-white/20 hover:bg-white/5"
-              }
+              className={`${BUTTON_NORMAL} ${config?.ratio === item && BUTTON_ACTIVE}`}
               key={index}
               ratio={item}
               onClick={() => {
@@ -45,7 +42,7 @@ const RadioConfig = ({ config, changeConfig }: IConfigProps) => {
               }}
             />
           ))}
-        </>
+        </div>
       }
     />
   );

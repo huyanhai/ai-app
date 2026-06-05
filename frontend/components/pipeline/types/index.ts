@@ -14,9 +14,19 @@ export enum NodeType {
   VideoNode = "videoNode",
 }
 
+export enum VideoModeType {
+  // 文生视频
+  TextToVideo = "textToVideo",
+  // 图生成视频
+  ImageToVideo = "imageToVideo",
+  // 首尾帧生成视频
+  FirstAndLastFrameToVideo = "firstAndLastFrameToVideo",
+}
+
 export type TNodeBase = {
   config?: {
-    ratio: TRatio;
+    ratio?: TRatio; // 比例
+    videoMode?: VideoModeType; // 生图模式
   };
 };
 

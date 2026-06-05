@@ -51,7 +51,6 @@ const Popper = (
         position: "fixed",
         left: rect.left,
         bottom: window.innerHeight - rect.top + 8,
-        width: 300,
         zIndex: 9999,
       });
     } else {
@@ -60,7 +59,6 @@ const Popper = (
         position: "fixed",
         left: rect.left,
         top: rect.bottom + 8,
-        width: 300,
         zIndex: 9999,
       });
     }
@@ -87,7 +85,7 @@ const Popper = (
           exit={{ opacity: 0, y: placement === Placement.Top ? 6 : -6 }}
           transition={{ duration: 0.15, ease: "easeOut" }}
           style={popoverStyle}
-          className={`${CARD} backdrop-blur-xs bg-black/70 grid grid-cols-4 gap-2`}
+          className={`${CARD} backdrop-blur-xs bg-black/70`}
         >
           {trigger}
         </motion.div>

@@ -15,6 +15,7 @@ import Editor, { IEditorRef } from "../editor";
 import { useNodeConnections, useReactFlow } from "@xyflow/react";
 import RatioConfig from "./ratio-config";
 import Popper from "../popper";
+import VideoConfig from "./video-config";
 
 const cacheInputNodePrompts = new Map<string, string>();
 
@@ -156,9 +157,7 @@ const ChatInput = <T extends TAllNodes>(props: {
               }}
             />
           )}
-          {nodeType === NodeType.VideoNode && (
-            <Popper content={<div>123</div>} trigger={<div>122</div>} />
-          )}
+          {nodeType === NodeType.VideoNode && <VideoConfig />}
         </div>
         <button
           onClick={submit}

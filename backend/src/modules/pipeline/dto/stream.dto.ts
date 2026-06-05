@@ -13,6 +13,20 @@ export class ConfigDto {
   ratio: string;
 }
 
+export class TextListDTO {
+  @IsString()
+  @IsNotEmpty()
+  action: string;
+
+  @IsString()
+  @IsNotEmpty()
+  action_input: string;
+
+  @IsObject()
+  @IsOptional()
+  supplementary: { style: string; ratio: string };
+}
+
 export class StreamDto {
   @IsArray()
   @IsNotEmpty()
@@ -21,4 +35,8 @@ export class StreamDto {
   @IsObject()
   @IsOptional()
   config?: ConfigDto;
+
+  @IsArray()
+  @IsOptional()
+  textList: TextListDTO[];
 }

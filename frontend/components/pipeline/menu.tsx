@@ -32,7 +32,10 @@ const Menu = ({
       id: nanoid(),
       position: screenToFlowPosition(position),
       type,
-      data: type === NodeType.TextNode ? { text: "" } : { url: "" },
+      data:
+        type === NodeType.TextNode
+          ? { text: "" }
+          : { url: "", config: { ratio: "2:3" } },
     } as TAllNodes;
 
     setNodes((nds) => nds.concat(newNode));

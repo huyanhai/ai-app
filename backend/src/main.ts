@@ -4,7 +4,10 @@ import { AppModule } from './app.module';
 import { json, urlencoded } from 'express';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { cors: true });
+  const app = await NestFactory.create(AppModule, {
+    cors: true,
+    forceCloseConnections: true,
+  });
   app.enableShutdownHooks();
 
   app.use(json({ limit: '10mb' }));

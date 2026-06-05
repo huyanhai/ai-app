@@ -1,29 +1,8 @@
-import { ContentBlock, HumanMessage, tool } from 'langchain';
+import { HumanMessage, tool } from 'langchain';
 import * as z from 'zod';
 
 export async function genImage(prompt: string | HumanMessage['content'][0][]) {
-  let text = '';
-  let content = [];
-
-  if (typeof prompt === 'string') {
-    content.push({ text: prompt });
-  } else {
-    prompt.forEach((item: any) => {
-      if (item.type === 'text') {
-        text += item.text;
-      }
-      if (item.type === 'image_url') {
-        text += `[图片]`;
-        content.push({
-          image: item.image_url,
-        });
-      }
-    });
-    content.push({
-      text,
-    });
-  }
-
+  console.log('prompt', prompt);
   try {
     const data = await fetch(process.env.ALI_IMAGE_URL, {
       headers: {
@@ -37,7 +16,7 @@ export async function genImage(prompt: string | HumanMessage['content'][0][]) {
           messages: [
             {
               role: 'user',
-              content,
+              content: prompt,
             },
           ],
         },

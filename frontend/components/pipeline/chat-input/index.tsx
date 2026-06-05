@@ -42,7 +42,7 @@ const ChatInput = <T extends TAllNodes>(props: {
   });
 
   // 跟当前节点相连的节点
-  const allNodes = useMemo(() => {
+  const { textNodes, imageNodes } = useMemo(() => {
     const textNodes: TNodeText[] = [];
     const imageNodes: TNodeImage[] = [];
 
@@ -63,8 +63,12 @@ const ChatInput = <T extends TAllNodes>(props: {
     if (!nodeId) return "";
     const cached = cacheInputNodePrompts.get(nodeId);
     if (cached) return cached;
-    return allNodes.textNodes[0]?.data.text ?? "";
-  }, [nodeId, allNodes.textNodes]);
+    return "";
+  }, [nodeId]);
+
+  const disabled = useMemo(() => {
+    return !!textNodes.length && !!imageNodes.length && !!isEmpty;
+  }, [textNodes, imageNodes, isEmpty]);
 
   const submit = useCallback(async () => {
     const messages = await editorRef.current?.getEditor();
@@ -78,6 +82,7 @@ const ChatInput = <T extends TAllNodes>(props: {
       body: JSON.stringify({
         message: messages,
         config: nodeData?.config,
+        textList: textNodes.map((node) => JSON.parse(node.data.text)),
       }),
       abortController,
       cb: (data) => {
@@ -129,7 +134,7 @@ const ChatInput = <T extends TAllNodes>(props: {
           ref={editorRef}
           key={nodeId}
           onSubmit={submit}
-          images={allNodes.imageNodes}
+          images={imageNodes}
           initialState={initialState}
           onStateChange={updatePromptWithJson}
           onEmptyStateChange={setIsEmpty}
@@ -153,7 +158,8 @@ const ChatInput = <T extends TAllNodes>(props: {
         </div>
         <button
           onClick={submit}
-          className={`flex size-8 items-center justify-center rounded-full bg-white/50 hover:bg-white transition text-black ${!isEmpty ? "cursor-pointer bg-white!" : "cursor-not-allowed"}`}
+          disabled={disabled}
+          className={`flex size-8 items-center justify-center rounded-full bg-white/50 hover:bg-white transition text-black ${!disabled ? "cursor-pointer bg-white!" : "cursor-not-allowed"}`}
         >
           <Forward size={18} />
         </button>

@@ -26,7 +26,7 @@ export class PipelineService {
 
   async *image({ message, config }: StreamDto) {
     if (config?.ratio) {
-      message.push({ type: 'text', text: `图片尺寸：${config.ratio}` });
+      message.push({ type: 'text', text: `图片尺寸1：${config.ratio}` });
     }
     const queue = new AsyncQueue<StreamEvent>();
     queue.push({ type: SSE_EVENT.MSG_START, role: SSE_ROLE.ASSISTANT });

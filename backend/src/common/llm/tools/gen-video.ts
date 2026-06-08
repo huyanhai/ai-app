@@ -32,6 +32,13 @@ export async function genVideo({ message, config }: StreamDto) {
     }
   });
 
+  if (config?.firstFrameUrl) {
+    media.push({ type: 'first_frame', url: config.firstFrameUrl });
+  }
+  if (config?.lastFrameUrl) {
+    media.push({ type: 'last_frame', url: config.lastFrameUrl });
+  }
+
   console.log(prompt, media, model[config.videoMode]);
 
   try {

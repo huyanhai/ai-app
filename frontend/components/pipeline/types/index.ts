@@ -29,6 +29,8 @@ export type TNodeBase = {
     ratio?: TRatio; // 比例
     videoMode?: VideoModeType; // 生图模式
     duration?: number; // 视频时长
+    firstFrameUrl?: string; // 首帧图片
+    lastFrameUrl?: string; // 尾帧图片
   };
 };
 

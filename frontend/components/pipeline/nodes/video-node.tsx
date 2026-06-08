@@ -51,7 +51,14 @@ const VideoNode = ({ type, data }: NodeProps<TNodeImage>) => {
       >
         {data.status === ChunkStatus.PROCESSING && <Loading />}
         {data.status === ChunkStatus.SUCCESS && data.url && (
-          <video src={data.url} autoPlay loop muted controls />
+          <video
+            className="max-w-full max-h-full"
+            src={data.url}
+            autoPlay
+            loop
+            muted
+            controls
+          />
         )}
         {!data.status && !data.url && (
           <Video size={50} className="opacity-30" strokeWidth={1} />

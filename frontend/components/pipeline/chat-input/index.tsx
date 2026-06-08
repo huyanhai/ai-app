@@ -157,7 +157,9 @@ const ChatInput = <T extends TAllNodes>(props: {
   return (
     <div className={`${CARD} nodrag nopan nowheel flex-col w-100 h-30`}>
       {nodeData?.config?.videoMode ===
-        VideoModeType.FirstAndLastFrameToVideo && <Frame />}
+        VideoModeType.FirstAndLastFrameToVideo && (
+        <Frame config={nodeData?.config} changeConfig={changeConfig} />
+      )}
       <div className="flex-1 min-h-0 overflow-y-auto">
         <Editor
           ref={editorRef}

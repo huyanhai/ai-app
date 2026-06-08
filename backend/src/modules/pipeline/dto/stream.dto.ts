@@ -20,6 +20,14 @@ export class ConfigDto {
   @IsString()
   @IsOptional()
   videoMode?: 'textToVideo' | 'imageToVideo' | 'firstAndLastFrameToVideo';
+
+  @IsString()
+  @IsOptional()
+  firstFrameUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  lastFrameUrl?: string;
 }
 
 export class TextListDTO {

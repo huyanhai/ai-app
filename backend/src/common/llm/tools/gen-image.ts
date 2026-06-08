@@ -1,8 +1,34 @@
-import { HumanMessage, tool } from 'langchain';
+import { StreamDto } from '@/modules/pipeline/dto/stream.dto';
+import { ContentBlock, tool } from 'langchain';
 import * as z from 'zod';
 
-export async function genImage(prompt: string | HumanMessage['content'][0][]) {
-  console.log('prompt', prompt);
+export async function genImage({ message, config, textList }: StreamDto) {
+  let text = '';
+  let index = 0;
+  const messages = [];
+  message.forEach((item: ContentBlock) => {
+    if (item.type === 'text') {
+      text += `${item.text}\n`;
+    }
+    if (item.type === 'image_url') {
+      text += `[图片${index++}]`;
+      messages.push({
+        image: item.image_url,
+      });
+    }
+  });
+
+  if (textList) {
+    textList.forEach((item) => {
+      text += `${item.action_input}\n${item.supplementary.style}\n${config.ratio || item.supplementary.ratio}`;
+    });
+  }
+
+  messages.unshift({
+    text,
+  });
+
+  console.log('messages', messages);
   try {
     const data = await fetch(process.env.ALI_IMAGE_URL, {
       headers: {
@@ -16,7 +42,7 @@ export async function genImage(prompt: string | HumanMessage['content'][0][]) {
           messages: [
             {
               role: 'user',
-              content: prompt,
+              content: messages,
             },
           ],
         },
@@ -35,7 +61,18 @@ export async function genImage(prompt: string | HumanMessage['content'][0][]) {
 
 export const genImageTools: any = tool(
   async ({ prompt }) => {
-    return genImage(prompt);
+    return genImage({
+      message: [
+        {
+          type: 'text',
+          text: prompt,
+        },
+      ],
+      textList: [],
+      config: {
+        ratio: '3:2',
+      },
+    });
   },
   {
     name: '图片生成',

@@ -1,6 +1,6 @@
 "use client";
 import { Edge, useReactFlow, XYPosition } from "@xyflow/react";
-import { NodeType, TAllNodes } from "./types";
+import { NodeType, TAllNodes, VideoModeType } from "./types";
 import { Dispatch, SetStateAction } from "react";
 import { nanoid } from "nanoid";
 import { SOURCE_HANDLE, TARGET_HANDLE } from "./constants";
@@ -16,6 +16,8 @@ interface IMenuProps {
   setNodeEnd?: () => void;
 }
 
+const DEFAULT_RATIO = "4:3";
+
 const Menu = ({
   nodeId,
   handleId,
@@ -28,14 +30,23 @@ const Menu = ({
   const { screenToFlowPosition } = useReactFlow();
 
   const addNode = (type: NodeType) => {
-    const newNode: TAllNodes = {
+    const data = {
+      [NodeType.ImageNode]: { url: "", config: { ratio: DEFAULT_RATIO } },
+      [NodeType.VideoNode]: {
+        url: "",
+        config: {
+          videoMode: VideoModeType.TextToVideo,
+          ratio: DEFAULT_RATIO,
+          duration: 5,
+        },
+      },
+      [NodeType.TextNode]: { text: "" },
+    };
+    const newNode = {
       id: nanoid(),
       position: screenToFlowPosition(position),
       type,
-      data:
-        type === NodeType.TextNode
-          ? { text: "" }
-          : { url: "", config: { ratio: "2:3" } },
+      data: data[type],
     } as TAllNodes;
 
     setNodes((nds) => nds.concat(newNode));

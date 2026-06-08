@@ -31,6 +31,7 @@ interface IEditorProps {
   onSubmit: () => void;
   images: TNodeImage[];
   initialState: string;
+  noImageMention?: boolean;
   onStateChange?: (state: string) => void;
   onEmptyStateChange?: (state: boolean) => void;
 }
@@ -45,6 +46,7 @@ const Editor = (
     onSubmit,
     images,
     initialState,
+    noImageMention,
     onStateChange,
     onEmptyStateChange,
   }: IEditorProps,
@@ -74,7 +76,7 @@ const Editor = (
             root.append(paragraph);
           });
         } else {
-          editor?.setEditorState(editor?.parseEditorState(parsed));
+          editor?.setEditorState(editor?.parseEditorState(parsed || ""));
         }
       } catch (error) {
         console.log(error);
@@ -148,7 +150,7 @@ const Editor = (
         }}
       />
       <SubmitOnEnterPlugin onSubmit={onSubmit} />
-      <ImageMentionPlugin images={images} />
+      {!noImageMention && <ImageMentionPlugin images={images} />}
       <HistoryPlugin />
       <AutoFocusPlugin />
       <EditorRefPlugin editorRef={editorRef} />

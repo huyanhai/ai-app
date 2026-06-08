@@ -4,6 +4,7 @@ import {
   IsArray,
   IsOptional,
   IsObject,
+  IsNumber,
 } from 'class-validator';
 import { HumanMessage } from 'langchain';
 
@@ -11,6 +12,14 @@ export class ConfigDto {
   @IsString()
   @IsNotEmpty()
   ratio: string;
+
+  @IsNumber()
+  @IsOptional()
+  duration?: number;
+
+  @IsString()
+  @IsOptional()
+  videoMode?: 'textToVideo' | 'imageToVideo' | 'firstAndLastFrameToVideo';
 }
 
 export class TextListDTO {
@@ -38,5 +47,5 @@ export class StreamDto {
 
   @IsArray()
   @IsOptional()
-  textList: TextListDTO[];
+  textList?: TextListDTO[];
 }

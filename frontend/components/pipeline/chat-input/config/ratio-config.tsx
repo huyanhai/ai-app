@@ -1,8 +1,8 @@
 import { useRef } from "react";
 
-import Ratio from "./ratio";
-import { TNodeBase } from "../types/index";
-import Popper, { IPopperRef } from "../popper";
+import Ratio from "../ratio";
+import { TNodeBase } from "../../types/index";
+import Popper, { IPopperRef } from "../../popper";
 import { BUTTON_ACTIVE, BUTTON_NORMAL } from "@/constants/class-names";
 
 const RATIO_CONFIG: `${number}:${number}`[] = [

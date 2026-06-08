@@ -1,4 +1,5 @@
 import { Node } from "@xyflow/react";
+import { IMediaData } from "backend/src/common/utils/ai-stream-utils";
 import { HumanMessage } from "langchain";
 
 export type TRatio = `${number}:${number}`;
@@ -27,6 +28,7 @@ export type TNodeBase = {
   config?: {
     ratio?: TRatio; // 比例
     videoMode?: VideoModeType; // 生图模式
+    duration?: number; // 视频时长
   };
 };
 
@@ -36,6 +38,7 @@ export type TNodeTextData = {
 
 export type TNodeImageData = {
   url: string;
+  status?: IMediaData["status"];
 } & TNodeBase;
 
 // 文本生成节点

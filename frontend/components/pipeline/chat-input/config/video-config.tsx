@@ -1,9 +1,14 @@
 import { useRef } from "react";
 
-import Ratio from "./ratio";
-import { TNodeBase, VideoModeType } from "../types/index";
-import Popper, { IPopperRef } from "../popper";
+import { TNodeBase, VideoModeType } from "../../types/index";
+import Popper, { IPopperRef } from "../../popper";
 import { BUTTON_ACTIVE, BUTTON_NORMAL } from "@/constants/class-names";
+
+const videoModeMap = {
+  [VideoModeType.TextToVideo]: "文生视频",
+  [VideoModeType.ImageToVideo]: "图生视频",
+  [VideoModeType.FirstAndLastFrameToVideo]: "首尾帧",
+};
 
 interface IConfigProps extends TNodeBase {
   changeConfig: (config: TNodeBase["config"]) => void;
@@ -15,9 +20,9 @@ const VideoConfig = ({ config, changeConfig }: IConfigProps) => {
   return (
     <Popper
       ref={popperRef}
-      content={config?.videoMode}
+      content={videoModeMap[config?.videoMode!]}
       trigger={
-        <div className="flex flex-col">
+        <div className="flex flex-col gap-1">
           {Object.values(VideoModeType).map((item, index) => (
             <div
               key={index}
@@ -27,7 +32,7 @@ const VideoConfig = ({ config, changeConfig }: IConfigProps) => {
                 popperRef.current?.closePopper();
               }}
             >
-              {item}
+              {videoModeMap[item]}
             </div>
           ))}
         </div>

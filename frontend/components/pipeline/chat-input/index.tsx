@@ -8,14 +8,23 @@ import {
   useState,
   useRef,
 } from "react";
-import { NodeType, TAllNodes, TNodeImage, TNodeText } from "../types";
+import {
+  NodeType,
+  TAllNodes,
+  TNodeBase,
+  TNodeImage,
+  TNodeText,
+  VideoModeType,
+} from "../types";
 import { sseFetch } from "@/lib/sse";
 import { Forward } from "lucide-react";
 import Editor, { IEditorRef } from "../editor";
 import { useNodeConnections, useReactFlow } from "@xyflow/react";
-import RatioConfig from "./ratio-config";
-import Popper from "../popper";
-import VideoConfig from "./video-config";
+import RatioConfig from "./config/ratio-config";
+import VideoConfig from "./config/video-config";
+import DurationConfig from "./config/duration-config";
+import { IMediaData } from "backend/src/common/utils/ai-stream-utils";
+import Frame from "./frame";
 
 const cacheInputNodePrompts = new Map<string, string>();
 
@@ -69,18 +78,24 @@ const ChatInput = <T extends TAllNodes>(props: {
   }, [nodeId]);
 
   const disabled = useMemo(() => {
-    return !!textNodes.length && !!imageNodes.length && !!isEmpty;
+    return !textNodes.length && !imageNodes.length && !!isEmpty;
   }, [textNodes, imageNodes, isEmpty]);
 
   const submit = useCallback(async () => {
     const messages = await editorRef.current?.getEditor();
     editorRef.current?.clear();
 
-    const url =
-      nodeType === NodeType.TextNode ? "/pipeline/text" : "/pipeline/image";
+    if (!nodeType) return;
+
+    const url = {
+      [NodeType.TextNode]: "/pipeline/text",
+      [NodeType.ImageNode]: "/pipeline/image",
+      [NodeType.VideoNode]: "/pipeline/video",
+    }[nodeType!];
+
     const abortController = new AbortController();
     sseFetch({
-      url,
+      url: url as string,
       body: JSON.stringify({
         message: messages,
         config: nodeData?.config,
@@ -90,9 +105,10 @@ const ChatInput = <T extends TAllNodes>(props: {
       cb: (data) => {
         if (data.type === "msg_chunk") {
           if (nodeType === NodeType.TextNode) {
-            updateNodeData(nodeId || "", { text: data.content });
+            updateNodeData(nodeId || "", { text: data.content as string });
           } else {
-            updateNodeData(nodeId || "", { url: data.content });
+            const { url, status } = data.content as IMediaData;
+            updateNodeData(nodeId || "", { url, status });
           }
         }
       },
@@ -129,12 +145,30 @@ const ChatInput = <T extends TAllNodes>(props: {
     }
   }
 
+  function changeConfig(config: TNodeBase["config"]) {
+    const finallyConfig = { ...nodeData?.config, ...config };
+    pipelineStore.updateSelectNodeData(finallyConfig);
+    updateNodeData(nodeId || "", {
+      ...nodeData,
+      config: finallyConfig,
+    } as TAllNodes["data"]);
+  }
+
   return (
     <div className={`${CARD} nodrag nopan nowheel flex-col w-100 h-30`}>
+      {nodeData?.config?.videoMode ===
+        VideoModeType.FirstAndLastFrameToVideo && <Frame />}
       <div className="flex-1 min-h-0 overflow-y-auto">
         <Editor
           ref={editorRef}
           key={nodeId}
+          noImageMention={
+            nodeType === NodeType.VideoNode &&
+            [
+              VideoModeType.FirstAndLastFrameToVideo,
+              VideoModeType.TextToVideo,
+            ].includes(nodeData?.config?.videoMode!)
+          }
           onSubmit={submit}
           images={imageNodes}
           initialState={initialState}
@@ -144,20 +178,27 @@ const ChatInput = <T extends TAllNodes>(props: {
       </div>
       <div className="flex justify-between items-center">
         <div className="flex gap-2">
-          {nodeType === NodeType.ImageNode && (
+          {nodeType === NodeType.VideoNode && (
+            <>
+              <VideoConfig
+                config={nodeData?.config}
+                changeConfig={changeConfig}
+              />
+              <DurationConfig
+                config={nodeData?.config}
+                changeConfig={changeConfig}
+              />
+            </>
+          )}
+          {[NodeType.ImageNode, NodeType.VideoNode].includes(
+            nodeType as NodeType,
+          ) && (
             <RatioConfig
               key={nodeId}
               config={nodeData?.config}
-              changeConfig={(config) => {
-                pipelineStore.updateSelectNodeData(config);
-                updateNodeData(nodeId || "", {
-                  ...nodeData,
-                  config,
-                } as TAllNodes["data"]);
-              }}
+              changeConfig={changeConfig}
             />
           )}
-          {nodeType === NodeType.VideoNode && <VideoConfig />}
         </div>
         <button
           onClick={submit}

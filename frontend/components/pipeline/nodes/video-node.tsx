@@ -5,8 +5,10 @@ import { Handle, NodeProps, Position } from "@xyflow/react";
 import { SOURCE_HANDLE, TARGET_HANDLE } from "../constants";
 import NodeTypeTag from "./node-type-tag";
 import { Video } from "lucide-react";
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { motion } from "motion/react";
+import Loading from "./loading";
+import { ChunkStatus } from "backend/src/common/utils/ai-stream-utils";
 
 const IMAGE_HEIGHT = 250;
 
@@ -47,9 +49,11 @@ const VideoNode = ({ type, data }: NodeProps<TNodeImage>) => {
       <div
         className={`h-full w-full bg-white/10 flex items-center justify-center`}
       >
-        {data.url ? (
-          <video src={data.url} autoPlay loop muted />
-        ) : (
+        {data.status === ChunkStatus.PROCESSING && <Loading />}
+        {data.status === ChunkStatus.SUCCESS && data.url && (
+          <video src={data.url} autoPlay loop muted controls />
+        )}
+        {!data.status && !data.url && (
           <Video size={50} className="opacity-30" strokeWidth={1} />
         )}
       </div>
@@ -57,4 +61,10 @@ const VideoNode = ({ type, data }: NodeProps<TNodeImage>) => {
   );
 };
 
-export default VideoNode;
+export default memo(VideoNode, (prev, next) => {
+  return (
+    prev.data === next.data &&
+    prev.selected === next.selected &&
+    prev.dragging === next.dragging
+  );
+});

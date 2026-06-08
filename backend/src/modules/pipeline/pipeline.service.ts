@@ -1,12 +1,13 @@
 import { senModel } from '@/common/llm';
 import { genImage } from '@/common/llm/tools/gen-image';
-import { StreamEvent } from '@/common/utils/ai-stream-utils';
+import { ChunkStatus, StreamEvent } from '@/common/utils/ai-stream-utils';
 import { AsyncQueue } from '@/common/utils/async-queue';
 import { SSE_EVENT, SSE_ROLE } from '@/common/utils/stream-constants';
 
 import { Injectable } from '@nestjs/common';
 import { ContentBlock, HumanMessage, SystemMessage } from 'langchain';
 import { StreamDto } from './dto/stream.dto';
+import { genVideo, IVideoMedia } from '@/common/llm/tools/gen-video';
 
 const IMAGE_GEN_SYSTEM_PROMPT = `你是一个专业的图像生成助手。当用户提出任何图像生成需求时，你需要根据用户的自然语言描述，自动生成一个 text_to_image 动作指令，并始终遵守以下规范。
 
@@ -122,37 +123,87 @@ export class PipelineService {
     yield* queue.generator();
   }
 
-  async *image({ message, config, textList }: StreamDto) {
-    let text = '';
-    const messages = [];
-    message.forEach((item: ContentBlock) => {
-      if (item.type === 'text') {
-        text += `${item.text}\n`;
-      }
-      if (item.type === 'image_url') {
-        text += '[图片]1';
-        messages.push({
-          image: item.image_url,
-        });
-      }
-    });
-
-    if (textList) {
-      textList.forEach((item) => {
-        text += `${item.action_input}\n${item.supplementary.style}\n${config.ratio || item.supplementary.ratio}`;
-      });
-    }
-
-    messages.unshift({
-      text,
-    });
-
+  async *image(messages: StreamDto) {
     const queue = new AsyncQueue<StreamEvent>();
     queue.push({ type: SSE_EVENT.MSG_START, role: SSE_ROLE.ASSISTANT });
+    queue.push({
+      type: SSE_EVENT.MSG_CHUNK,
+      content: {
+        status: ChunkStatus.PENDING,
+        url: null,
+      },
+    });
     const { content } = await genImage(messages);
-    queue.push({ type: SSE_EVENT.MSG_CHUNK, content: content[0].image });
+    queue.push({
+      type: SSE_EVENT.MSG_CHUNK,
+      content: {
+        status: ChunkStatus.SUCCESS,
+        url: content[0].image,
+      },
+    });
     queue.push({ type: SSE_EVENT.MSG_END });
 
     yield* queue.generator();
+  }
+
+  async *video(messages: StreamDto) {
+    let timer = null;
+    const queue = new AsyncQueue<StreamEvent>();
+    queue.push({ type: SSE_EVENT.MSG_START, role: SSE_ROLE.ASSISTANT });
+
+    const taskInfo = await genVideo(messages);
+    queue.push({
+      type: SSE_EVENT.MSG_CHUNK,
+      content: {
+        status: ChunkStatus.PENDING,
+        url: null,
+      },
+    });
+    if (taskInfo.task_id) {
+      // eslint-disable-next-line @typescript-eslint/no-this-alias
+      const _this = this;
+      function loop() {
+        timer = setTimeout(async () => {
+          const { output } = await _this.queryVideo(taskInfo.task_id);
+          console.log('查询任务状态', output);
+          timer && clearTimeout(timer);
+          queue.push({
+            type: SSE_EVENT.MSG_CHUNK,
+            content: {
+              status: ChunkStatus.PROCESSING,
+              url: null,
+            },
+          });
+          if (['SUCCEEDED', 'FAILED'].includes(output.task_status)) {
+            queue.push({
+              type: SSE_EVENT.MSG_CHUNK,
+              content: {
+                status: ChunkStatus.SUCCESS,
+                url: output?.video_url || null,
+              },
+            });
+            queue.push({ type: SSE_EVENT.MSG_END });
+            return;
+          }
+
+          loop();
+        }, 15_000);
+      }
+
+      loop();
+    }
+
+    yield* queue.generator();
+  }
+
+  async queryVideo(taskId: string) {
+    const data = await fetch(`${process.env.ALI_VIDEO_STATUS_URL}${taskId}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${process.env.ALI_API_KEY}`,
+      },
+      method: 'GET',
+    }).then((res) => res.json());
+    return data;
   }
 }

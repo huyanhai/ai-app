@@ -6,6 +6,7 @@ import { Handle, Position, NodeProps } from "@xyflow/react";
 import { SOURCE_HANDLE, TARGET_HANDLE } from "../constants";
 import NodeTypeTag from "./node-type-tag";
 import TextSkeleton from "../text-skeleton";
+import { memo } from "react";
 
 const TextNode = ({ data, type }: NodeProps<TNodeText>) => {
   return (
@@ -28,4 +29,10 @@ const TextNode = ({ data, type }: NodeProps<TNodeText>) => {
   );
 };
 
-export default TextNode;
+export default memo(TextNode, (prev, next) => {
+  return (
+    prev.data === next.data &&
+    prev.selected === next.selected &&
+    prev.dragging === next.dragging
+  );
+});

@@ -5,7 +5,7 @@ import { Handle, NodeProps, Position } from "@xyflow/react";
 import { SOURCE_HANDLE, TARGET_HANDLE } from "../constants";
 import NodeTypeTag from "./node-type-tag";
 import { Image } from "lucide-react";
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { motion } from "motion/react";
 
 const IMAGE_HEIGHT = 250;
@@ -61,4 +61,10 @@ const ImageNode = ({ type, data }: NodeProps<TNodeImage>) => {
   );
 };
 
-export default ImageNode;
+export default memo(ImageNode, (prev, next) => {
+  return (
+    prev.data === next.data &&
+    prev.selected === next.selected &&
+    prev.dragging === next.dragging
+  );
+});

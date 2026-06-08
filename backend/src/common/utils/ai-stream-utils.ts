@@ -1,13 +1,30 @@
 import {
   extractFinalMessageByType,
   extractTextFromContent,
-} from '@/common/utils/message-utils';
+} from '../../common/utils/message-utils';
+
+export enum ChunkStatus {
+  PENDING = 0, // 已发送
+  PROCESSING = 1, // 大模型处理中
+  SUCCESS = 2, // 已完成
+  FAILED = 3, // 已失败
+}
+
+export interface IMediaData {
+  url: string;
+  status: ChunkStatus;
+}
 
 export type StreamEvent =
   | { type: 'msg_start'; role: string }
-  | { type: 'msg_chunk'; content: string }
+  | { type: 'msg_chunk'; content: string | IMediaData }
   | { type: 'msg_end' }
-  | { type: 'tool_start'; id: string; name: string; input: Record<string, unknown> | undefined }
+  | {
+      type: 'tool_start';
+      id: string;
+      name: string;
+      input: Record<string, unknown> | undefined;
+    }
   | { type: 'tool_end'; id: string; name: string; output: unknown }
   | { type: 'tool_error'; id: string; name: string; error: string };
 
@@ -114,7 +131,10 @@ export function parseToolOutput(output: { content?: unknown }) {
   return parsedOutput;
 }
 
-export function extractToolResultText(output: { content?: unknown }, parsedOutput: unknown) {
+export function extractToolResultText(
+  output: { content?: unknown },
+  parsedOutput: unknown,
+) {
   return extractTextFromContent(output) || extractTextFromContent(parsedOutput);
 }
 

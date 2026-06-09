@@ -13,6 +13,7 @@ export enum NodeType {
   TextNode = "textNode",
   ImageNode = "imageNode",
   VideoNode = "videoNode",
+  StoryNode = "storyNode",
 }
 
 export enum VideoModeType {

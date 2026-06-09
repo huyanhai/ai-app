@@ -23,6 +23,22 @@ export class PipelineController {
     res.end();
   }
 
+  @Post('story')
+  @Header('Content-Type', 'text/event-stream')
+  @Header('Cache-Control', 'no-cache')
+  @Header('Connection', 'keep-alive')
+  async story(
+    @Body() body: StreamDto,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    const generator = this.pipelineService.story(body);
+    for await (const event of generator) {
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+    }
+    res.end();
+  }
+
   @Post('image')
   @Header('Content-Type', 'text/event-stream')
   @Header('Cache-Control', 'no-cache')

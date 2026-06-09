@@ -14,6 +14,8 @@
   "license": "ISC",
   "packageManager": "pnpm@10.13.1",
   "dependencies": {
+    "@langchain/openai": "^1.4.7",
+    "agents": "workspace:*",
     "backend": "workspace:*",
     "cloakbrowser": "^0.3.28",
     "eslint": "^10.4.0",

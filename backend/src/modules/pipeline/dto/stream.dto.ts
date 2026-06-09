@@ -6,7 +6,7 @@ import {
   IsObject,
   IsNumber,
 } from 'class-validator';
-import { HumanMessage } from 'langchain';
+import { ContentBlock, HumanMessage } from 'langchain';
 
 export class ConfigDto {
   @IsString()
@@ -47,7 +47,7 @@ export class TextListDTO {
 export class StreamDto {
   @IsArray()
   @IsNotEmpty()
-  message: HumanMessage['content'][0][];
+  message: ContentBlock.Text[];
 
   @IsObject()
   @IsOptional()

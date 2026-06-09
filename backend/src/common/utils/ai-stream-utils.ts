@@ -15,9 +15,13 @@ export interface IMediaData {
   status: ChunkStatus;
 }
 
+export interface IStoryData {
+  screen: string;
+}
+
 export type StreamEvent =
   | { type: 'msg_start'; role: string }
-  | { type: 'msg_chunk'; content: string | IMediaData }
+  | { type: 'msg_chunk'; content: string | IMediaData | IStoryData }
   | { type: 'msg_end' }
   | {
       type: 'tool_start';

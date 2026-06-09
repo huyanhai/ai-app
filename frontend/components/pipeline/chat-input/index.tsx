@@ -23,8 +23,12 @@ import { useNodeConnections, useReactFlow } from "@xyflow/react";
 import RatioConfig from "./config/ratio-config";
 import VideoConfig from "./config/video-config";
 import DurationConfig from "./config/duration-config";
-import { IMediaData } from "backend/src/common/utils/ai-stream-utils";
+import {
+  IMediaData,
+  IStoryData,
+} from "backend/src/common/utils/ai-stream-utils";
 import Frame from "./frame";
+import { useNode } from "../hooks/use-node";
 
 const cacheInputNodePrompts = new Map<string, string>();
 
@@ -35,6 +39,7 @@ const ChatInput = <T extends TAllNodes>(props: {
   const editorRef = useRef<IEditorRef>(null);
 
   const { getNode } = useReactFlow();
+  const { createNode } = useNode();
 
   const pipelineStore = usePipelineStore();
 
@@ -91,6 +96,7 @@ const ChatInput = <T extends TAllNodes>(props: {
       [NodeType.TextNode]: "/pipeline/text",
       [NodeType.ImageNode]: "/pipeline/image",
       [NodeType.VideoNode]: "/pipeline/video",
+      [NodeType.StoryNode]: "/pipeline/story",
     }[nodeType!];
 
     const abortController = new AbortController();
@@ -104,8 +110,19 @@ const ChatInput = <T extends TAllNodes>(props: {
       abortController,
       cb: (data) => {
         if (data.type === "msg_chunk") {
-          if (nodeType === NodeType.TextNode) {
-            updateNodeData(nodeId || "", { text: data.content as string });
+          if (
+            nodeType === NodeType.TextNode ||
+            nodeType === NodeType.StoryNode
+          ) {
+            if ((data.content as IStoryData)?.screen) {
+              createNode(
+                NodeType.TextNode,
+                { text: (data.content as IStoryData)?.screen },
+                { x: 0, y: 0 },
+              );
+            } else {
+              updateNodeData(nodeId || "", { text: data.content as string });
+            }
           } else {
             const { url, status } = data.content as IMediaData;
             updateNodeData(nodeId || "", { url, status });

@@ -30,7 +30,16 @@ import Menu from "@/components/pipeline/menu";
 
 const Flow = () => {
   const [endPos, setEndPos] = useState<XYPosition | null>(null);
-  const [nodes, setNodes, onNodesChange] = useNodesState<TAllNodes>([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<TAllNodes>([
+    {
+      id: "1",
+      type: "storyNode",
+      position: { x: 0, y: 0 },
+      data: {
+        text: "",
+      },
+    },
+  ]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   const connectingNodeId = useRef<string | null>(null);

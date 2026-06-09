@@ -41,6 +41,7 @@ const Menu = ({
         },
       },
       [NodeType.TextNode]: { text: "" },
+      [NodeType.StoryNode]: { text: "" },
     };
     const newNode = {
       id: nanoid(),

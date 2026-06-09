@@ -1,8 +1,11 @@
-import ImageNode from "./image-node";
-import TextNode from "./text-node";
-import VideoNode from "./video-node";
+import ImageNode from "./node/image";
+import TextNode from "./node/text";
+import VideoNode from "./node/video";
+import StoryNode from "./node/story";
+
 export default {
   textNode: TextNode,
   imageNode: ImageNode,
   videoNode: VideoNode,
+  storyNode: StoryNode,
 };

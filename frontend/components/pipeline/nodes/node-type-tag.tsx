@@ -11,6 +11,10 @@ const typeMap: Record<string, { label: string; icon: ReactNode }> = {
     label: "文本节点",
     icon: <FileText size={14} />,
   },
+  [NodeType.StoryNode]: {
+    label: "剧本生成节点",
+    icon: <FileText size={14} />,
+  },
   [NodeType.ImageNode]: {
     label: "图片节点",
     icon: <FileImage size={14} />,

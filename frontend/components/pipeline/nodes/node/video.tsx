@@ -1,16 +1,18 @@
 "use client";
 import { CARD } from "@/constants/class-names";
-import { TNodeImage } from "../types";
+import { TNodeImage } from "../../types";
 import { Handle, NodeProps, Position } from "@xyflow/react";
-import { SOURCE_HANDLE, TARGET_HANDLE } from "../constants";
-import NodeTypeTag from "./node-type-tag";
-import { Image } from "lucide-react";
+import { SOURCE_HANDLE, TARGET_HANDLE } from "../../constants";
+import NodeTypeTag from "../node-type-tag";
+import { Video } from "lucide-react";
 import { memo, useMemo } from "react";
 import { motion } from "motion/react";
+import Loading from "../loading";
+import { ChunkStatus } from "backend/src/common/utils/ai-stream-utils";
 
 const IMAGE_HEIGHT = 250;
 
-const ImageNode = ({ type, data }: NodeProps<TNodeImage>) => {
+const VideoNode = ({ type, data }: NodeProps<TNodeImage>) => {
   const [width, height] = useMemo(() => {
     if (data.config?.ratio) {
       const [width, height] = data.config.ratio.split(":").map(Number);
@@ -47,21 +49,26 @@ const ImageNode = ({ type, data }: NodeProps<TNodeImage>) => {
       <div
         className={`h-full w-full bg-white/10 flex items-center justify-center`}
       >
-        {data.url ? (
-          <img
+        {data.status === ChunkStatus.PROCESSING && <Loading />}
+        {data.status === ChunkStatus.SUCCESS && data.url && (
+          <video
+            className="max-w-full max-h-full"
             src={data.url}
-            alt="image"
-            className="w-full h-full object-cover"
+            autoPlay
+            loop
+            muted
+            controls
           />
-        ) : (
-          <Image size={50} className="opacity-30" strokeWidth={1} />
+        )}
+        {!data.status && !data.url && (
+          <Video size={50} className="opacity-30" strokeWidth={1} />
         )}
       </div>
     </motion.div>
   );
 };
 
-export default memo(ImageNode, (prev, next) => {
+export default memo(VideoNode, (prev, next) => {
   return (
     prev.data === next.data &&
     prev.selected === next.selected &&

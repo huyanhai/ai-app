@@ -1,12 +1,14 @@
 "use client";
 import {
   useCallback,
+  useEffect,
   useRef,
   useState,
   MouseEvent as ReactMouseEvent,
 } from "react";
 import {
   Background,
+  BackgroundVariant,
   MiniMap,
   ReactFlow,
   useNodesState,
@@ -19,21 +21,58 @@ import {
   addEdge,
   Connection,
   OnConnectStartParams,
-  XYPosition,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { Sparkles } from "lucide-react";
 import nodeTypes from "@/components/pipeline/nodes";
-import ChatInput from "@/components/pipeline/chat-input";
-import { usePipelineStore } from "@/store/pipeline-store";
-import { NodeType, TAllNodes } from "@/components/pipeline/types";
+import Toolbar from "@/components/pipeline/toolbar";
+import Controls from "@/components/pipeline/controls";
+import AssetModal from "@/components/pipeline/asset-modal";
+import TextToolbar from "@/components/pipeline/text-toolbar";
+import GeneratorCard, {
+  GENERATOR_TYPES,
+} from "@/components/pipeline/nodes/node/generator-card";
 import Menu from "@/components/pipeline/menu";
+import { TMenuRequest, usePipelineStore } from "@/store/pipeline-store";
+import { NodeType, TAllNodes } from "@/components/pipeline/types";
+
+// 连线拖拽松开后、菜单选择前的半截连线（对齐即梦：菜单弹出时连线保持显示）
+const PendingEdge = ({ menuRequest }: { menuRequest: TMenuRequest }) => {
+  const [from, setFrom] = useState<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    const el = document.querySelector(
+      `.react-flow__node[data-id="${menuRequest.nodeId}"] .react-flow__handle[data-handleid="${menuRequest.handleId}"]`,
+    );
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      setFrom({ x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 });
+    }
+  }, [menuRequest]);
+
+  if (!from) return null;
+  const to = menuRequest.position;
+  const dx = Math.max(Math.abs(to.x - from.x) / 2, 40);
+  const dir = to.x >= from.x ? 1 : -1;
+  const d = `M ${from.x} ${from.y} C ${from.x + dx * dir} ${from.y}, ${to.x - dx * dir} ${to.y}, ${to.x} ${to.y}`;
+
+  return (
+    <svg className="pointer-events-none fixed inset-0 z-40 h-full w-full">
+      <path
+        d={d}
+        fill="none"
+        stroke="rgba(255,255,255,0.25)"
+        strokeWidth={1}
+      />
+    </svg>
+  );
+};
 
 const Flow = () => {
-  const [endPos, setEndPos] = useState<XYPosition | null>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState<TAllNodes>([
     {
       id: "1",
-      type: "storyNode",
+      type: "textNode",
       position: { x: 0, y: 0 },
       data: {
         text: "",
@@ -54,6 +93,11 @@ const Flow = () => {
   const currentSelectNode = usePipelineStore(
     (state) => state.currentSelectNode,
   );
+  const menuRequest = usePipelineStore((state) => state.menuRequest);
+  const openMenu = usePipelineStore((state) => state.openMenu);
+  const closeMenu = usePipelineStore((state) => state.closeMenu);
+  const showMiniMap = usePipelineStore((state) => state.showMiniMap);
+  const showEdges = usePipelineStore((state) => state.showEdges);
 
   const onConnect = useCallback(
     (params: Connection) => {
@@ -76,20 +120,32 @@ const Flow = () => {
     [],
   );
 
-  const onConnectEnd = useCallback((event: any) => {
-    if (!connectingNodeId.current) return;
-    if (connectionSuccessful.current) return;
+  const onConnectEnd = useCallback(
+    (event: any) => {
+      if (!connectingNodeId.current) return;
+      if (connectionSuccessful.current) return;
 
-    const targetIsPane = event.target.classList.contains("react-flow__pane");
+      const targetIsPane = event.target.classList.contains("react-flow__pane");
+      // 单击手柄（未拖动）时，松开目标仍落在手柄上，此时打开节点创建菜单
+      const targetIsHandle = !!(event.target as HTMLElement).closest?.(
+        ".react-flow__handle",
+      );
 
-    if (targetIsPane) {
-      lastConnectEnd.current = Date.now();
-      // Remove wrapper bounds in order to get the correct position
-      const { clientX, clientY } =
-        "changedTouches" in event ? event.changedTouches[0] : event;
-      setEndPos({ x: clientX, y: clientY });
-    }
-  }, []);
+      if (targetIsPane || targetIsHandle) {
+        lastConnectEnd.current = Date.now();
+        // Remove wrapper bounds in order to get the correct position
+        const { clientX, clientY } =
+          "changedTouches" in event ? event.changedTouches[0] : event;
+        openMenu({
+          position: { x: clientX, y: clientY },
+          nodeId: connectingNodeId.current,
+          handleId: connectingHandleId.current,
+          handleType: connectingHandleType.current,
+        });
+      }
+    },
+    [openMenu],
+  );
 
   const onSelectionChange = useCallback(
     ({ nodes }: OnSelectionChangeParams<TAllNodes, Edge>) => {
@@ -113,9 +169,9 @@ const Flow = () => {
         "clientY" in event
           ? event.clientY
           : (event as any).touches?.[0]?.clientY;
-      setEndPos({ x: clientX, y: clientY });
+      openMenu({ position: { x: clientX, y: clientY } });
     },
-    [],
+    [openMenu],
   );
 
   // 点击空白处
@@ -123,19 +179,20 @@ const Flow = () => {
     if (Date.now() - lastConnectEnd.current < 100) {
       return;
     }
-    setEndPos(null);
-  }, []);
+    closeMenu();
+  }, [closeMenu]);
 
-  function setNodeEnd() {
-    setEndPos(null);
-  }
+  // 直接拖拽节点/框选拖动时也关闭创建菜单（连带隐藏半截连线）
+  const onDragStart = useCallback(() => {
+    closeMenu();
+  }, [closeMenu]);
 
   return (
-    <div className="w-full h-full relative">
+    <div className="w-full h-full relative bg-[#0a0a0a]">
       <ReactFlow
         colorMode="dark"
         nodes={nodes}
-        edges={edges}
+        edges={showEdges ? edges : []}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
@@ -144,35 +201,77 @@ const Flow = () => {
         onSelectionChange={onSelectionChange}
         onPaneContextMenu={onPaneContextMenu}
         onPaneClick={onPaneClick}
+        onNodeDragStart={onDragStart}
+        onSelectionDragStart={onDragStart}
         nodeTypes={nodeTypes}
         panOnScroll={true}
         fitView
         fitViewOptions={{ minZoom: 1, maxZoom: 1 }}
+        defaultEdgeOptions={{
+          style: { stroke: "rgba(255,255,255,0.25)", strokeWidth: 1 },
+        }}
       >
-        <Background />
-        <MiniMap />
-
-        {currentSelectNode && (
-          <NodeToolbar
-            nodeId={currentSelectNode.id}
-            position={Position.Bottom}
-            isVisible={true}
-          >
-            <ChatInput setNodes={setNodes} />
-          </NodeToolbar>
+        <Background
+          variant={BackgroundVariant.Dots}
+          gap={20}
+          size={1}
+          color="rgba(255,255,255,0.12)"
+        />
+        {showMiniMap && (
+          <MiniMap
+            pannable
+            zoomable
+            className="bg-[#1c1c1e]! rounded-xl! border! border-white/5!"
+          />
         )}
+
+        {currentSelectNode &&
+          currentSelectNode.type === NodeType.TextNode && (
+            <NodeToolbar
+              nodeId={currentSelectNode.id}
+              position={Position.Top}
+              isVisible={true}
+              offset={12}
+            >
+              <TextToolbar node={currentSelectNode} />
+            </NodeToolbar>
+          )}
+        {currentSelectNode &&
+          GENERATOR_TYPES.includes(currentSelectNode.type as NodeType) && (
+            <NodeToolbar
+              nodeId={currentSelectNode.id}
+              position={Position.Bottom}
+              isVisible={true}
+              offset={16}
+            >
+              <GeneratorCard node={currentSelectNode} />
+            </NodeToolbar>
+          )}
       </ReactFlow>
 
-      {endPos && (
-        <Menu
-          position={endPos}
-          nodeId={connectingNodeId.current}
-          handleId={connectingHandleId.current}
-          handleType={connectingHandleType.current}
-          setEdges={setEdges}
-          setNodes={setNodes}
-          setNodeEnd={setNodeEnd}
-        />
+      <Toolbar />
+      <Controls />
+      <AssetModal />
+
+      {/* 与 AI 对话入口（对齐即梦右下角） */}
+      <button className="absolute right-4 bottom-4 z-20 flex items-center gap-2 rounded-full bg-[#1c1c1e]/95 border border-white/5 px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-[#26262a] transition-colors shadow-2xl cursor-pointer nodrag nopan">
+        <Sparkles size={15} className="text-[#33a3ff]" />
+        与 AI 对话
+      </button>
+
+      {menuRequest && (
+        <>
+          {menuRequest.nodeId && <PendingEdge menuRequest={menuRequest} />}
+          <Menu
+            position={menuRequest.position}
+            nodeId={menuRequest.nodeId}
+            handleId={menuRequest.handleId}
+            handleType={menuRequest.handleType}
+            setEdges={setEdges}
+            setNodes={setNodes}
+            setNodeEnd={closeMenu}
+          />
+        </>
       )}
     </div>
   );

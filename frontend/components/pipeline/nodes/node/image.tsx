@@ -1,23 +1,23 @@
 "use client";
-import { CARD } from "@/constants/class-names";
-import { TNodeImage } from "../../types";
-import { Handle, NodeProps, Position } from "@xyflow/react";
-import { SOURCE_HANDLE, TARGET_HANDLE } from "../../constants";
-import NodeTypeTag from "../node-type-tag";
-import { Image } from "lucide-react";
 import { memo, useMemo } from "react";
+import { NodeProps } from "@xyflow/react";
+import { Image } from "lucide-react";
 import { motion } from "motion/react";
+import NodeShell from "./shell";
+import { TNodeImage, NodeType } from "../../types";
+import { ChunkStatus } from "backend/src/common/utils/ai-stream-utils";
+import Loading from "../loading";
 
 const IMAGE_HEIGHT = 250;
 
-const ImageNode = ({ type, data }: NodeProps<TNodeImage>) => {
+// 即梦风格图片内容卡片：空态居中图标，生成后展示图片
+const ImageNode = ({ id, data, selected }: NodeProps<TNodeImage>) => {
   const [width, height] = useMemo(() => {
     if (data.config?.ratio) {
-      const [width, height] = data.config.ratio.split(":").map(Number);
-      let radio = width / height;
-
-      if (width < height) {
-        radio = height / width;
+      const [w, h] = data.config.ratio.split(":").map(Number);
+      let radio = w / h;
+      if (w < h) {
+        radio = h / w;
         return [IMAGE_HEIGHT, IMAGE_HEIGHT * radio];
       }
       return [IMAGE_HEIGHT * radio, IMAGE_HEIGHT];
@@ -26,38 +26,33 @@ const ImageNode = ({ type, data }: NodeProps<TNodeImage>) => {
   }, [data.config]);
 
   return (
-    <motion.div
-      className={`${CARD} flex-col  relative transition-all duration-500`}
-      style={{
-        width,
-        height,
-      }}
+    <NodeShell
+      id={id}
+      type={NodeType.ImageNode}
+      selected={selected}
+      title={data.title}
+      icon={<Image size={12} />}
     >
-      <NodeTypeTag type={type} />
-      <Handle
-        type={SOURCE_HANDLE}
-        position={Position.Left}
-        id={SOURCE_HANDLE}
-      />
-      <Handle
-        type={TARGET_HANDLE}
-        position={Position.Right}
-        id={TARGET_HANDLE}
-      />
-      <div
-        className={`h-full w-full bg-white/10 flex items-center justify-center`}
+      <motion.div
+        className="relative overflow-hidden rounded-2xl bg-[#1f1f22] border border-white/5 transition-all duration-500"
+        style={{ width, height }}
       >
+        {data.status === ChunkStatus.PROCESSING && <Loading />}
         {data.url ? (
           <img
             src={data.url}
             alt="image"
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover pointer-events-none"
           />
         ) : (
-          <Image size={50} className="opacity-30" strokeWidth={1} />
+          data.status !== ChunkStatus.PROCESSING && (
+            <div className="flex h-full w-full items-center justify-center">
+              <Image size={32} className="text-white/25" strokeWidth={1.5} />
+            </div>
+          )
         )}
-      </div>
-    </motion.div>
+      </motion.div>
+    </NodeShell>
   );
 };
 

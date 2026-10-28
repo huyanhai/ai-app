@@ -12,9 +12,13 @@ import {
   decomposeVisualDescription,
   designStoryboard,
   extractCharacters,
+  genFramePrompt,
+  genTurnaroundPrompt,
   imagePrompt,
   optimizeScene,
+  serializeStoryboardRow,
   story,
+  TShotBriefDescription,
   writeScriptBasedOnStory,
 } from 'agents';
 
@@ -124,52 +128,69 @@ export class PipelineService {
     queue.push({ type: SSE_EVENT.MSG_START, role: SSE_ROLE.ASSISTANT });
     queue.push({
       type: SSE_EVENT.MSG_CHUNK,
-      content: {
-        status: ChunkStatus.PROCESSING,
-        url: null,
-      },
+      content: { status: ChunkStatus.PROCESSING, url: null },
     });
 
-    // 生成故事剧本
-    const { text } = await story(senModel, message[0].text);
+    const idea = message[0].text;
+
+    // 1. 生成故事
+    const { text } = await story(senModel, idea);
     queue.push({ type: SSE_EVENT.MSG_CHUNK, content: text });
-    this.optimizeStory(text);
 
-    queue.push({ type: SSE_EVENT.MSG_END });
-
-    yield* queue.generator();
-  }
-
-  // 优化场景
-  async optimizeStory(text: string) {
-    // 将剧本按场景拆分为可拍摄的剧本列表
+    // 2. 按场景拆分剧本
     const { script } = await writeScriptBasedOnStory(senModel, text);
 
-    for (const sceneScript of script) {
-      // 优化后的场景
-      const { enhanced_script } = await optimizeScene(senModel, sceneScript);
+    for (let s = 0; s < script.length; s++) {
+      // 3a. 场景润色
+      const { enhancedScript } = await optimizeScene(senModel, script[s]);
 
-      // 角色提取
-      const { characters } = await extractCharacters(senModel, enhanced_script);
+      console.log('enhancedScript', enhancedScript);
 
-      // 生成分镜
-      const storyboard = await designStoryboard(
-        senModel,
-        enhanced_script,
-        characters,
-      );
+      //   // 3b. 角色提取
+      //   const { characters } = await extractCharacters(senModel, enhancedScript);
 
-      // 逐个镜头拆解首帧/末帧/运动
-      for (const shot of storyboard.storyboard) {
-        const decomposed = await decomposeVisualDescription(
-          senModel,
-          shot.visualDesc,
-          characters,
-        );
+      //   // 3c. 角色三视图生成（可选，只生成 prompt）
+      //   for (const character of characters) {
+      //     const rolePrompt = genTurnaroundPrompt(character, '真实');
+      //     const { actionInput } = await genFramePrompt(senModel, rolePrompt);
+      //   }
 
-        console.log('decomposed', decomposed);
-      }
+      //   // 3d. 生成分镜
+      //   const storyboard = await designStoryboard(
+      //     senModel,
+      //     enhancedScript,
+      //     characters,
+      //   );
+
+      //   // 3e. 逐个镜头拆解 + 输出
+      //   for (let i = 0; i < storyboard.storyboard.length; i++) {
+      //     const shot = storyboard.storyboard[i] as TShotBriefDescription;
+      //     const decomposed = await decomposeVisualDescription(
+      //       senModel,
+      //       shot,
+      //       characters,
+      //     );
+
+      //     // const row = serializeStoryboardRow(
+      //     //   shot,
+      //     //   i,
+      //     //   characters,
+      //     //   decomposed.visualPrompt,
+      //     //   decomposed.motionVideoPrompt,
+      //     // );
+
+      //     console.log(`场景${i}:`, decomposed);
+
+      //     // 逐条流式输出镜头数据
+      //     queue.push({
+      //       type: SSE_EVENT.MSG_CHUNK,
+      //       content: JSON.stringify(decomposed),
+      //     });
+      //   }
     }
+
+    queue.push({ type: SSE_EVENT.MSG_END });
+    yield* queue.generator();
   }
 
   async queryVideo(taskId: string) {

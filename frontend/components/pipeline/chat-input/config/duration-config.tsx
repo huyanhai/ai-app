@@ -4,7 +4,7 @@ import { TNodeBase, VideoModeType } from "../../types/index";
 import Popper, { IPopperRef } from "../../popper";
 import { BUTTON_ACTIVE, BUTTON_NORMAL } from "@/constants/class-names";
 
-const DURATION = [5, 10, 15];
+const DURATION = [4, 5, 10, 15];
 
 interface IConfigProps extends TNodeBase {
   changeConfig: (config: TNodeBase["config"]) => void;

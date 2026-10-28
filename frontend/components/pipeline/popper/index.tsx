@@ -109,7 +109,7 @@ const Popper = (
     <div ref={containerRef}>
       <button
         onClick={configHandle}
-        className="flex items-center text-xs text-white/60 hover:text-white/90 transition px-1 py-0.5 rounded hover:bg-white/10 gap-1 cursor-pointer"
+        className="flex items-center whitespace-nowrap text-xs text-white/60 hover:text-white/90 transition px-1 py-0.5 rounded hover:bg-white/10 gap-1 cursor-pointer"
       >
         {content}{" "}
         <ChevronDown

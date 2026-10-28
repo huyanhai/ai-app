@@ -34,6 +34,8 @@ interface IEditorProps {
   noImageMention?: boolean;
   onStateChange?: (state: string) => void;
   onEmptyStateChange?: (state: boolean) => void;
+  placeholder?: string;
+  autoFocus?: boolean;
 }
 
 export interface IEditorRef {
@@ -49,6 +51,8 @@ const Editor = (
     noImageMention,
     onStateChange,
     onEmptyStateChange,
+    placeholder,
+    autoFocus = true,
   }: IEditorProps,
   ref: ForwardedRef<IEditorRef>,
 ) => {
@@ -129,30 +133,30 @@ const Editor = (
         }
         placeholder={
           <div className="pointer-events-none absolute left-0 top-0 text-sm text-white/40 p-2">
-            描述你的想法
+            {placeholder || "描述你的想法"}
           </div>
         }
         ErrorBoundary={LexicalErrorBoundary}
       />
       <OnChangePlugin
         onChange={(editorState) => {
-          const node = editorState.read(() => {
+          const hasContent = editorState.read(() => {
             const root = $getRoot();
-            return (
-              root.getAllTextNodes().filter((node) => {
-                return node.getTextContent().trim() !== "";
-              }).length + (root.getDirection()?.length || 0)
-            );
+            const hasText = root
+              .getAllTextNodes()
+              .some((node) => node.getTextContent().trim() !== "");
+            const hasImage = $dfs().some(({ node }) => $isImageNode(node));
+            return hasText || hasImage;
           });
 
-          onEmptyStateChange?.(!node);
+          onEmptyStateChange?.(!hasContent);
           onStateChange?.(superjson.stringify(editorState.toJSON()));
         }}
       />
       <SubmitOnEnterPlugin onSubmit={onSubmit} />
       {!noImageMention && <ImageMentionPlugin images={images} />}
       <HistoryPlugin />
-      <AutoFocusPlugin />
+      {autoFocus && <AutoFocusPlugin />}
       <EditorRefPlugin editorRef={editorRef} />
     </LexicalComposer>
   );

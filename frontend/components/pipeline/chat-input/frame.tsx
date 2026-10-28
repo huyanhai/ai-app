@@ -38,7 +38,7 @@ const Frame = ({ config, changeConfig }: IFrameProps) => {
       onMouseLeave={() => {
         setHover(false);
       }}
-      className="absolute top-1/2 -left-22 -translate-y-1/2 h-[80%] w-20 flex items-center justify-end z-10"
+      className="nodrag absolute top-1/2 -left-22 -translate-y-1/2 h-[80%] w-20 flex items-center justify-end z-10"
     >
       <input
         type="file"

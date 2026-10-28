@@ -3,7 +3,7 @@ import { TCharacterInScene } from "./character-extractor";
 import { HumanMessage, SystemMessage } from "langchain";
 import { z } from "zod";
 
-// 分镜
+// ── 分镜 ──
 
 const SYSTEM_DESIGN_STORYBOARD = `[Role]
 You are a professional storyboard artist with the following core skills:
@@ -50,37 +50,50 @@ const HUMAN_DESIGN_STORYBOARD = `<SCRIPT>
 </USER_REQUIREMENT>`;
 
 const SYSTEM_DECOMPOSE = `[Role]
-You are a professional visual text analyst, proficient in cinematic language and shot narration. Your expertise lies in deconstructing a comprehensive shot description accurately into three core components: the static first frame, the static last frame, and the dynamic motion that connects them.
+You are a professional visual text analyst and cinematic prompt engineer, proficient in cinematic language and shot narration. Your expertise lies in deconstructing a comprehensive shot description and character details, then recomposing them into two specialized, production-ready prompts.
 
 [Task]
-Your task is to dissect and rewrite a user-provided visual text description of a shot strictly and insightfully into three distinct parts:
-- First Frame Description: Describe the static image at the very beginning of the shot.
-- Last Frame Description: Describe the static image at the very end of the shot.
-- Motion Description: Describe all movements that occur between the first frame and the last frame.
+Your task is to analyze the provided shot description and character information, and produce two distinct, comprehensive prompts:
+
+1. **分镜提示词 (visualPrompt)**: A rich, detailed prompt for AI image generation. It must fuse ALL of the following into a cohesive paragraph using the format: [FIELD_LABEL] + content. The fields to include are:
+   - 画面构图: composition, shot size, camera angle
+   - Character description and their action (using <name> notation)
+   - 人物空间与互动关系: spatial relationship between character and environment
+   - 极具体的微表情与面部特写: detailed micro-expressions and close-up descriptions
+   - 明确的场景环境元素与前景/背景道具: environmental elements, props, foreground/background
+   - 光影几何与大气效果: lighting, volumetric effects, color palette
+   - 视觉风格/胶片质感: visual style, film stock feel
+   - 技术参数: lens, aperture, camera specs
+
+2. **视频运动提示词 (motionVideoPrompt)**: A rich, detailed prompt for AI video generation (first-frame + last-frame + motion). It must fuse ALL of the following into a cohesive paragraph using the format: [FIELD_LABEL] + content. The fields to include are:
+   - 明确的摄影机运镜轨迹与速度: camera movement trajectory and speed
+   - 主体极其具体的物理动作细节与微表情变化: character's physical action details and micro-expression changes over time
+   - 角色之间的精确肢体互动过程: precise character-to-character interaction (if any)
+   - 环境物理动态: environmental physics (wind, water, light changes, etc.)
+   - 音效与音乐氛围描述: sound effects and music atmosphere
+   - 对话台词与语气: dialogue text and tone
+   - 时长: shot duration in seconds
 
 [Input]
-You will receive a single visual text description of a shot.
-Additionally, you will receive a sequence of potential characters.
+You will receive a single visual text description of a shot, along with character information.
 - The description is enclosed within <VISUAL_DESC> and </VISUAL_DESC>.
 - The character list is enclosed within <CHARACTERS> and </CHARACTERS>.
+- Additional shot metadata (shot type, duration, emotion, scene tags, lighting, dialogue, character action) is enclosed within <SHOT_META> and </SHOT_META>.
 
 [Output]
 {format_instructions}
 
 [Guidelines]
 - Ensure all output values match the language used in the script.
-- Ensure the first and last frame descriptions are pure "snapshots," containing no ongoing actions.
-- In the motion description, clearly distinguish between camera movement and on-screen movement.
-- In the motion description, you cannot directly use character names to refer to characters; instead, use visible characteristics.
-- The last frame description must be logically consistent with the first frame description and the motion description.
+- Use the [FIELD_LABEL] + notation for each section within the two prompts.
+- Keep character names in angle brackets (e.g., <Alice>) in both prompts.
+- The visual prompt should be a complete, self-contained description ready for image generation.
+- The motion video prompt should focus on what changes/moves between the first and last frame.
 - Use accurate, concise, and professional descriptive language. Avoid metaphors or emotional flourishes.
 - Below are the three types of variation within a shot:
 (1) 'large': significant change in composition and focus.
 (2) 'medium': introduction of new characters or a character turns from back to front.
-(3) 'small': minor changes, such as expression changes, movement of existing characters.
-- When describing a character, indicate the direction they are facing.
-- The first shot must establish the overall scene environment, using the widest possible shot.
-- Use as few camera positions as possible.`;
+(3) 'small': minor changes, such as expression changes, movement of existing characters.`;
 
 const HUMAN_DECOMPOSE = `<VISUAL_DESC>
 {visual_desc}
@@ -88,66 +101,128 @@ const HUMAN_DECOMPOSE = `<VISUAL_DESC>
 
 <CHARACTERS>
 {characters}
-</CHARACTERS>`;
+</CHARACTERS>
+
+<SHOT_META>
+Shot Type: {shot_type}
+Duration: {duration}s
+Emotion: {emotion}
+Scene Tags: {scene_tags}
+Lighting: {lighting}
+Dialogue: {dialogue}
+Character Action: {character_action}
+</SHOT_META>`;
 
 // ── Schemas ──
-// 分镜描述
+
+/** 分镜中的每个镜头 */
 export const ShotBriefDescriptionSchema = z.object({
   idx: z
     .number()
     .describe("The index of the shot in the sequence, starting from 0"),
   isLast: z.boolean().describe("Whether this is the last shot"),
   cameraIdx: z.number().describe("The index of the camera in the scene"),
-  visualDesc: z.string().describe("A vivid visual description of the shot"),
+  /** 画面描述 */
+  visualDesc: z
+    .string()
+    .describe(
+      "A vivid visual description of the shot, including composition, character action, environment, lighting",
+    ),
+  /** 音效 */
   audioDesc: z
     .string()
     .optional()
-    .default("")
     .describe("A detailed description of the audio in the shot"),
-});
-
-const storyboardResponseSchema = z.object({
-  storyboard: z
-    .array(ShotBriefDescriptionSchema)
+  /** 对白 */
+  dialogue: z
+    .string()
+    .default("")
+    .describe("Dialogue text and delivery tone for this shot, if any"),
+  /** 景别 */
+  shotType: z
+    .string()
     .describe(
-      "A complete storyboard of the scene, including the visual and audio description of each shot.",
+      "The shot size/type: 特写/近景/中景/全景/远景 (close-up/medium/wide/establishing)",
     ),
+  /** 时长 */
+  duration: z
+    .number()
+    .describe("Duration of the shot in seconds (usually 3-6)"),
+  /** 情绪 */
+  emotion: z
+    .string()
+    .describe("Emotional tone of the shot, e.g. 宁静/期盼/狂喜/释然"),
+  /** 场景标签 */
+  sceneTags: z
+    .string()
+    .describe("Scene keywords/tags, e.g. 高山之巅，晨雾，日出破晓"),
+  /** 光影氛围 */
+  lighting: z
+    .string()
+    .describe(
+      "Lighting and atmosphere description, e.g. 强烈的暖金色逆光，绝美的丁达尔效应",
+    ),
+  /** 机位角度 */
+  cameraAngle: z
+    .string()
+    .default("")
+    .describe("Camera angle: 平视/俯视/仰视/航拍"),
 });
 
 export type TShotBriefDescription = z.infer<typeof ShotBriefDescriptionSchema>;
 
+/** 拆分后输出的组合 Prompt 结构 */
 const visDescDecompositionSchema = z.object({
-  firstFrameDesc: z
+  /** 分镜提示词 — 融合画面/角色/空间/微表情/环境/光影/风格/技术参数的完整图像生成提示 */
+  visualPrompt: z
     .string()
-    .describe("A detailed description of the first frame of the shot."),
-  firstFrameVisCharIdx: z
-    .array(z.number())
-    .describe("Indices of characters visible in the first frame."),
-  lastFrameDesc: z
+    .describe(
+      "The complete visual prompt for image generation, combining composition, character, spatial relationship, micro-expression, environment, lighting, visual style, and technical specs. Use [FIELD_LABEL] + notation.",
+    ),
+  /** 视频运动提示词 — 融合运镜/角色动作/环境动态/音效/对白/时长的完整视频生成提示 */
+  motionVideoPrompt: z
     .string()
-    .describe("A detailed description of the last frame of the shot."),
-  lastFrameVisCharIdx: z
-    .array(z.number())
-    .describe("Indices of characters visible in the last frame."),
-  motionDesc: z.string().describe("The motion description of the shot."),
+    .describe(
+      "The complete motion video prompt for video generation (first+last frame to video), combining camera movement, character action details, environment dynamics, sound effects, dialogue, and duration. Use [FIELD_LABEL] + notation.",
+    ),
   variationType: z
     .enum(["large", "medium", "small"])
-    .describe("The degree of change between first and last frame."),
-  variationReason: z.string().describe("The reason for the variation type."),
+    .describe(
+      "The degree of change between first and last frame: large (composition change), medium (new character enters), small (expression change)",
+    ),
+  variationReason: z
+    .string()
+    .describe("The reason for the variation type choice"),
 });
 
 /**
  * 分镜
  * 为单个剧本场景设计完整故事板，返回镜头序列。
- * 每个镜头包含：镜头类型、视觉描述、音频描述、摄影机索引。
+ * 每个镜头包含：镜头索引、景别、时长、情绪、场景标签、光影氛围、
+ * 对白、画面描述、音效描述、机位角度。
  */
 export function designStoryboard(
   llm: ChatOpenAI,
   script: string,
   characters: TCharacterInScene[],
+  userRequirement?: string,
 ) {
-  const formatInstructions =
-    'Return ONLY valid JSON. Return a JSON object with key "storyboard". Each shot object MUST include: idx (number), is_last (boolean), cam_idx (number), visual_desc (string), audio_desc (string). Do not omit audio_desc; if no obvious audio exists, set audio_desc to an empty string.';
+  const formatInstructions = `
+Return ONLY valid JSON. Return a JSON object with key "storyboard".
+Each shot object MUST include following keys:
+- idx (number): shot index, starting from 0
+- isLast (boolean): whether this is the last shot
+- cameraIdx (number): camera index
+- visualDesc (string): vivid visual description of the shot
+- audioDesc (string): sound/audio description (empty string if none)
+- dialogue (string): dialogue text (empty string if none)
+- shotType (string): 景别 — one of 特写/近景/中景/全景/远景
+- duration (number): shot length in seconds (3-6)
+- emotion (string): emotional tone — e.g. 宁静/期盼/狂喜/释然/虔诚
+- sceneTags (string): scene keywords — e.g. 高山之巅，晨雾，日出破晓
+- lighting (string): lighting and atmosphere — e.g. 强烈的暖金色逆光，绝美的丁达尔效应
+- cameraAngle (string): camera angle — e.g. 平视/俯视/仰角/航拍
+`;
 
   const charactersStr = characters
     .map(
@@ -156,35 +231,36 @@ export function designStoryboard(
     )
     .join("\n");
 
-  return llm
-    .withStructuredOutput(storyboardResponseSchema)
-    .invoke([
-      new SystemMessage(
-        SYSTEM_DESIGN_STORYBOARD.replace(
-          "{format_instructions}",
-          formatInstructions,
-        ),
+  return llm.withStructuredOutput(storyboardResponseSchema).invoke([
+    new SystemMessage(
+      SYSTEM_DESIGN_STORYBOARD.replace(
+        "{format_instructions}",
+        formatInstructions,
       ),
-      new HumanMessage(
-        HUMAN_DESIGN_STORYBOARD.replace("{script}", script).replace(
-          "{characters}",
-          charactersStr,
-        ),
-      ),
-    ]);
+    ),
+    new HumanMessage(
+      HUMAN_DESIGN_STORYBOARD.replace("{script}", script)
+        .replace("{characters}", charactersStr)
+        .replace("{user_requirement}", userRequirement ?? ""),
+    ),
+  ]);
 }
 
 /**
- * 将分镜拆解为三部分：首帧画面、末帧画面、运动描述。
- * 同时标注变化类型（large / medium / small），用于判断镜头动态程度。
+ * 将分镜镜头拆解为两个完整组合 Prompt：
+ * - visualPrompt：分镜提示词（用于图像生成）
+ * - motionVideoPrompt：视频运动提示词（用于首尾帧生视频）
+ *
+ * 替代原来的独立 ff_desc / lf_desc / motion_desc，
+ * 直接按标准格式输出可直接消费的组合提示词。
  */
 export function decomposeVisualDescription(
   llm: ChatOpenAI,
-  visualDesc: string,
+  shot: TShotBriefDescription,
   characters: TCharacterInScene[],
 ) {
   const formatInstructions =
-    "Return a JSON object with keys: ff_desc (string), ff_vis_char_idxs (array of numbers), lf_desc (string), lf_vis_char_idxs (array of numbers), motion_desc (string), variation_type (string: large/medium/small), variation_reason (string).";
+    "Return a JSON object with keys: visualPrompt (string), motionVideoPrompt (string), variationType (string: large/medium/small), variationReason (string).";
 
   const charactersStr = characters
     .map(
@@ -193,17 +269,62 @@ export function decomposeVisualDescription(
     )
     .join("\n");
 
-  return llm
-    .withStructuredOutput(visDescDecompositionSchema)
-    .invoke([
-      new SystemMessage(
-        SYSTEM_DECOMPOSE.replace("{format_instructions}", formatInstructions),
-      ),
-      new HumanMessage(
-        HUMAN_DECOMPOSE.replace("{visual_desc}", visualDesc).replace(
-          "{characters}",
-          charactersStr,
-        ),
-      ),
-    ]);
+  return llm.withStructuredOutput(visDescDecompositionSchema).invoke([
+    new SystemMessage(
+      SYSTEM_DECOMPOSE.replace("{format_instructions}", formatInstructions),
+    ),
+    new HumanMessage(
+      HUMAN_DECOMPOSE.replace("{visual_desc}", shot.visualDesc)
+        .replace("{characters}", charactersStr)
+        .replace("{shot_type}", shot.shotType)
+        .replace("{duration}", String(shot.duration))
+        .replace("{emotion}", shot.emotion)
+        .replace("{scene_tags}", shot.sceneTags)
+        .replace("{lighting}", shot.lighting)
+        .replace("{dialogue}", shot.dialogue ?? "")
+        .replace("{character_action}", ""),
+    ),
+  ]);
+}
+
+// ── Response Schemas ──
+// 直接复用 ShotBriefDescriptionSchema，保证类型完全一致
+
+const storyboardResponseSchema = z.object({
+  storyboard: z
+    .array(ShotBriefDescriptionSchema)
+    .describe("A complete storyboard of the scene."),
+});
+
+/** 将故事板数据序列化为 CSV-兼容的行 */
+export function serializeStoryboardRow(
+  shot: TShotBriefDescription,
+  index: number,
+  characters: TCharacterInScene[],
+  visualPrompt: string,
+  motionVideoPrompt: string,
+): Record<string, unknown> {
+  return {
+    镜号: index + 1,
+    时长: shot.duration,
+    画面描述: shot.visualDesc,
+    角色1: characters[0]?.identifierInScene ?? "",
+    角色描述1: characters
+      .map(
+        (c) =>
+          `[${c.identifierInScene}: (static) ${c.staticFeatures}; (dynamic) ${c.dynamicFeatures}]`,
+      )
+      .join(" "),
+    角色图1: "",
+    参考: "",
+    景别: shot.shotType,
+    角色动作: "",
+    情绪: shot.emotion,
+    场景标签: shot.sceneTags,
+    光影氛围: shot.lighting,
+    音效: shot.audioDesc ?? "",
+    对白: shot.dialogue ?? "",
+    分镜提示词: visualPrompt,
+    视频运动提示词: motionVideoPrompt,
+  };
 }

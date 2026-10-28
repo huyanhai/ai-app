@@ -21,6 +21,7 @@
     "eslint": "^10.4.0",
     "frontend": "workspace:*",
     "langchain": "^1.4.2",
+    "lucide-react": "^1.16.0",
     "superjson": "^2.2.6",
     "typescript": "^6.0.3",
     "zod": "^4.4.3"

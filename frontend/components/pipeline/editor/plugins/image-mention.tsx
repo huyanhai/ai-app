@@ -48,7 +48,7 @@ const ImageMentionPlugin = ({ images }: { images: TNodeImage[] }) => {
 
   return (
     <LexicalTypeaheadMenuPlugin<
-      TNodeImageData & {
+      Omit<TNodeImageData, "title"> & {
         key: string;
         setRefElement: (element: HTMLElement) => void;
       }

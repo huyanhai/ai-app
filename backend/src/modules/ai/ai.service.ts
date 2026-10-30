@@ -21,6 +21,24 @@ import {
   ERR_STREAM_ABORTED,
 } from '@/common/utils/stream-constants';
 import { ModelsService } from '../models/models.service';
+import { AIMessage, BaseMessage, HumanMessage } from 'langchain';
+import { createChatModel } from '@/common/llm';
+import { extractTextFromContent } from '@/common/utils/message-utils';
+import type { AgentSubjectDto } from '../agent-sessions/dto/agent-stream.dto';
+
+export type AiHistoryMessage = {
+  role: 'user' | 'assistant';
+  content: string;
+  files?: FileUploadDto[];
+  subjects?: AgentSubjectDto[];
+};
+
+export type AiStreamOptions = {
+  skillIds?: string[];
+  subjects?: AgentSubjectDto[];
+  mode?: 'agent' | 'chat';
+};
+
 @Injectable()
 export class AiService {
   constructor(private readonly models: ModelsService) {}
@@ -34,6 +52,8 @@ export class AiService {
     files?: FileUploadDto[],
     signal?: AbortSignal,
     modelId?: string,
+    history: AiHistoryMessage[] = [],
+    options: AiStreamOptions = {},
   ) {
     const ensureNotAborted = () => {
       if (signal?.aborted) throw new Error(ERR_STREAM_ABORTED);
@@ -44,9 +64,54 @@ export class AiService {
     const preparedFiles = prepareFiles(files);
     await this.writeDocFiles(preparedFiles.docFiles, ensureNotAborted);
 
-    const inputMessages = buildInputMessages(message, preparedFiles);
+    const withSubjects = (text: string, subjects: AgentSubjectDto[] = []) =>
+      subjects.length
+        ? `参考以下画布内容：\n${subjects
+            .map(
+              (subject) =>
+                `- [${subject.kind ?? 'subject'}] ${subject.name}${subject.description ? `：${subject.description}` : ''}${subject.url ? `\n  资源地址：${subject.url}` : ''}`,
+            )
+            .join('\n')}\n\n${text}`
+        : text;
+    const currentInput = buildInputMessages(
+      withSubjects(message, options.subjects),
+      preparedFiles,
+    );
+    const currentMessages = Array.isArray(currentInput)
+      ? currentInput
+      : [new HumanMessage(currentInput)];
+    const historyMessages = history.flatMap((item): BaseMessage[] => {
+      if (item.role === 'assistant') return [new AIMessage(item.content)];
+      const input = buildInputMessages(
+        withSubjects(item.content, item.subjects),
+        prepareFiles(item.files),
+      );
+      return Array.isArray(input) ? input : [new HumanMessage(input)];
+    });
+    const inputMessages = historyMessages.length
+      ? [
+          ...historyMessages,
+          ...currentMessages,
+        ]
+      : currentInput;
     const model = await this.models.runtime(modelId, 'text');
-    const agent = createAgentWithModel(model);
+    if (options.mode === 'chat') {
+      const chatModel = createChatModel(model, {
+        temperature: 0.7,
+        streaming: true,
+      });
+      const chunks = await chatModel.stream(inputMessages);
+      yield { type: SSE_EVENT.MSG_START, role: SSE_ROLE.ASSISTANT };
+      for await (const chunk of chunks) {
+        if (signal?.aborted) break;
+        const text = extractTextFromContent(chunk.content);
+        if (text) yield { type: SSE_EVENT.MSG_CHUNK, content: text };
+      }
+      yield { type: SSE_EVENT.MSG_END };
+      return;
+    }
+
+    const agent = createAgentWithModel(model, options.skillIds);
     const run = (await agent.streamEvents(
       { messages: inputMessages },
       { version: 'v3' },

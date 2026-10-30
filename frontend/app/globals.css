@@ -73,6 +73,36 @@
     opacity: 0;
   }
 }
+
+.thinking-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.3) 25%,
+    rgba(255, 255, 255, 0.95) 50%,
+    rgba(255, 255, 255, 0.3) 75%
+  );
+  background-size: 200% 100%;
+  background-clip: text;
+  color: transparent;
+  animation: thinking-shimmer 1.6s linear infinite;
+}
+
+@keyframes thinking-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thinking-shimmer {
+    background: none;
+    color: rgba(255, 255, 255, 0.6);
+    animation: none;
+  }
+}
 .markdown-dark .bg-background {
   background-color: #26262a;
 }
@@ -105,4 +135,17 @@
 }
 .markdown-dark .border-muted-foreground {
   border-color: #52525b;
+}
+
+.agent-markdown :where(p, ul, ol, blockquote) {
+  margin-block: 0.4rem;
+}
+
+.agent-markdown :where(h1, h2, h3, h4, h5, h6) {
+  margin-block: 0.75rem 0.35rem;
+  line-height: 1.5;
+}
+
+.agent-markdown :where(li, li > p) {
+  margin-block: 0.15rem;
 }

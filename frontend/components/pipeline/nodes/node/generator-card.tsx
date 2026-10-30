@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { nanoid } from "nanoid";
 import Editor from "../../editor";
-import Popper, { IPopperRef } from "../../popper";
+import OptionPopper from "../../option-popper";
 import SizeConfig from "../../chat-input/config/size-config";
 import VideoConfig from "../../chat-input/config/video-config";
 import DurationConfig from "../../chat-input/config/duration-config";
@@ -37,7 +37,6 @@ import {
   TNodeBase,
   VideoModeType,
 } from "../../types";
-import { BUTTON_ACTIVE, BUTTON_NORMAL } from "@/constants/class-names";
 import { ModelCategory } from "@/components/models/types";
 import { useModelStore } from "@/store/model-store";
 import { ChunkStatus } from "backend/src/common/utils/ai-stream-utils";
@@ -49,46 +48,6 @@ export const GENERATOR_TYPES: NodeType[] = [
   NodeType.VideoNode,
   NodeType.AudioNode,
 ];
-
-// 简单的选项弹层（模型 / 清晰度 / 数量等）
-const OptionPopper = ({
-  label,
-  options,
-  value,
-  onChange,
-}: {
-  label: string;
-  options: (string | number)[];
-  value?: string | number;
-  onChange?: (v: string | number) => void;
-}) => {
-  const popperRef = useRef<IPopperRef>(null);
-
-  return (
-    <Popper
-      ref={popperRef}
-      content={label}
-      trigger={
-        <div className="flex flex-col gap-1 min-w-24">
-          {options.map((item) => (
-            <div
-              key={item}
-              className={`px-3 py-2 text-xs ${BUTTON_NORMAL} ${
-                value === item ? BUTTON_ACTIVE : ""
-              }`}
-              onClick={() => {
-                onChange?.(item);
-                popperRef.current?.closePopper();
-              }}
-            >
-              {item}
-            </div>
-          ))}
-        </div>
-      }
-    />
-  );
-};
 
 type TToolboxId = "camera" | "movement" | "palette" | "style";
 

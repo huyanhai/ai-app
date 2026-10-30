@@ -1,6 +1,6 @@
 "use client";
 import { Streamdown } from "streamdown";
-import type { Components } from "react-markdown";
+import type { Components } from "streamdown";
 
 interface MarkdownProps {
   children: string;
@@ -9,7 +9,7 @@ interface MarkdownProps {
   animating?: boolean;
 }
 
-const components: Partial<Components> = {
+const components: Components = {
   a({ href, children }) {
     return (
       <a

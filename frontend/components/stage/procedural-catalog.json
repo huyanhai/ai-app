@@ -1,0 +1,7216 @@
+[
+  {
+    "id": "chair",
+    "name": "椅子",
+    "nameEn": "Chair",
+    "category": "furniture",
+    "dimensions": [
+      0.48,
+      0.9,
+      0.52
+    ],
+    "parts": [
+      {
+        "shape": "rounded-box",
+        "size": [
+          0.48,
+          0.1,
+          0.5
+        ],
+        "position": [
+          0,
+          0.46,
+          0
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.06,
+          0.46,
+          0.06
+        ],
+        "position": [
+          -0.18,
+          0.23,
+          -0.19
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.06,
+          0.46,
+          0.06
+        ],
+        "position": [
+          -0.18,
+          0.23,
+          0.19
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.06,
+          0.46,
+          0.06
+        ],
+        "position": [
+          0.18,
+          0.23,
+          -0.19
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.06,
+          0.46,
+          0.06
+        ],
+        "position": [
+          0.18,
+          0.23,
+          0.19
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "rounded-box",
+        "size": [
+          0.48,
+          0.44,
+          0.09
+        ],
+        "position": [
+          0,
+          0.76,
+          0.20500000000000002
+        ],
+        "color": "#b88a62"
+      }
+    ]
+  },
+  {
+    "id": "round-stool",
+    "name": "圆凳",
+    "nameEn": "Round stool",
+    "category": "furniture",
+    "dimensions": [
+      0.38,
+      0.48,
+      0.38
+    ],
+    "parts": [
+      {
+        "shape": "smooth-cylinder",
+        "size": [
+          0.38,
+          0.08,
+          0.38
+        ],
+        "position": [
+          0,
+          0.44,
+          0
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "smooth-cylinder",
+        "size": [
+          0.045,
+          0.396,
+          0.045
+        ],
+        "position": [
+          -0.105,
+          0.198,
+          -0.105
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "smooth-cylinder",
+        "size": [
+          0.045,
+          0.396,
+          0.045
+        ],
+        "position": [
+          -0.105,
+          0.198,
+          0.105
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "smooth-cylinder",
+        "size": [
+          0.045,
+          0.396,
+          0.045
+        ],
+        "position": [
+          0.105,
+          0.198,
+          -0.105
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "smooth-cylinder",
+        "size": [
+          0.045,
+          0.396,
+          0.045
+        ],
+        "position": [
+          0.105,
+          0.198,
+          0.105
+        ],
+        "color": "#76533d"
+      }
+    ]
+  },
+  {
+    "id": "armchair",
+    "name": "扶手椅",
+    "nameEn": "Armchair",
+    "category": "furniture",
+    "dimensions": [
+      0.82,
+      0.88,
+      0.82
+    ],
+    "parts": [
+      {
+        "shape": "rounded-box",
+        "size": [
+          0.6000000000000001,
+          0.1,
+          0.74
+        ],
+        "position": [
+          0,
+          0.46,
+          0
+        ],
+        "color": "#97a9b5"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.06,
+          0.46,
+          0.06
+        ],
+        "position": [
+          -0.24000000000000005,
+          0.23,
+          -0.31
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.06,
+          0.46,
+          0.06
+        ],
+        "position": [
+          -0.24000000000000005,
+          0.23,
+          0.31
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.06,
+          0.46,
+          0.06
+        ],
+        "position": [
+          0.24000000000000005,
+          0.23,
+          -0.31
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.06,
+          0.46,
+          0.06
+        ],
+        "position": [
+          0.24000000000000005,
+          0.23,
+          0.31
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "rounded-box",
+        "size": [
+          0.6000000000000001,
+          0.42,
+          0.14
+        ],
+        "position": [
+          0,
+          0.75,
+          0.325
+        ],
+        "color": "#677885"
+      },
+      {
+        "shape": "rounded-box",
+        "size": [
+          0.09,
+          0.34,
+          0.74
+        ],
+        "position": [
+          -0.34500000000000003,
+          0.56,
+          0
+        ],
+        "color": "#677885"
+      },
+      {
+        "shape": "rounded-box",
+        "size": [
+          0.09,
+          0.34,
+          0.74
+        ],
+        "position": [
+          0.34500000000000003,
+          0.56,
+          0
+        ],
+        "color": "#677885"
+      }
+    ]
+  },
+  {
+    "id": "sofa",
+    "name": "沙发",
+    "nameEn": "Sofa",
+    "category": "furniture",
+    "dimensions": [
+      1.9,
+      0.88,
+      0.86
+    ],
+    "parts": [
+      {
+        "shape": "rounded-box",
+        "size": [
+          1.5,
+          0.14,
+          0.59
+        ],
+        "position": [
+          0,
+          0.38,
+          -0.085
+        ],
+        "color": "#97a9b5"
+      },
+      {
+        "shape": "rounded-box",
+        "size": [
+          1.475,
+          0.16,
+          0.72
+        ],
+        "position": [
+          0,
+          0.24,
+          -0.03
+        ],
+        "color": "#677885"
+      },
+      {
+        "shape": "rounded-box",
+        "size": [
+          1.46,
+          0.46,
+          0.18
+        ],
+        "position": [
+          0,
+          0.68,
+          0.31
+        ],
+        "color": "#97a9b5"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.008,
+          0.003,
+          0.52
+        ],
+        "position": [
+          0,
+          0.45,
+          -0.085
+        ],
+        "color": "#677885"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.008,
+          0.4,
+          0.004
+        ],
+        "position": [
+          0,
+          0.68,
+          0.219
+        ],
+        "color": "#677885"
+      },
+      {
+        "shape": "rounded-box",
+        "size": [
+          0.2,
+          0.5,
+          0.78
+        ],
+        "position": [
+          -0.85,
+          0.43,
+          0
+        ],
+        "color": "#677885"
+      },
+      {
+        "shape": "rounded-box",
+        "size": [
+          0.2,
+          0.5,
+          0.78
+        ],
+        "position": [
+          0.85,
+          0.43,
+          0
+        ],
+        "color": "#677885"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.08,
+          0.18,
+          0.08
+        ],
+        "position": [
+          -0.8099999999999999,
+          0.09,
+          -0.27
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.08,
+          0.18,
+          0.08
+        ],
+        "position": [
+          -0.8099999999999999,
+          0.09,
+          0.27
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.08,
+          0.18,
+          0.08
+        ],
+        "position": [
+          0.8099999999999999,
+          0.09,
+          -0.27
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.08,
+          0.18,
+          0.08
+        ],
+        "position": [
+          0.8099999999999999,
+          0.09,
+          0.27
+        ],
+        "color": "#76533d"
+      }
+    ]
+  },
+  {
+    "id": "square-table",
+    "name": "方桌",
+    "nameEn": "Square table",
+    "category": "furniture",
+    "dimensions": [
+      0.9,
+      0.75,
+      0.9
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          0.9,
+          0.1,
+          0.9
+        ],
+        "position": [
+          0,
+          0.7,
+          0
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.09,
+          0.67,
+          0.09
+        ],
+        "position": [
+          -0.36,
+          0.335,
+          -0.36
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.09,
+          0.67,
+          0.09
+        ],
+        "position": [
+          -0.36,
+          0.335,
+          0.36
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.09,
+          0.67,
+          0.09
+        ],
+        "position": [
+          0.36,
+          0.335,
+          -0.36
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.09,
+          0.67,
+          0.09
+        ],
+        "position": [
+          0.36,
+          0.335,
+          0.36
+        ],
+        "color": "#76533d"
+      }
+    ]
+  },
+  {
+    "id": "long-table",
+    "name": "长桌",
+    "nameEn": "Long table",
+    "category": "furniture",
+    "dimensions": [
+      1.8,
+      0.75,
+      0.9
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          1.8,
+          0.1,
+          0.9
+        ],
+        "position": [
+          0,
+          0.7,
+          0
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.09,
+          0.67,
+          0.09
+        ],
+        "position": [
+          -0.81,
+          0.335,
+          -0.36
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.09,
+          0.67,
+          0.09
+        ],
+        "position": [
+          -0.81,
+          0.335,
+          0.36
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.09,
+          0.67,
+          0.09
+        ],
+        "position": [
+          0.81,
+          0.335,
+          -0.36
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.09,
+          0.67,
+          0.09
+        ],
+        "position": [
+          0.81,
+          0.335,
+          0.36
+        ],
+        "color": "#76533d"
+      }
+    ]
+  },
+  {
+    "id": "round-table",
+    "name": "圆桌",
+    "nameEn": "Round table",
+    "category": "furniture",
+    "dimensions": [
+      1.05,
+      0.75,
+      1.05
+    ],
+    "parts": [
+      {
+        "shape": "smooth-cylinder",
+        "size": [
+          1.05,
+          0.1,
+          1.05
+        ],
+        "position": [
+          0,
+          0.7,
+          0
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "smooth-cylinder",
+        "size": [
+          0.2,
+          0.62,
+          0.2
+        ],
+        "position": [
+          0,
+          0.36,
+          0
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "smooth-cylinder",
+        "size": [
+          0.62,
+          0.08,
+          0.62
+        ],
+        "position": [
+          0,
+          0.04,
+          0
+        ],
+        "color": "#76533d"
+      }
+    ]
+  },
+  {
+    "id": "bed",
+    "name": "床",
+    "nameEn": "Bed",
+    "category": "furniture",
+    "dimensions": [
+      1.5,
+      0.55,
+      2.05
+    ],
+    "parts": [
+      {
+        "shape": "rounded-box",
+        "size": [
+          1.44,
+          0.23,
+          1.88
+        ],
+        "position": [
+          0,
+          0.29,
+          -0.05
+        ],
+        "color": "#d9d4ca"
+      },
+      {
+        "shape": "rounded-box",
+        "size": [
+          1.5,
+          0.4,
+          0.12
+        ],
+        "position": [
+          0,
+          0.35,
+          0.965
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          1.5,
+          0.18,
+          2.05
+        ],
+        "position": [
+          0,
+          0.09,
+          0
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "rounded-box",
+        "size": [
+          0.58,
+          0.12,
+          0.35
+        ],
+        "position": [
+          -0.33,
+          0.46,
+          0.68
+        ],
+        "color": "#dfe3e4"
+      },
+      {
+        "shape": "rounded-box",
+        "size": [
+          0.58,
+          0.12,
+          0.35
+        ],
+        "position": [
+          0.33,
+          0.46,
+          0.68
+        ],
+        "color": "#dfe3e4"
+      },
+      {
+        "shape": "rounded-box",
+        "size": [
+          1.46,
+          0.045,
+          1.1
+        ],
+        "position": [
+          0,
+          0.42,
+          -0.4
+        ],
+        "color": "#97a9b5"
+      }
+    ]
+  },
+  {
+    "id": "bookshelf",
+    "name": "书架",
+    "nameEn": "Bookshelf",
+    "category": "furniture",
+    "dimensions": [
+      0.9,
+      1.8,
+      0.3
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          0.9,
+          0.07,
+          0.3
+        ],
+        "position": [
+          0,
+          0.035,
+          0
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.9,
+          0.07,
+          0.3
+        ],
+        "position": [
+          0,
+          1.7650000000000001,
+          0
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.07,
+          1.6600000000000001,
+          0.3
+        ],
+        "position": [
+          -0.41500000000000004,
+          0.9,
+          0
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.07,
+          1.6600000000000001,
+          0.3
+        ],
+        "position": [
+          0.41500000000000004,
+          0.9,
+          0
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.76,
+          1.6600000000000001,
+          0.07
+        ],
+        "position": [
+          0,
+          0.9,
+          0.11499999999999999
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.76,
+          0.07,
+          0.22999999999999998
+        ],
+        "position": [
+          0,
+          0.36,
+          -0.035
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.76,
+          0.07,
+          0.22999999999999998
+        ],
+        "position": [
+          0,
+          0.72,
+          -0.035
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.76,
+          0.07,
+          0.22999999999999998
+        ],
+        "position": [
+          0,
+          1.08,
+          -0.035
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.76,
+          0.07,
+          0.22999999999999998
+        ],
+        "position": [
+          0,
+          1.44,
+          -0.035
+        ],
+        "color": "#b88a62"
+      }
+    ]
+  },
+  {
+    "id": "low-cabinet",
+    "name": "矮柜",
+    "nameEn": "Low cabinet",
+    "category": "furniture",
+    "dimensions": [
+      1.2,
+      0.72,
+      0.42
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          1.2,
+          0.07,
+          0.42
+        ],
+        "position": [
+          0,
+          0.035,
+          0
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          1.2,
+          0.07,
+          0.42
+        ],
+        "position": [
+          0,
+          0.6849999999999999,
+          0
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.07,
+          0.58,
+          0.42
+        ],
+        "position": [
+          -0.565,
+          0.36,
+          0
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.07,
+          0.58,
+          0.42
+        ],
+        "position": [
+          0.565,
+          0.36,
+          0
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          1.06,
+          0.58,
+          0.07
+        ],
+        "position": [
+          0,
+          0.36,
+          0.175
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          1.06,
+          0.07,
+          0.35
+        ],
+        "position": [
+          0,
+          0.36,
+          -0.035
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          1.04,
+          0.27,
+          0.045
+        ],
+        "position": [
+          0,
+          0.53,
+          -0.22
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.25,
+          0.025,
+          0.035
+        ],
+        "position": [
+          0,
+          0.53,
+          -0.253
+        ],
+        "color": "#8d989c"
+      }
+    ]
+  },
+  {
+    "id": "wardrobe",
+    "name": "衣柜",
+    "nameEn": "Wardrobe",
+    "category": "furniture",
+    "dimensions": [
+      1.2,
+      2,
+      0.58
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          1.2,
+          0.07,
+          0.58
+        ],
+        "position": [
+          0,
+          0.035,
+          0
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          1.2,
+          0.07,
+          0.58
+        ],
+        "position": [
+          0,
+          1.965,
+          0
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.07,
+          1.8599999999999999,
+          0.58
+        ],
+        "position": [
+          -0.565,
+          1,
+          0
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.07,
+          1.8599999999999999,
+          0.58
+        ],
+        "position": [
+          0.565,
+          1,
+          0
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          1.06,
+          1.8599999999999999,
+          0.07
+        ],
+        "position": [
+          0,
+          1,
+          0.255
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.54,
+          1.82,
+          0.04
+        ],
+        "position": [
+          -0.29,
+          1,
+          -0.31
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.54,
+          1.82,
+          0.04
+        ],
+        "position": [
+          0.29,
+          1,
+          -0.31
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.025,
+          0.26,
+          0.03
+        ],
+        "position": [
+          -0.06,
+          1,
+          -0.345
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.025,
+          0.26,
+          0.03
+        ],
+        "position": [
+          0.06,
+          1,
+          -0.345
+        ],
+        "color": "#8d989c"
+      }
+    ]
+  },
+  {
+    "id": "television",
+    "name": "电视",
+    "nameEn": "Television",
+    "category": "furniture",
+    "dimensions": [
+      1.1,
+      0.68,
+      0.12
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          1.1,
+          0.62,
+          0.1
+        ],
+        "position": [
+          0,
+          0.37,
+          0
+        ],
+        "color": "#202629"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.98,
+          0.5,
+          0.02
+        ],
+        "position": [
+          0,
+          0.39,
+          -0.061
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.08,
+          0.11,
+          0.06
+        ],
+        "position": [
+          0,
+          0.085,
+          0
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.35,
+          0.05,
+          0.12
+        ],
+        "position": [
+          0,
+          0.025,
+          0
+        ],
+        "color": "#8d989c"
+      }
+    ]
+  },
+  {
+    "id": "wall-television",
+    "name": "挂墙电视",
+    "nameEn": "Wall television",
+    "category": "furniture",
+    "dimensions": [
+      1.2,
+      0.7,
+      0.08
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          1.2,
+          0.7,
+          0.08
+        ],
+        "position": [
+          0,
+          0.35,
+          0
+        ],
+        "color": "#202629"
+      },
+      {
+        "shape": "box",
+        "size": [
+          1.08,
+          0.58,
+          0.015
+        ],
+        "position": [
+          0,
+          0.35,
+          -0.047
+        ],
+        "color": "#3f474c"
+      }
+    ]
+  },
+  {
+    "id": "floor-lamp",
+    "name": "落地灯",
+    "nameEn": "Floor lamp",
+    "category": "furniture",
+    "dimensions": [
+      0.45,
+      1.65,
+      0.45
+    ],
+    "parts": [
+      {
+        "shape": "cylinder",
+        "size": [
+          0.42,
+          0.06,
+          0.42
+        ],
+        "position": [
+          0,
+          0.03,
+          0
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.05,
+          1.25,
+          0.05
+        ],
+        "position": [
+          0,
+          0.655,
+          0
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "lampshade",
+        "size": [
+          0.45,
+          0.38,
+          0.45
+        ],
+        "position": [
+          0,
+          1.46,
+          0
+        ],
+        "color": "#d9d4ca"
+      }
+    ]
+  },
+  {
+    "id": "table-lamp",
+    "name": "台灯",
+    "nameEn": "Table lamp",
+    "category": "furniture",
+    "dimensions": [
+      0.28,
+      0.5,
+      0.28
+    ],
+    "parts": [
+      {
+        "shape": "cylinder",
+        "size": [
+          0.2,
+          0.04,
+          0.2
+        ],
+        "position": [
+          0,
+          0.02,
+          0
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.035,
+          0.3,
+          0.035
+        ],
+        "position": [
+          0,
+          0.17,
+          0
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "lampshade",
+        "size": [
+          0.28,
+          0.22,
+          0.28
+        ],
+        "position": [
+          0,
+          0.39,
+          0
+        ],
+        "color": "#d9d4ca"
+      }
+    ]
+  },
+  {
+    "id": "rug",
+    "name": "地毯",
+    "nameEn": "Rug",
+    "category": "furniture",
+    "dimensions": [
+      1.6,
+      0.02,
+      2.3
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          1.6,
+          0.02,
+          2.3
+        ],
+        "position": [
+          0,
+          0.01,
+          0
+        ],
+        "color": "#c98f83"
+      }
+    ]
+  },
+  {
+    "id": "wall-segment",
+    "name": "墙段",
+    "nameEn": "Wall segment",
+    "category": "architecture",
+    "dimensions": [
+      3,
+      2.6,
+      0.18
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          3,
+          2.6,
+          0.18
+        ],
+        "position": [
+          0,
+          1.3,
+          0
+        ],
+        "color": "#b9b5aa"
+      }
+    ]
+  },
+  {
+    "id": "column",
+    "name": "柱子",
+    "nameEn": "Column",
+    "category": "architecture",
+    "dimensions": [
+      0.4,
+      2.8,
+      0.4
+    ],
+    "parts": [
+      {
+        "shape": "cylinder",
+        "size": [
+          0.4,
+          2.55,
+          0.4
+        ],
+        "position": [
+          0,
+          1.4,
+          0
+        ],
+        "color": "#b9b5aa"
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.5,
+          0.14,
+          0.5
+        ],
+        "position": [
+          0,
+          0.07,
+          0
+        ],
+        "color": "#8d8b84"
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.5,
+          0.14,
+          0.5
+        ],
+        "position": [
+          0,
+          2.73,
+          0
+        ],
+        "color": "#8d8b84"
+      }
+    ]
+  },
+  {
+    "id": "stairs",
+    "name": "楼梯段",
+    "nameEn": "Stair flight",
+    "category": "architecture",
+    "dimensions": [
+      2,
+      1.5,
+      3
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          2,
+          0.1875,
+          0.375
+        ],
+        "position": [
+          0,
+          0.09375,
+          1.3125
+        ],
+        "color": "#b9b5aa"
+      },
+      {
+        "shape": "box",
+        "size": [
+          2,
+          0.375,
+          0.375
+        ],
+        "position": [
+          0,
+          0.1875,
+          0.9375
+        ],
+        "color": "#b9b5aa"
+      },
+      {
+        "shape": "box",
+        "size": [
+          2,
+          0.5625,
+          0.375
+        ],
+        "position": [
+          0,
+          0.28125,
+          0.5625
+        ],
+        "color": "#b9b5aa"
+      },
+      {
+        "shape": "box",
+        "size": [
+          2,
+          0.75,
+          0.375
+        ],
+        "position": [
+          0,
+          0.375,
+          0.1875
+        ],
+        "color": "#b9b5aa"
+      },
+      {
+        "shape": "box",
+        "size": [
+          2,
+          0.9375,
+          0.375
+        ],
+        "position": [
+          0,
+          0.46875,
+          -0.1875
+        ],
+        "color": "#b9b5aa"
+      },
+      {
+        "shape": "box",
+        "size": [
+          2,
+          1.125,
+          0.375
+        ],
+        "position": [
+          0,
+          0.5625,
+          -0.5625
+        ],
+        "color": "#b9b5aa"
+      },
+      {
+        "shape": "box",
+        "size": [
+          2,
+          1.3125,
+          0.375
+        ],
+        "position": [
+          0,
+          0.65625,
+          -0.9375
+        ],
+        "color": "#b9b5aa"
+      },
+      {
+        "shape": "box",
+        "size": [
+          2,
+          1.5,
+          0.375
+        ],
+        "position": [
+          0,
+          0.75,
+          -1.3125
+        ],
+        "color": "#b9b5aa"
+      }
+    ]
+  },
+  {
+    "id": "ramp",
+    "name": "斜坡",
+    "nameEn": "Ramp",
+    "category": "architecture",
+    "dimensions": [
+      2,
+      0.8,
+      3
+    ],
+    "parts": [
+      {
+        "shape": "wedge",
+        "size": [
+          2,
+          0.8,
+          3
+        ],
+        "position": [
+          0,
+          0.4,
+          0
+        ],
+        "color": "#b9b5aa"
+      }
+    ]
+  },
+  {
+    "id": "platform",
+    "name": "平台",
+    "nameEn": "Platform",
+    "category": "architecture",
+    "dimensions": [
+      2.4,
+      0.3,
+      2.4
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          2.4,
+          0.3,
+          2.4
+        ],
+        "position": [
+          0,
+          0.15,
+          0
+        ],
+        "color": "#b9b5aa"
+      }
+    ]
+  },
+  {
+    "id": "archway",
+    "name": "拱门",
+    "nameEn": "Archway",
+    "category": "architecture",
+    "dimensions": [
+      2.5,
+      2.6,
+      0.35
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          0.42,
+          2.1,
+          0.35
+        ],
+        "position": [
+          -1.04,
+          1.05,
+          0
+        ],
+        "color": "#b9b5aa"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.42,
+          2.1,
+          0.35
+        ],
+        "position": [
+          1.04,
+          1.05,
+          0
+        ],
+        "color": "#b9b5aa"
+      },
+      {
+        "shape": "arch-band",
+        "size": [
+          2.5,
+          1,
+          0.35
+        ],
+        "position": [
+          0,
+          2.1,
+          0
+        ],
+        "color": "#b9b5aa"
+      }
+    ]
+  },
+  {
+    "id": "door",
+    "name": "门",
+    "nameEn": "Door",
+    "category": "architecture",
+    "dimensions": [
+      1,
+      2.1,
+      0.12
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          1,
+          2.1,
+          0.12
+        ],
+        "position": [
+          0,
+          1.05,
+          0
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "sphere",
+        "size": [
+          0.08,
+          0.08,
+          0.08
+        ],
+        "position": [
+          -0.34,
+          1.02,
+          -0.08
+        ],
+        "color": "#8d989c"
+      }
+    ]
+  },
+  {
+    "id": "fence",
+    "name": "栅栏",
+    "nameEn": "Fence",
+    "category": "architecture",
+    "dimensions": [
+      2.4,
+      1.1,
+      0.12
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          0.11,
+          1.1,
+          0.11
+        ],
+        "position": [
+          -1.08,
+          0.55,
+          0
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.11,
+          1.1,
+          0.11
+        ],
+        "position": [
+          -0.54,
+          0.55,
+          0
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.11,
+          1.1,
+          0.11
+        ],
+        "position": [
+          0,
+          0.55,
+          0
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.11,
+          1.1,
+          0.11
+        ],
+        "position": [
+          0.54,
+          0.55,
+          0
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.11,
+          1.1,
+          0.11
+        ],
+        "position": [
+          1.08,
+          0.55,
+          0
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          2.4,
+          0.12,
+          0.12
+        ],
+        "position": [
+          0,
+          0.32,
+          0
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          2.4,
+          0.12,
+          0.12
+        ],
+        "position": [
+          0,
+          0.82,
+          0
+        ],
+        "color": "#76533d"
+      }
+    ]
+  },
+  {
+    "id": "ladder",
+    "name": "梯子",
+    "nameEn": "Ladder",
+    "category": "architecture",
+    "dimensions": [
+      0.6,
+      2.4,
+      0.12
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          0.08,
+          2.4,
+          0.08
+        ],
+        "position": [
+          -0.26,
+          1.2,
+          0
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.08,
+          2.4,
+          0.08
+        ],
+        "position": [
+          0.26,
+          1.2,
+          0
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.52,
+          0.06,
+          0.08
+        ],
+        "position": [
+          0,
+          0.28,
+          0
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.52,
+          0.06,
+          0.08
+        ],
+        "position": [
+          0,
+          0.5900000000000001,
+          0
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.52,
+          0.06,
+          0.08
+        ],
+        "position": [
+          0,
+          0.9,
+          0
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.52,
+          0.06,
+          0.08
+        ],
+        "position": [
+          0,
+          1.21,
+          0
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.52,
+          0.06,
+          0.08
+        ],
+        "position": [
+          0,
+          1.52,
+          0
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.52,
+          0.06,
+          0.08
+        ],
+        "position": [
+          0,
+          1.83,
+          0
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.52,
+          0.06,
+          0.08
+        ],
+        "position": [
+          0,
+          2.1399999999999997,
+          0
+        ],
+        "color": "#8d989c"
+      }
+    ]
+  },
+  {
+    "id": "statue",
+    "name": "抽象雕塑",
+    "nameEn": "Abstract statue",
+    "category": "architecture",
+    "dimensions": [
+      0.8,
+      2,
+      0.8
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          0.8,
+          0.22,
+          0.8
+        ],
+        "position": [
+          0,
+          0.11,
+          0
+        ],
+        "color": "#8d8b84"
+      },
+      {
+        "shape": "smooth-cylinder",
+        "size": [
+          0.44,
+          0.62,
+          0.44
+        ],
+        "position": [
+          0,
+          0.49,
+          0
+        ],
+        "color": "#b9b5aa"
+      },
+      {
+        "shape": "torus",
+        "size": [
+          0.68,
+          0.75,
+          0.18
+        ],
+        "position": [
+          0,
+          1.14,
+          0
+        ],
+        "color": "#b9b5aa"
+      },
+      {
+        "shape": "smooth-sphere",
+        "size": [
+          0.42,
+          0.5,
+          0.42
+        ],
+        "position": [
+          0,
+          1.73,
+          0
+        ],
+        "color": "#8d8b84"
+      }
+    ]
+  },
+  {
+    "id": "small-tree",
+    "name": "小树",
+    "nameEn": "Small tree",
+    "category": "nature",
+    "dimensions": [
+      2.2,
+      3.5,
+      2.2
+    ],
+    "parts": [
+      {
+        "shape": "cylinder",
+        "size": [
+          0.385,
+          1.61,
+          0.385
+        ],
+        "position": [
+          0,
+          0.805,
+          0
+        ],
+        "color": "#80634d"
+      },
+      {
+        "shape": "smooth-sphere",
+        "size": [
+          1.9600000000000002,
+          2.03,
+          1.9600000000000002
+        ],
+        "position": [
+          0,
+          2.45,
+          0
+        ],
+        "color": "#6d9670"
+      },
+      {
+        "shape": "smooth-sphere",
+        "size": [
+          1.372,
+          1.47,
+          1.372
+        ],
+        "position": [
+          -0.49000000000000005,
+          2.7300000000000004,
+          0
+        ],
+        "color": "#4f7657"
+      }
+    ]
+  },
+  {
+    "id": "large-tree",
+    "name": "大树",
+    "nameEn": "Large tree",
+    "category": "nature",
+    "dimensions": [
+      4.5,
+      7,
+      4.5
+    ],
+    "parts": [
+      {
+        "shape": "cylinder",
+        "size": [
+          0.77,
+          3.22,
+          0.77
+        ],
+        "position": [
+          0,
+          1.61,
+          0
+        ],
+        "color": "#80634d"
+      },
+      {
+        "shape": "smooth-sphere",
+        "size": [
+          4.41,
+          4.06,
+          4.41
+        ],
+        "position": [
+          0,
+          4.9,
+          0
+        ],
+        "color": "#6d9670"
+      },
+      {
+        "shape": "smooth-sphere",
+        "size": [
+          3.0869999999999997,
+          2.94,
+          3.0869999999999997
+        ],
+        "position": [
+          -1.1025,
+          5.460000000000001,
+          0
+        ],
+        "color": "#4f7657"
+      }
+    ]
+  },
+  {
+    "id": "rock",
+    "name": "石头",
+    "nameEn": "Rock",
+    "category": "nature",
+    "dimensions": [
+      1.2,
+      0.8,
+      1
+    ],
+    "parts": [
+      {
+        "shape": "sphere",
+        "size": [
+          1.2,
+          0.8,
+          1
+        ],
+        "position": [
+          0,
+          0.4,
+          0
+        ],
+        "color": "#8d8b84"
+      }
+    ]
+  },
+  {
+    "id": "bush",
+    "name": "灌木",
+    "nameEn": "Bush",
+    "category": "nature",
+    "dimensions": [
+      1.4,
+      1,
+      1.2
+    ],
+    "parts": [
+      {
+        "shape": "smooth-sphere",
+        "size": [
+          1,
+          0.9,
+          1
+        ],
+        "position": [
+          -0.25,
+          0.45,
+          0
+        ],
+        "color": "#4f7657"
+      },
+      {
+        "shape": "smooth-sphere",
+        "size": [
+          0.9,
+          0.8,
+          0.9
+        ],
+        "position": [
+          0.35,
+          0.4,
+          0.12
+        ],
+        "color": "#6d9670"
+      }
+    ]
+  },
+  {
+    "id": "potted-plant",
+    "name": "盆栽",
+    "nameEn": "Potted plant",
+    "category": "nature",
+    "dimensions": [
+      0.65,
+      1.2,
+      0.65
+    ],
+    "parts": [
+      {
+        "shape": "bowl",
+        "size": [
+          0.55,
+          0.42,
+          0.55
+        ],
+        "position": [
+          0,
+          0.21,
+          0
+        ],
+        "color": "#dfe3e4",
+        "surface": "ceramic"
+      },
+      {
+        "shape": "smooth-cylinder",
+        "size": [
+          0.43,
+          0.025,
+          0.43
+        ],
+        "position": [
+          0,
+          0.345,
+          0
+        ],
+        "color": "#80634d"
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.045,
+          0.6,
+          0.045
+        ],
+        "position": [
+          0,
+          0.65,
+          0
+        ],
+        "color": "#4f7657"
+      },
+      {
+        "shape": "smooth-sphere",
+        "size": [
+          0.38,
+          0.095,
+          0.21
+        ],
+        "position": [
+          -0.14,
+          0.68,
+          0
+        ],
+        "color": "#6d9670",
+        "rotation": [
+          0,
+          0,
+          -28
+        ]
+      },
+      {
+        "shape": "smooth-sphere",
+        "size": [
+          0.38,
+          0.095,
+          0.21
+        ],
+        "position": [
+          0.14,
+          0.68,
+          0
+        ],
+        "color": "#6d9670",
+        "rotation": [
+          0,
+          0,
+          28
+        ]
+      },
+      {
+        "shape": "smooth-sphere",
+        "size": [
+          0.33,
+          0.08,
+          0.18
+        ],
+        "position": [
+          -0.11,
+          0.86,
+          0.02
+        ],
+        "color": "#4f7657",
+        "rotation": [
+          0,
+          0,
+          -34
+        ]
+      },
+      {
+        "shape": "smooth-sphere",
+        "size": [
+          0.33,
+          0.08,
+          0.18
+        ],
+        "position": [
+          0.11,
+          0.86,
+          0.02
+        ],
+        "color": "#4f7657",
+        "rotation": [
+          0,
+          0,
+          34
+        ]
+      },
+      {
+        "shape": "smooth-sphere",
+        "size": [
+          0.22,
+          0.29,
+          0.17
+        ],
+        "position": [
+          0,
+          1.04,
+          0
+        ],
+        "color": "#6d9670"
+      }
+    ]
+  },
+  {
+    "id": "stump",
+    "name": "树桩",
+    "nameEn": "Tree stump",
+    "category": "nature",
+    "dimensions": [
+      0.75,
+      0.6,
+      0.75
+    ],
+    "parts": [
+      {
+        "shape": "cylinder",
+        "size": [
+          0.75,
+          0.6,
+          0.75
+        ],
+        "position": [
+          0,
+          0.3,
+          0
+        ],
+        "color": "#80634d"
+      }
+    ]
+  },
+  {
+    "id": "flower-bed",
+    "name": "花坛",
+    "nameEn": "Flower bed",
+    "category": "nature",
+    "dimensions": [
+      1.8,
+      0.5,
+      0.8
+    ],
+    "parts": [
+      {
+        "shape": "rounded-basin",
+        "size": [
+          1.8,
+          0.35,
+          0.8
+        ],
+        "position": [
+          0,
+          0.175,
+          0
+        ],
+        "color": "#b9b5aa"
+      },
+      {
+        "shape": "box",
+        "size": [
+          1.4,
+          0.04,
+          0.53
+        ],
+        "position": [
+          0,
+          0.28,
+          0
+        ],
+        "color": "#80634d"
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.035,
+          0.28,
+          0.035
+        ],
+        "position": [
+          -0.55,
+          0.42,
+          0
+        ],
+        "color": "#4f7657"
+      },
+      {
+        "shape": "smooth-sphere",
+        "size": [
+          0.25,
+          0.06,
+          0.25
+        ],
+        "position": [
+          -0.55,
+          0.55,
+          0
+        ],
+        "color": "#c98f83"
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.075,
+          0.025,
+          0.075
+        ],
+        "position": [
+          -0.55,
+          0.583,
+          0
+        ],
+        "color": "#d5aa55"
+      },
+      {
+        "shape": "leaf",
+        "size": [
+          0.22,
+          0.05,
+          0.09
+        ],
+        "position": [
+          -0.49000000000000005,
+          0.43,
+          0
+        ],
+        "color": "#6d9670",
+        "rotation": [
+          0,
+          0,
+          28
+        ]
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.035,
+          0.28,
+          0.035
+        ],
+        "position": [
+          0,
+          0.42,
+          0
+        ],
+        "color": "#4f7657"
+      },
+      {
+        "shape": "smooth-sphere",
+        "size": [
+          0.25,
+          0.06,
+          0.25
+        ],
+        "position": [
+          0,
+          0.55,
+          0
+        ],
+        "color": "#d5aa55"
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.075,
+          0.025,
+          0.075
+        ],
+        "position": [
+          0,
+          0.583,
+          0
+        ],
+        "color": "#d5aa55"
+      },
+      {
+        "shape": "leaf",
+        "size": [
+          0.22,
+          0.05,
+          0.09
+        ],
+        "position": [
+          0.06,
+          0.43,
+          0
+        ],
+        "color": "#6d9670",
+        "rotation": [
+          0,
+          0,
+          28
+        ]
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.035,
+          0.28,
+          0.035
+        ],
+        "position": [
+          0.55,
+          0.42,
+          0
+        ],
+        "color": "#4f7657"
+      },
+      {
+        "shape": "smooth-sphere",
+        "size": [
+          0.25,
+          0.06,
+          0.25
+        ],
+        "position": [
+          0.55,
+          0.55,
+          0
+        ],
+        "color": "#c98f83"
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.075,
+          0.025,
+          0.075
+        ],
+        "position": [
+          0.55,
+          0.583,
+          0
+        ],
+        "color": "#d5aa55"
+      },
+      {
+        "shape": "leaf",
+        "size": [
+          0.22,
+          0.05,
+          0.09
+        ],
+        "position": [
+          0.6100000000000001,
+          0.43,
+          0
+        ],
+        "color": "#6d9670",
+        "rotation": [
+          0,
+          0,
+          28
+        ]
+      }
+    ]
+  },
+  {
+    "id": "sedan",
+    "name": "轿车",
+    "nameEn": "Sedan",
+    "category": "street",
+    "dimensions": [
+      1.8,
+      1.5,
+      4.4
+    ],
+    "parts": [
+      {
+        "shape": "rounded-box",
+        "size": [
+          1.692,
+          0.43499999999999994,
+          4.136
+        ],
+        "position": [
+          0,
+          0.6,
+          0
+        ],
+        "color": "#c98f83"
+      },
+      {
+        "shape": "trapezoid-prism",
+        "size": [
+          1.476,
+          0.63,
+          2.244
+        ],
+        "position": [
+          0,
+          1.125,
+          -0.24200000000000002
+        ],
+        "color": "#677885"
+      },
+      {
+        "shape": "rounded-box",
+        "size": [
+          1.512,
+          0.0675,
+          1.276
+        ],
+        "position": [
+          0,
+          1.4699999999999998,
+          -0.27280000000000004
+        ],
+        "color": "#c98f83"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.035,
+          0.5700000000000001,
+          0.065
+        ],
+        "position": [
+          -0.7542,
+          1.1099999999999999,
+          -0.24200000000000002
+        ],
+        "color": "#c98f83"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.035,
+          0.5700000000000001,
+          0.065
+        ],
+        "position": [
+          0.7542,
+          1.1099999999999999,
+          -0.24200000000000002
+        ],
+        "color": "#c98f83"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.8280000000000001,
+          0.135,
+          0.035
+        ],
+        "position": [
+          0,
+          0.5549999999999999,
+          2.0988
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "rounded-box",
+        "size": [
+          0.36000000000000004,
+          0.135,
+          0.04
+        ],
+        "position": [
+          -0.5760000000000001,
+          0.7050000000000001,
+          2.0988
+        ],
+        "color": "#d9d4ca"
+      },
+      {
+        "shape": "rounded-box",
+        "size": [
+          0.36000000000000004,
+          0.135,
+          0.04
+        ],
+        "position": [
+          0.5760000000000001,
+          0.7050000000000001,
+          2.0988
+        ],
+        "color": "#d9d4ca"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.324,
+          0.10500000000000001,
+          0.025
+        ],
+        "position": [
+          -0.5760000000000001,
+          0.7050000000000001,
+          -2.0988
+        ],
+        "color": "#df765f"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.324,
+          0.10500000000000001,
+          0.025
+        ],
+        "position": [
+          0.5760000000000001,
+          0.7050000000000001,
+          -2.0988
+        ],
+        "color": "#df765f"
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.72,
+          0.18000000000000002,
+          0.72
+        ],
+        "position": [
+          -0.846,
+          0.36,
+          -1.32
+        ],
+        "color": "#202629",
+        "rotation": [
+          0,
+          0,
+          90
+        ]
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.378,
+          0.027,
+          0.378
+        ],
+        "position": [
+          -0.9450000000000001,
+          0.36,
+          -1.32
+        ],
+        "color": "#8d989c",
+        "rotation": [
+          0,
+          0,
+          90
+        ]
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.72,
+          0.18000000000000002,
+          0.72
+        ],
+        "position": [
+          -0.846,
+          0.36,
+          1.32
+        ],
+        "color": "#202629",
+        "rotation": [
+          0,
+          0,
+          90
+        ]
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.378,
+          0.027,
+          0.378
+        ],
+        "position": [
+          -0.9450000000000001,
+          0.36,
+          1.32
+        ],
+        "color": "#8d989c",
+        "rotation": [
+          0,
+          0,
+          90
+        ]
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.72,
+          0.18000000000000002,
+          0.72
+        ],
+        "position": [
+          0.846,
+          0.36,
+          -1.32
+        ],
+        "color": "#202629",
+        "rotation": [
+          0,
+          0,
+          90
+        ]
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.378,
+          0.027,
+          0.378
+        ],
+        "position": [
+          0.9450000000000001,
+          0.36,
+          -1.32
+        ],
+        "color": "#8d989c",
+        "rotation": [
+          0,
+          0,
+          90
+        ]
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.72,
+          0.18000000000000002,
+          0.72
+        ],
+        "position": [
+          0.846,
+          0.36,
+          1.32
+        ],
+        "color": "#202629",
+        "rotation": [
+          0,
+          0,
+          90
+        ]
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.378,
+          0.027,
+          0.378
+        ],
+        "position": [
+          0.9450000000000001,
+          0.36,
+          1.32
+        ],
+        "color": "#8d989c",
+        "rotation": [
+          0,
+          0,
+          90
+        ]
+      }
+    ]
+  },
+  {
+    "id": "truck",
+    "name": "卡车",
+    "nameEn": "Truck",
+    "category": "street",
+    "dimensions": [
+      2.4,
+      2.6,
+      6.2
+    ],
+    "parts": [
+      {
+        "shape": "rounded-box",
+        "size": [
+          2.256,
+          0.754,
+          5.827999999999999
+        ],
+        "position": [
+          0,
+          0.8160000000000001,
+          0
+        ],
+        "color": "#668da6"
+      },
+      {
+        "shape": "box",
+        "size": [
+          2.28,
+          1.6380000000000001,
+          3.658
+        ],
+        "position": [
+          0,
+          1.96,
+          -1.054
+        ],
+        "color": "#97a9b5"
+      },
+      {
+        "shape": "rounded-box",
+        "size": [
+          2.208,
+          1.586,
+          1.612
+        ],
+        "position": [
+          0,
+          1.674,
+          1.922
+        ],
+        "color": "#668da6"
+      },
+      {
+        "shape": "box",
+        "size": [
+          1.8479999999999999,
+          0.624,
+          0.025
+        ],
+        "position": [
+          0,
+          1.8820000000000001,
+          2.7466
+        ],
+        "color": "#677885"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.025,
+          0.624,
+          1.1780000000000002
+        ],
+        "position": [
+          -1.1184,
+          1.8820000000000001,
+          1.922
+        ],
+        "color": "#677885"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.025,
+          0.624,
+          1.1780000000000002
+        ],
+        "position": [
+          1.1184,
+          1.8820000000000001,
+          1.922
+        ],
+        "color": "#677885"
+      },
+      {
+        "shape": "box",
+        "size": [
+          1.104,
+          0.23399999999999999,
+          0.035
+        ],
+        "position": [
+          0,
+          0.738,
+          2.9574
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "rounded-box",
+        "size": [
+          0.48,
+          0.23399999999999999,
+          0.04
+        ],
+        "position": [
+          -0.768,
+          0.9980000000000001,
+          2.9574
+        ],
+        "color": "#d9d4ca"
+      },
+      {
+        "shape": "rounded-box",
+        "size": [
+          0.48,
+          0.23399999999999999,
+          0.04
+        ],
+        "position": [
+          0.768,
+          0.9980000000000001,
+          2.9574
+        ],
+        "color": "#d9d4ca"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.432,
+          0.18200000000000002,
+          0.025
+        ],
+        "position": [
+          -0.768,
+          0.9980000000000001,
+          -2.9574
+        ],
+        "color": "#df765f"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.432,
+          0.18200000000000002,
+          0.025
+        ],
+        "position": [
+          0.768,
+          0.9980000000000001,
+          -2.9574
+        ],
+        "color": "#df765f"
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.8,
+          0.24,
+          0.8
+        ],
+        "position": [
+          -1.128,
+          0.4,
+          -1.8599999999999999
+        ],
+        "color": "#202629",
+        "rotation": [
+          0,
+          0,
+          90
+        ]
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.42000000000000004,
+          0.036,
+          0.42000000000000004
+        ],
+        "position": [
+          -1.26,
+          0.4,
+          -1.8599999999999999
+        ],
+        "color": "#8d989c",
+        "rotation": [
+          0,
+          0,
+          90
+        ]
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.8,
+          0.24,
+          0.8
+        ],
+        "position": [
+          -1.128,
+          0.4,
+          1.8599999999999999
+        ],
+        "color": "#202629",
+        "rotation": [
+          0,
+          0,
+          90
+        ]
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.42000000000000004,
+          0.036,
+          0.42000000000000004
+        ],
+        "position": [
+          -1.26,
+          0.4,
+          1.8599999999999999
+        ],
+        "color": "#8d989c",
+        "rotation": [
+          0,
+          0,
+          90
+        ]
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.8,
+          0.24,
+          0.8
+        ],
+        "position": [
+          1.128,
+          0.4,
+          -1.8599999999999999
+        ],
+        "color": "#202629",
+        "rotation": [
+          0,
+          0,
+          90
+        ]
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.42000000000000004,
+          0.036,
+          0.42000000000000004
+        ],
+        "position": [
+          1.26,
+          0.4,
+          -1.8599999999999999
+        ],
+        "color": "#8d989c",
+        "rotation": [
+          0,
+          0,
+          90
+        ]
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.8,
+          0.24,
+          0.8
+        ],
+        "position": [
+          1.128,
+          0.4,
+          1.8599999999999999
+        ],
+        "color": "#202629",
+        "rotation": [
+          0,
+          0,
+          90
+        ]
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.42000000000000004,
+          0.036,
+          0.42000000000000004
+        ],
+        "position": [
+          1.26,
+          0.4,
+          1.8599999999999999
+        ],
+        "color": "#8d989c",
+        "rotation": [
+          0,
+          0,
+          90
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bicycle",
+    "name": "自行车",
+    "nameEn": "Bicycle",
+    "category": "street",
+    "dimensions": [
+      0.45,
+      1.15,
+      1.8
+    ],
+    "parts": [
+      {
+        "shape": "torus",
+        "size": [
+          0.72,
+          0.72,
+          0.08
+        ],
+        "position": [
+          0,
+          0.37,
+          -0.58
+        ],
+        "color": "#202629",
+        "rotation": [
+          0,
+          90,
+          0
+        ]
+      },
+      {
+        "shape": "torus",
+        "size": [
+          0.72,
+          0.72,
+          0.08
+        ],
+        "position": [
+          0,
+          0.37,
+          0.58
+        ],
+        "color": "#202629",
+        "rotation": [
+          0,
+          90,
+          0
+        ]
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.055,
+          0.5583854141237834,
+          0.055
+        ],
+        "position": [
+          0,
+          0.4,
+          -0.315
+        ],
+        "color": "#668da6",
+        "rotation": [
+          83.54118362128135,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.055,
+          0.5890035460881429,
+          0.055
+        ],
+        "position": [
+          0,
+          0.595,
+          -0.41
+        ],
+        "color": "#668da6",
+        "rotation": [
+          37.0730733173104,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.055,
+          0.45882023926967724,
+          0.055
+        ],
+        "position": [
+          0,
+          0.625,
+          -0.145
+        ],
+        "color": "#668da6",
+        "rotation": [
+          -25.97439396243132,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.055,
+          0.6050862004909271,
+          0.055
+        ],
+        "position": [
+          0,
+          0.825,
+          0.05000000000000002
+        ],
+        "color": "#668da6",
+        "rotation": [
+          89.01223960036019,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.055,
+          0.4057886552931954,
+          0.055
+        ],
+        "position": [
+          0,
+          0.505,
+          0.125
+        ],
+        "color": "#668da6",
+        "rotation": [
+          66.80140948635182,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.06,
+          0.2781797780234433,
+          0.06
+        ],
+        "position": [
+          0,
+          0.705,
+          0.32
+        ],
+        "color": "#8d989c",
+        "rotation": [
+          9.090276920822332,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.045,
+          0.5438448708429139,
+          0.045
+        ],
+        "position": [
+          0,
+          0.6,
+          0.45999999999999996
+        ],
+        "color": "#8d989c",
+        "rotation": [
+          -27.552811576717794,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.045,
+          0.2242485884517128,
+          0.045
+        ],
+        "position": [
+          0,
+          0.925,
+          0.37
+        ],
+        "color": "#8d989c",
+        "rotation": [
+          17.525568373722862,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.36,
+          0.045,
+          0.045
+        ],
+        "position": [
+          0,
+          1.02,
+          0.4
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.3,
+          0.055,
+          0.16
+        ],
+        "position": [
+          0,
+          0.89,
+          -0.27
+        ],
+        "color": "#3f474c"
+      }
+    ]
+  },
+  {
+    "id": "motorcycle",
+    "name": "摩托车",
+    "nameEn": "Motorcycle",
+    "category": "street",
+    "dimensions": [
+      0.8,
+      1.2,
+      2.1
+    ],
+    "parts": [
+      {
+        "shape": "torus",
+        "size": [
+          0.72,
+          0.72,
+          0.12
+        ],
+        "position": [
+          0,
+          0.36,
+          -0.68
+        ],
+        "color": "#202629",
+        "rotation": [
+          0,
+          90,
+          0
+        ]
+      },
+      {
+        "shape": "torus",
+        "size": [
+          0.72,
+          0.72,
+          0.12
+        ],
+        "position": [
+          0,
+          0.36,
+          0.68
+        ],
+        "color": "#202629",
+        "rotation": [
+          0,
+          90,
+          0
+        ]
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.18,
+          0.14,
+          0.18
+        ],
+        "position": [
+          0,
+          0.36,
+          -0.68
+        ],
+        "color": "#8d989c",
+        "rotation": [
+          0,
+          0,
+          90
+        ]
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.18,
+          0.14,
+          0.18
+        ],
+        "position": [
+          0,
+          0.36,
+          0.68
+        ],
+        "color": "#8d989c",
+        "rotation": [
+          0,
+          0,
+          90
+        ]
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.44,
+          0.4,
+          0.5
+        ],
+        "position": [
+          0,
+          0.57,
+          -0.03
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "smooth-sphere",
+        "size": [
+          0.48,
+          0.38,
+          0.58
+        ],
+        "position": [
+          0,
+          0.82,
+          0.18
+        ],
+        "color": "#df765f"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.42,
+          0.11,
+          0.52
+        ],
+        "position": [
+          0,
+          0.9,
+          -0.31
+        ],
+        "color": "#202629",
+        "rotation": [
+          -5,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.085,
+          0.6923080248281148,
+          0.085
+        ],
+        "position": [
+          0,
+          0.47,
+          -0.36500000000000005
+        ],
+        "color": "#df765f",
+        "rotation": [
+          70.75047412731828,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.07,
+          0.6690496875241847,
+          0.07
+        ],
+        "position": [
+          0,
+          0.62,
+          -0.49
+        ],
+        "color": "#df765f",
+        "rotation": [
+          36.15818543980833,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.085,
+          0.625,
+          0.085
+        ],
+        "position": [
+          0,
+          0.79,
+          0.19
+        ],
+        "color": "#df765f",
+        "rotation": [
+          53.13010235415598,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.055,
+          0.6842419889539805,
+          0.055
+        ],
+        "position": [
+          -0.14,
+          0.665,
+          0.555
+        ],
+        "color": "#8d989c",
+        "rotation": [
+          -22.285587646832774,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.055,
+          0.6842419889539805,
+          0.055
+        ],
+        "position": [
+          0.14,
+          0.665,
+          0.555
+        ],
+        "color": "#8d989c",
+        "rotation": [
+          -22.285587646832774,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.055,
+          0.16642135623730964,
+          0.055
+        ],
+        "position": [
+          0,
+          1.04,
+          0.44
+        ],
+        "color": "#8d989c",
+        "rotation": [
+          8.130102354155978,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.8,
+          0.055,
+          0.07
+        ],
+        "position": [
+          0,
+          1.11,
+          0.45
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "smooth-sphere",
+        "size": [
+          0.22,
+          0.22,
+          0.18
+        ],
+        "position": [
+          0,
+          1,
+          0.59
+        ],
+        "color": "#d9d4ca"
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.1,
+          0.7,
+          0.1
+        ],
+        "position": [
+          -0.27,
+          0.49,
+          -0.2
+        ],
+        "color": "#8d989c",
+        "rotation": [
+          90,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.42,
+          0.06,
+          0.55
+        ],
+        "position": [
+          0,
+          0.7,
+          -0.58
+        ],
+        "color": "#df765f",
+        "rotation": [
+          8,
+          0,
+          0
+        ]
+      }
+    ]
+  },
+  {
+    "id": "street-lamp",
+    "name": "路灯",
+    "nameEn": "Street lamp",
+    "category": "street",
+    "dimensions": [
+      0.45,
+      3.8,
+      0.45
+    ],
+    "parts": [
+      {
+        "shape": "smooth-cylinder",
+        "size": [
+          0.3,
+          0.14,
+          0.3
+        ],
+        "position": [
+          0,
+          0.07,
+          0
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "smooth-cylinder",
+        "size": [
+          0.075,
+          3.3,
+          0.075
+        ],
+        "position": [
+          0,
+          1.75,
+          0
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.34,
+          0.065,
+          0.065
+        ],
+        "position": [
+          0.13,
+          3.42,
+          0
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "rounded-box",
+        "size": [
+          0.32,
+          0.16,
+          0.28
+        ],
+        "position": [
+          0.23,
+          3.49,
+          0
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "rounded-box",
+        "size": [
+          0.27,
+          0.028,
+          0.23
+        ],
+        "position": [
+          0.23,
+          3.399,
+          0
+        ],
+        "color": "#d9d4ca"
+      }
+    ]
+  },
+  {
+    "id": "bench",
+    "name": "长椅",
+    "nameEn": "Bench",
+    "category": "street",
+    "dimensions": [
+      1.8,
+      0.85,
+      0.65
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          1.8,
+          0.12,
+          0.52
+        ],
+        "position": [
+          0,
+          0.46,
+          0
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          1.8,
+          0.36,
+          0.1
+        ],
+        "position": [
+          0,
+          0.67,
+          0.27
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.1,
+          0.46,
+          0.52
+        ],
+        "position": [
+          -0.68,
+          0.23,
+          0
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.1,
+          0.46,
+          0.52
+        ],
+        "position": [
+          0.68,
+          0.23,
+          0
+        ],
+        "color": "#3f474c"
+      }
+    ]
+  },
+  {
+    "id": "trash-bin",
+    "name": "垃圾桶",
+    "nameEn": "Trash bin",
+    "category": "street",
+    "dimensions": [
+      0.55,
+      1,
+      0.55
+    ],
+    "parts": [
+      {
+        "shape": "smooth-cylinder",
+        "size": [
+          0.55,
+          0.9,
+          0.55
+        ],
+        "position": [
+          0,
+          0.45,
+          0
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "smooth-cylinder",
+        "size": [
+          0.58,
+          0.05,
+          0.58
+        ],
+        "position": [
+          0,
+          0.925,
+          0
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "rounded-box",
+        "size": [
+          0.18,
+          0.055,
+          0.045
+        ],
+        "position": [
+          0,
+          0.9775,
+          0
+        ],
+        "color": "#202629"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.055,
+          0.16,
+          0.08
+        ],
+        "position": [
+          -0.27,
+          0.75,
+          0
+        ],
+        "color": "#202629"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.055,
+          0.16,
+          0.08
+        ],
+        "position": [
+          0.27,
+          0.75,
+          0
+        ],
+        "color": "#202629"
+      }
+    ]
+  },
+  {
+    "id": "traffic-cone",
+    "name": "路锥",
+    "nameEn": "Traffic cone",
+    "category": "street",
+    "dimensions": [
+      0.45,
+      0.7,
+      0.45
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          0.45,
+          0.07,
+          0.45
+        ],
+        "position": [
+          0,
+          0.035,
+          0
+        ],
+        "color": "#202629"
+      },
+      {
+        "shape": "cone",
+        "size": [
+          0.34,
+          0.65,
+          0.34
+        ],
+        "position": [
+          0,
+          0.375,
+          0
+        ],
+        "color": "#df765f"
+      },
+      {
+        "shape": "frustum",
+        "size": [
+          0.224,
+          0.18,
+          0.224
+        ],
+        "position": [
+          0,
+          0.375,
+          0
+        ],
+        "color": "#dfe3e4"
+      }
+    ]
+  },
+  {
+    "id": "water-barrier",
+    "name": "水马护栏",
+    "nameEn": "Water barrier",
+    "category": "street",
+    "dimensions": [
+      1.8,
+      1,
+      0.5
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          1.8,
+          0.18,
+          0.5
+        ],
+        "position": [
+          0,
+          0.09,
+          0
+        ],
+        "color": "#df765f"
+      },
+      {
+        "shape": "box",
+        "size": [
+          1.58,
+          0.48,
+          0.44
+        ],
+        "position": [
+          0,
+          0.42,
+          0
+        ],
+        "color": "#df765f"
+      },
+      {
+        "shape": "box",
+        "size": [
+          1.18,
+          0.18,
+          0.38
+        ],
+        "position": [
+          0,
+          0.74,
+          0
+        ],
+        "color": "#df765f"
+      },
+      {
+        "shape": "wedge",
+        "size": [
+          0.25,
+          0.26,
+          0.38
+        ],
+        "position": [
+          -0.665,
+          0.68,
+          0
+        ],
+        "color": "#df765f",
+        "rotation": [
+          0,
+          180,
+          0
+        ]
+      },
+      {
+        "shape": "wedge",
+        "size": [
+          0.25,
+          0.26,
+          0.38
+        ],
+        "position": [
+          0.665,
+          0.68,
+          0
+        ],
+        "color": "#df765f"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.5,
+          0.14,
+          0.025
+        ],
+        "position": [
+          0,
+          0.68,
+          -0.235
+        ],
+        "color": "#202629"
+      },
+      {
+        "shape": "box",
+        "size": [
+          1.34,
+          0.1,
+          0.025
+        ],
+        "position": [
+          0,
+          0.43,
+          -0.235
+        ],
+        "color": "#dfe3e4"
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.11,
+          0.08,
+          0.11
+        ],
+        "position": [
+          0.52,
+          0.88,
+          0
+        ],
+        "color": "#3f474c"
+      }
+    ]
+  },
+  {
+    "id": "road-sign",
+    "name": "路牌",
+    "nameEn": "Road sign",
+    "category": "street",
+    "dimensions": [
+      0.8,
+      2.4,
+      0.06
+    ],
+    "parts": [
+      {
+        "shape": "cylinder",
+        "size": [
+          0.06,
+          1.9,
+          0.06
+        ],
+        "position": [
+          0,
+          0.95,
+          0
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.8,
+          0.55,
+          0.006
+        ],
+        "position": [
+          0,
+          2.08,
+          0
+        ],
+        "color": "#668da6"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.7,
+          0.45,
+          0.002
+        ],
+        "position": [
+          0,
+          2.08,
+          -0.004
+        ],
+        "color": "#d9d4ca"
+      }
+    ]
+  },
+  {
+    "id": "fire-hydrant",
+    "name": "消防栓",
+    "nameEn": "Fire hydrant",
+    "category": "street",
+    "dimensions": [
+      0.5,
+      0.85,
+      0.5
+    ],
+    "parts": [
+      {
+        "shape": "cylinder",
+        "size": [
+          0.34,
+          0.7,
+          0.34
+        ],
+        "position": [
+          0,
+          0.37,
+          0
+        ],
+        "color": "#df765f"
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.5,
+          0.12,
+          0.5
+        ],
+        "position": [
+          0,
+          0.68,
+          0
+        ],
+        "color": "#df765f"
+      },
+      {
+        "shape": "sphere",
+        "size": [
+          0.3,
+          0.3,
+          0.3
+        ],
+        "position": [
+          0,
+          0.77,
+          0
+        ],
+        "color": "#df765f"
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.2,
+          0.2,
+          0.2
+        ],
+        "position": [
+          -0.22,
+          0.48,
+          0
+        ],
+        "color": "#df765f",
+        "rotation": [
+          0,
+          0,
+          90
+        ]
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.2,
+          0.2,
+          0.2
+        ],
+        "position": [
+          0.22,
+          0.48,
+          0
+        ],
+        "color": "#df765f",
+        "rotation": [
+          0,
+          0,
+          90
+        ]
+      }
+    ]
+  },
+  {
+    "id": "oil-drum",
+    "name": "油桶",
+    "nameEn": "Oil drum",
+    "category": "street",
+    "dimensions": [
+      0.58,
+      0.9,
+      0.58
+    ],
+    "parts": [
+      {
+        "shape": "cylinder",
+        "size": [
+          0.58,
+          0.9,
+          0.58
+        ],
+        "position": [
+          0,
+          0.45,
+          0
+        ],
+        "color": "#668da6"
+      },
+      {
+        "shape": "torus",
+        "size": [
+          0.6,
+          0.6,
+          0.05
+        ],
+        "position": [
+          0,
+          0.16,
+          0
+        ],
+        "color": "#3f474c",
+        "rotation": [
+          90,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "torus",
+        "size": [
+          0.6,
+          0.6,
+          0.05
+        ],
+        "position": [
+          0,
+          0.74,
+          0
+        ],
+        "color": "#3f474c",
+        "rotation": [
+          90,
+          0,
+          0
+        ]
+      }
+    ]
+  },
+  {
+    "id": "crate",
+    "name": "木箱",
+    "nameEn": "Wooden crate",
+    "category": "street",
+    "dimensions": [
+      0.8,
+      0.65,
+      0.7
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          0.72,
+          0.12,
+          0.58
+        ],
+        "position": [
+          0,
+          0.09,
+          0
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.72,
+          0.12,
+          0.58
+        ],
+        "position": [
+          0,
+          0.25,
+          0
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.72,
+          0.12,
+          0.58
+        ],
+        "position": [
+          0,
+          0.41,
+          0
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.72,
+          0.12,
+          0.58
+        ],
+        "position": [
+          0,
+          0.57,
+          0
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.09,
+          0.65,
+          0.09
+        ],
+        "position": [
+          -0.355,
+          0.325,
+          -0.305
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.09,
+          0.65,
+          0.09
+        ],
+        "position": [
+          -0.355,
+          0.325,
+          0.305
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.09,
+          0.65,
+          0.09
+        ],
+        "position": [
+          0.355,
+          0.325,
+          -0.305
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.09,
+          0.65,
+          0.09
+        ],
+        "position": [
+          0.355,
+          0.325,
+          0.305
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.075,
+          0.73,
+          0.04
+        ],
+        "position": [
+          0,
+          0.325,
+          -0.33
+        ],
+        "color": "#76533d",
+        "rotation": [
+          0,
+          0,
+          49
+        ]
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.075,
+          0.73,
+          0.04
+        ],
+        "position": [
+          0,
+          0.325,
+          -0.33
+        ],
+        "color": "#76533d",
+        "rotation": [
+          0,
+          0,
+          -49
+        ]
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.075,
+          0.73,
+          0.04
+        ],
+        "position": [
+          0,
+          0.325,
+          0.33
+        ],
+        "color": "#76533d",
+        "rotation": [
+          0,
+          0,
+          49
+        ]
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.075,
+          0.73,
+          0.04
+        ],
+        "position": [
+          0,
+          0.325,
+          0.33
+        ],
+        "color": "#76533d",
+        "rotation": [
+          0,
+          0,
+          -49
+        ]
+      }
+    ]
+  },
+  {
+    "id": "desk",
+    "name": "书桌",
+    "nameEn": "Desk",
+    "category": "office",
+    "dimensions": [
+      1.4,
+      0.75,
+      0.7
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          1.4,
+          0.1,
+          0.7
+        ],
+        "position": [
+          0,
+          0.7,
+          0
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.077,
+          0.67,
+          0.077
+        ],
+        "position": [
+          -0.623,
+          0.335,
+          -0.27299999999999996
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.077,
+          0.67,
+          0.077
+        ],
+        "position": [
+          -0.623,
+          0.335,
+          0.27299999999999996
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.077,
+          0.67,
+          0.077
+        ],
+        "position": [
+          0.623,
+          0.335,
+          -0.27299999999999996
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.077,
+          0.67,
+          0.077
+        ],
+        "position": [
+          0.623,
+          0.335,
+          0.27299999999999996
+        ],
+        "color": "#76533d"
+      }
+    ]
+  },
+  {
+    "id": "coffee-table",
+    "name": "茶几",
+    "nameEn": "Coffee table",
+    "category": "furniture",
+    "dimensions": [
+      0.95,
+      0.42,
+      0.55
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          0.95,
+          0.0672,
+          0.55
+        ],
+        "position": [
+          0,
+          0.38639999999999997,
+          0
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.060500000000000005,
+          0.36624,
+          0.060500000000000005
+        ],
+        "position": [
+          -0.4145,
+          0.18312,
+          -0.21450000000000002
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.060500000000000005,
+          0.36624,
+          0.060500000000000005
+        ],
+        "position": [
+          -0.4145,
+          0.18312,
+          0.21450000000000002
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.060500000000000005,
+          0.36624,
+          0.060500000000000005
+        ],
+        "position": [
+          0.4145,
+          0.18312,
+          -0.21450000000000002
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.060500000000000005,
+          0.36624,
+          0.060500000000000005
+        ],
+        "position": [
+          0.4145,
+          0.18312,
+          0.21450000000000002
+        ],
+        "color": "#76533d"
+      }
+    ]
+  },
+  {
+    "id": "side-table",
+    "name": "边桌",
+    "nameEn": "Side table",
+    "category": "furniture",
+    "dimensions": [
+      0.5,
+      0.55,
+      0.5
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          0.5,
+          0.08800000000000001,
+          0.5
+        ],
+        "position": [
+          0,
+          0.506,
+          0
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.055,
+          0.4796,
+          0.055
+        ],
+        "position": [
+          -0.195,
+          0.2398,
+          -0.195
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.055,
+          0.4796,
+          0.055
+        ],
+        "position": [
+          -0.195,
+          0.2398,
+          0.195
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.055,
+          0.4796,
+          0.055
+        ],
+        "position": [
+          0.195,
+          0.2398,
+          -0.195
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.055,
+          0.4796,
+          0.055
+        ],
+        "position": [
+          0.195,
+          0.2398,
+          0.195
+        ],
+        "color": "#76533d"
+      }
+    ]
+  },
+  {
+    "id": "refrigerator",
+    "name": "冰箱",
+    "nameEn": "Refrigerator",
+    "category": "kitchen",
+    "dimensions": [
+      0.75,
+      1.85,
+      0.72
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          0.75,
+          1.805,
+          0.72
+        ],
+        "position": [
+          0,
+          0.9025,
+          0
+        ],
+        "color": "#dfe3e4"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.69,
+          1.08,
+          0.035
+        ],
+        "position": [
+          0,
+          1.25,
+          -0.378
+        ],
+        "color": "#d9d4ca"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.69,
+          0.58,
+          0.035
+        ],
+        "position": [
+          0,
+          0.37,
+          -0.378
+        ],
+        "color": "#d9d4ca"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.7,
+          0.025,
+          0.045
+        ],
+        "position": [
+          0,
+          0.695,
+          -0.39
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.035,
+          0.52,
+          0.04
+        ],
+        "position": [
+          0.25,
+          1.25,
+          -0.405
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.035,
+          0.32,
+          0.04
+        ],
+        "position": [
+          0.25,
+          0.39,
+          -0.405
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.71,
+          0.045,
+          0.68
+        ],
+        "position": [
+          0,
+          1.8275,
+          0
+        ],
+        "color": "#8d989c"
+      }
+    ]
+  },
+  {
+    "id": "stove",
+    "name": "灶台",
+    "nameEn": "Stove",
+    "category": "kitchen",
+    "dimensions": [
+      0.6,
+      0.9,
+      0.65
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          0.6,
+          0.82,
+          0.62
+        ],
+        "position": [
+          0,
+          0.41,
+          0
+        ],
+        "color": "#dfe3e4"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.62,
+          0.06,
+          0.65
+        ],
+        "position": [
+          0,
+          0.85,
+          0
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "torus",
+        "size": [
+          0.17,
+          0.17,
+          0.025
+        ],
+        "position": [
+          -0.16,
+          0.89,
+          -0.17
+        ],
+        "color": "#202629",
+        "rotation": [
+          90,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "torus",
+        "size": [
+          0.17,
+          0.17,
+          0.025
+        ],
+        "position": [
+          -0.16,
+          0.89,
+          0.17
+        ],
+        "color": "#202629",
+        "rotation": [
+          90,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "torus",
+        "size": [
+          0.17,
+          0.17,
+          0.025
+        ],
+        "position": [
+          0.16,
+          0.89,
+          -0.17
+        ],
+        "color": "#202629",
+        "rotation": [
+          90,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "torus",
+        "size": [
+          0.17,
+          0.17,
+          0.025
+        ],
+        "position": [
+          0.16,
+          0.89,
+          0.17
+        ],
+        "color": "#202629",
+        "rotation": [
+          90,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.46,
+          0.32,
+          0.03
+        ],
+        "position": [
+          0,
+          0.35,
+          -0.335
+        ],
+        "color": "#202629"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.45,
+          0.035,
+          0.04
+        ],
+        "position": [
+          0,
+          0.57,
+          -0.355
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.52,
+          0.14,
+          0.035
+        ],
+        "position": [
+          0,
+          0.72,
+          -0.34
+        ],
+        "color": "#d9d4ca"
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.055,
+          0.035,
+          0.055
+        ],
+        "position": [
+          -0.16,
+          0.72,
+          -0.37
+        ],
+        "color": "#3f474c",
+        "rotation": [
+          90,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.055,
+          0.035,
+          0.055
+        ],
+        "position": [
+          0,
+          0.72,
+          -0.37
+        ],
+        "color": "#3f474c",
+        "rotation": [
+          90,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.055,
+          0.035,
+          0.055
+        ],
+        "position": [
+          0.16,
+          0.72,
+          -0.37
+        ],
+        "color": "#3f474c",
+        "rotation": [
+          90,
+          0,
+          0
+        ]
+      }
+    ]
+  },
+  {
+    "id": "kitchen-sink",
+    "name": "厨房水槽",
+    "nameEn": "Kitchen sink",
+    "category": "kitchen",
+    "dimensions": [
+      0.8,
+      1.2,
+      0.65
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          0.78,
+          0.07,
+          0.62
+        ],
+        "position": [
+          0,
+          0.035,
+          0
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.07,
+          0.6799999999999999,
+          0.62
+        ],
+        "position": [
+          -0.355,
+          0.41,
+          0
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.07,
+          0.6799999999999999,
+          0.62
+        ],
+        "position": [
+          0.355,
+          0.41,
+          0
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.64,
+          0.6799999999999999,
+          0.07
+        ],
+        "position": [
+          0,
+          0.41,
+          0.275
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.8,
+          0.06,
+          0.1
+        ],
+        "position": [
+          0,
+          0.87,
+          -0.275
+        ],
+        "color": "#b9b5aa"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.8,
+          0.06,
+          0.18
+        ],
+        "position": [
+          0,
+          0.87,
+          0.235
+        ],
+        "color": "#b9b5aa"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.04,
+          0.06,
+          0.37
+        ],
+        "position": [
+          -0.38,
+          0.87,
+          -0.04
+        ],
+        "color": "#b9b5aa"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.21,
+          0.06,
+          0.37
+        ],
+        "position": [
+          0.295,
+          0.87,
+          -0.04
+        ],
+        "color": "#b9b5aa"
+      },
+      {
+        "shape": "rounded-basin",
+        "size": [
+          0.56,
+          0.22,
+          0.4
+        ],
+        "position": [
+          -0.08,
+          0.805,
+          -0.04
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.35,
+          0.64,
+          0.025
+        ],
+        "position": [
+          -0.19,
+          0.42,
+          -0.323
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.35,
+          0.64,
+          0.025
+        ],
+        "position": [
+          0.19,
+          0.42,
+          -0.323
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.03,
+          0.18,
+          0.025
+        ],
+        "position": [
+          -0.05,
+          0.5,
+          -0.345
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.03,
+          0.18,
+          0.025
+        ],
+        "position": [
+          0.05,
+          0.5,
+          -0.345
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.09,
+          0.035,
+          0.09
+        ],
+        "position": [
+          0.22,
+          0.935,
+          0.2
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.045,
+          0.28,
+          0.045
+        ],
+        "position": [
+          0.22,
+          1.065,
+          0.2
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.045,
+          0.2,
+          0.045
+        ],
+        "position": [
+          0.22,
+          1.2,
+          0.1
+        ],
+        "color": "#8d989c",
+        "rotation": [
+          90,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.04,
+          0.085,
+          0.04
+        ],
+        "position": [
+          0.22,
+          1.16,
+          0
+        ],
+        "color": "#8d989c"
+      }
+    ]
+  },
+  {
+    "id": "kitchen-counter",
+    "name": "厨房地柜",
+    "nameEn": "Kitchen counter",
+    "category": "kitchen",
+    "dimensions": [
+      1.2,
+      0.9,
+      0.65
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          1.16,
+          0.8,
+          0.6
+        ],
+        "position": [
+          0,
+          0.42,
+          0
+        ],
+        "color": "#d9d4ca"
+      },
+      {
+        "shape": "box",
+        "size": [
+          1.2,
+          0.08,
+          0.65
+        ],
+        "position": [
+          0,
+          0.86,
+          0
+        ],
+        "color": "#8d8b84"
+      },
+      {
+        "shape": "box",
+        "size": [
+          1.05,
+          0.1,
+          0.035
+        ],
+        "position": [
+          0,
+          0.08,
+          -0.32
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.54,
+          0.52,
+          0.035
+        ],
+        "position": [
+          -0.29,
+          0.37,
+          -0.322
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.54,
+          0.52,
+          0.035
+        ],
+        "position": [
+          0.29,
+          0.37,
+          -0.322
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.54,
+          0.15,
+          0.035
+        ],
+        "position": [
+          -0.29,
+          0.72,
+          -0.322
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.54,
+          0.15,
+          0.035
+        ],
+        "position": [
+          0.29,
+          0.72,
+          -0.322
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.18,
+          0.025,
+          0.025
+        ],
+        "position": [
+          -0.29,
+          0.62,
+          -0.35
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.18,
+          0.025,
+          0.025
+        ],
+        "position": [
+          0.29,
+          0.62,
+          -0.35
+        ],
+        "color": "#3f474c"
+      }
+    ]
+  },
+  {
+    "id": "kitchen-island",
+    "name": "厨房岛台",
+    "nameEn": "Kitchen island",
+    "category": "kitchen",
+    "dimensions": [
+      1.6,
+      0.92,
+      0.85
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          1.35,
+          0.82,
+          0.65
+        ],
+        "position": [
+          0,
+          0.41,
+          0
+        ],
+        "color": "#d9d4ca"
+      },
+      {
+        "shape": "box",
+        "size": [
+          1.6,
+          0.1,
+          0.85
+        ],
+        "position": [
+          0,
+          0.87,
+          0
+        ],
+        "color": "#8d8b84"
+      }
+    ]
+  },
+  {
+    "id": "microwave",
+    "name": "微波炉",
+    "nameEn": "Microwave",
+    "category": "kitchen",
+    "dimensions": [
+      0.5,
+      0.3,
+      0.4
+    ],
+    "parts": [
+      {
+        "shape": "rounded-box",
+        "size": [
+          0.5,
+          0.3,
+          0.4
+        ],
+        "position": [
+          0,
+          0.15,
+          0
+        ],
+        "color": "#dfe3e4"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.36,
+          0.23,
+          0.024
+        ],
+        "position": [
+          -0.05,
+          0.15,
+          -0.211
+        ],
+        "color": "#202629"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.28,
+          0.15,
+          0.008
+        ],
+        "position": [
+          -0.07,
+          0.15,
+          -0.227
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.018,
+          0.15,
+          0.022
+        ],
+        "position": [
+          0.105,
+          0.15,
+          -0.236
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.063,
+          0.035,
+          0.008
+        ],
+        "position": [
+          0.193,
+          0.235,
+          -0.21
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.04,
+          0.025,
+          0.04
+        ],
+        "position": [
+          0.19,
+          0.12,
+          -0.215
+        ],
+        "color": "#8d989c",
+        "rotation": [
+          90,
+          0,
+          0
+        ]
+      }
+    ]
+  },
+  {
+    "id": "wall-cabinet",
+    "name": "厨房吊柜",
+    "nameEn": "Wall cabinet",
+    "category": "kitchen",
+    "dimensions": [
+      0.8,
+      0.7,
+      0.35
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          0.8,
+          0.7,
+          0.35
+        ],
+        "position": [
+          0,
+          0.35,
+          0
+        ],
+        "color": "#d9d4ca"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.37,
+          0.62,
+          0.03
+        ],
+        "position": [
+          -0.2,
+          0.35,
+          -0.19
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.37,
+          0.62,
+          0.03
+        ],
+        "position": [
+          0.2,
+          0.35,
+          -0.19
+        ],
+        "color": "#b88a62"
+      }
+    ]
+  },
+  {
+    "id": "toilet",
+    "name": "马桶",
+    "nameEn": "Toilet",
+    "category": "bathroom",
+    "dimensions": [
+      0.42,
+      0.8,
+      0.72
+    ],
+    "parts": [
+      {
+        "shape": "bowl",
+        "size": [
+          0.42,
+          0.28,
+          0.52
+        ],
+        "position": [
+          0,
+          0.335,
+          -0.1
+        ],
+        "color": "#dfe3e4",
+        "surface": "ceramic"
+      },
+      {
+        "shape": "frustum",
+        "size": [
+          0.26,
+          0.24,
+          0.3
+        ],
+        "position": [
+          0,
+          0.12,
+          0.025
+        ],
+        "color": "#dfe3e4",
+        "surface": "ceramic"
+      },
+      {
+        "shape": "torus",
+        "size": [
+          0.405,
+          0.5,
+          0.025
+        ],
+        "position": [
+          0,
+          0.48,
+          -0.1
+        ],
+        "color": "#dfe3e4",
+        "rotation": [
+          90,
+          0,
+          0
+        ],
+        "surface": "ceramic"
+      },
+      {
+        "shape": "rounded-box",
+        "size": [
+          0.34,
+          0.49,
+          0.2
+        ],
+        "position": [
+          0,
+          0.53,
+          0.23
+        ],
+        "color": "#dfe3e4",
+        "surface": "ceramic"
+      },
+      {
+        "shape": "rounded-box",
+        "size": [
+          0.36,
+          0.045,
+          0.22
+        ],
+        "position": [
+          0,
+          0.7875,
+          0.23
+        ],
+        "color": "#dfe3e4",
+        "surface": "ceramic"
+      },
+      {
+        "shape": "smooth-cylinder",
+        "size": [
+          0.06,
+          0.012,
+          0.06
+        ],
+        "position": [
+          0,
+          0.816,
+          0.23
+        ],
+        "color": "#8d989c"
+      }
+    ]
+  },
+  {
+    "id": "washbasin",
+    "name": "洗手池",
+    "nameEn": "Washbasin",
+    "category": "bathroom",
+    "dimensions": [
+      0.62,
+      0.85,
+      0.5
+    ],
+    "parts": [
+      {
+        "shape": "frustum",
+        "size": [
+          0.22,
+          0.52,
+          0.2
+        ],
+        "position": [
+          0,
+          0.26,
+          0.04
+        ],
+        "color": "#dfe3e4",
+        "surface": "ceramic"
+      },
+      {
+        "shape": "bowl",
+        "size": [
+          0.62,
+          0.24,
+          0.5
+        ],
+        "position": [
+          0,
+          0.62,
+          0
+        ],
+        "color": "#dfe3e4",
+        "surface": "ceramic"
+      },
+      {
+        "shape": "smooth-cylinder",
+        "size": [
+          0.04,
+          0.17,
+          0.04
+        ],
+        "position": [
+          0.14,
+          0.755,
+          0.13
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.045,
+          0.025,
+          0.19
+        ],
+        "position": [
+          0.14,
+          0.8425,
+          0.055
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "smooth-cylinder",
+        "size": [
+          0.035,
+          0.05,
+          0.035
+        ],
+        "position": [
+          0.14,
+          0.81,
+          -0.03
+        ],
+        "color": "#8d989c"
+      }
+    ]
+  },
+  {
+    "id": "bathtub",
+    "name": "浴缸",
+    "nameEn": "Bathtub",
+    "category": "bathroom",
+    "dimensions": [
+      1.7,
+      0.6,
+      0.8
+    ],
+    "parts": [
+      {
+        "shape": "rounded-basin",
+        "size": [
+          1.7,
+          0.6,
+          0.8
+        ],
+        "position": [
+          0,
+          0.3,
+          0
+        ],
+        "color": "#dfe3e4",
+        "surface": "ceramic"
+      },
+      {
+        "shape": "smooth-cylinder",
+        "size": [
+          0.055,
+          0.008,
+          0.055
+        ],
+        "position": [
+          0.48,
+          0.145,
+          0
+        ],
+        "color": "#8d989c"
+      }
+    ]
+  },
+  {
+    "id": "shower",
+    "name": "淋浴间",
+    "nameEn": "Shower",
+    "category": "bathroom",
+    "dimensions": [
+      1,
+      2.1,
+      1
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          1,
+          0.1,
+          1
+        ],
+        "position": [
+          0,
+          0.05,
+          0
+        ],
+        "color": "#dfe3e4"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.025,
+          2,
+          1
+        ],
+        "position": [
+          -0.4875,
+          1.05,
+          0
+        ],
+        "color": "#8fb7c1",
+        "surface": "glass"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.025,
+          2,
+          1
+        ],
+        "position": [
+          0.4875,
+          1.05,
+          0
+        ],
+        "color": "#8fb7c1",
+        "surface": "glass"
+      },
+      {
+        "shape": "box",
+        "size": [
+          1,
+          2,
+          0.04
+        ],
+        "position": [
+          0,
+          1.05,
+          0.48
+        ],
+        "color": "#d9d4ca"
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.045,
+          1.55,
+          0.045
+        ],
+        "position": [
+          0.28,
+          1.15,
+          0.41
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.07,
+          0.1,
+          0.07
+        ],
+        "position": [
+          0.28,
+          0.7,
+          0.43
+        ],
+        "color": "#8d989c",
+        "rotation": [
+          90,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.07,
+          0.1,
+          0.07
+        ],
+        "position": [
+          0.28,
+          1.45,
+          0.43
+        ],
+        "color": "#8d989c",
+        "rotation": [
+          90,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.045,
+          0.38,
+          0.045
+        ],
+        "position": [
+          0.28,
+          1.9,
+          0.27
+        ],
+        "color": "#8d989c",
+        "rotation": [
+          90,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.045,
+          0.12,
+          0.045
+        ],
+        "position": [
+          0.28,
+          1.85,
+          0.08
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.3,
+          0.055,
+          0.3
+        ],
+        "position": [
+          0.28,
+          1.78,
+          0.08
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.025,
+          2,
+          0.025
+        ],
+        "position": [
+          -0.485,
+          1.05,
+          -0.48
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.025,
+          2,
+          0.025
+        ],
+        "position": [
+          0.485,
+          1.05,
+          -0.48
+        ],
+        "color": "#8d989c"
+      }
+    ]
+  },
+  {
+    "id": "washing-machine",
+    "name": "洗衣机",
+    "nameEn": "Washing machine",
+    "category": "bathroom",
+    "dimensions": [
+      0.65,
+      0.9,
+      0.65
+    ],
+    "parts": [
+      {
+        "shape": "rounded-box",
+        "size": [
+          0.65,
+          0.9,
+          0.65
+        ],
+        "position": [
+          0,
+          0.45,
+          0
+        ],
+        "color": "#dfe3e4"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.57,
+          0.115,
+          0.02
+        ],
+        "position": [
+          0,
+          0.77,
+          -0.334
+        ],
+        "color": "#d9d4ca"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.22,
+          0.045,
+          0.008
+        ],
+        "position": [
+          0.12,
+          0.78,
+          -0.348
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.07,
+          0.022,
+          0.07
+        ],
+        "position": [
+          -0.17,
+          0.78,
+          -0.35
+        ],
+        "color": "#8d989c",
+        "rotation": [
+          90,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "torus",
+        "size": [
+          0.43,
+          0.43,
+          0.045
+        ],
+        "position": [
+          0,
+          0.43,
+          -0.365
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.3,
+          0.008,
+          0.3
+        ],
+        "position": [
+          0,
+          0.43,
+          -0.343
+        ],
+        "color": "#3f474c",
+        "rotation": [
+          90,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.035,
+          0.085,
+          0.02
+        ],
+        "position": [
+          0.182,
+          0.43,
+          -0.382
+        ],
+        "color": "#3f474c"
+      }
+    ]
+  },
+  {
+    "id": "monitor",
+    "name": "显示器",
+    "nameEn": "Monitor",
+    "category": "office",
+    "dimensions": [
+      0.6,
+      0.48,
+      0.2
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          0.6,
+          0.36,
+          0.06
+        ],
+        "position": [
+          0,
+          0.29,
+          0
+        ],
+        "color": "#202629"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.52,
+          0.29,
+          0.02
+        ],
+        "position": [
+          0,
+          0.3,
+          -0.04
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.06,
+          0.16,
+          0.06
+        ],
+        "position": [
+          0,
+          0.1,
+          0
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.3,
+          0.04,
+          0.2
+        ],
+        "position": [
+          0,
+          0.02,
+          0
+        ],
+        "color": "#8d989c"
+      }
+    ]
+  },
+  {
+    "id": "laptop",
+    "name": "笔记本电脑",
+    "nameEn": "Laptop",
+    "category": "office",
+    "dimensions": [
+      0.34,
+      0.22,
+      0.28
+    ],
+    "parts": [
+      {
+        "shape": "rounded-box",
+        "size": [
+          0.34,
+          0.024,
+          0.24
+        ],
+        "position": [
+          0,
+          0.012,
+          -0.02
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "rounded-box",
+        "size": [
+          0.34,
+          0.21,
+          0.018
+        ],
+        "position": [
+          0,
+          0.12,
+          0.1
+        ],
+        "color": "#3f474c",
+        "rotation": [
+          -12,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.306,
+          0.172,
+          0.004
+        ],
+        "position": [
+          0,
+          0.124,
+          0.089
+        ],
+        "color": "#677885",
+        "rotation": [
+          -12,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.275,
+          0.004,
+          0.019
+        ],
+        "position": [
+          0,
+          0.026,
+          -0.025
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.275,
+          0.004,
+          0.019
+        ],
+        "position": [
+          0,
+          0.026,
+          0.005
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.275,
+          0.004,
+          0.019
+        ],
+        "position": [
+          0,
+          0.026,
+          0.035
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.095,
+          0.003,
+          0.043
+        ],
+        "position": [
+          0,
+          0.0255,
+          -0.084
+        ],
+        "color": "#677885"
+      }
+    ]
+  },
+  {
+    "id": "window",
+    "name": "窗户",
+    "nameEn": "Window",
+    "category": "architecture",
+    "dimensions": [
+      1.4,
+      1.2,
+      0.12
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          1.4,
+          0.1,
+          0.12
+        ],
+        "position": [
+          0,
+          0.05,
+          0
+        ],
+        "color": "#dfe3e4"
+      },
+      {
+        "shape": "box",
+        "size": [
+          1.4,
+          0.1,
+          0.12
+        ],
+        "position": [
+          0,
+          1.15,
+          0
+        ],
+        "color": "#dfe3e4"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.1,
+          1,
+          0.12
+        ],
+        "position": [
+          -0.65,
+          0.6,
+          0
+        ],
+        "color": "#dfe3e4"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.1,
+          1,
+          0.12
+        ],
+        "position": [
+          0.65,
+          0.6,
+          0
+        ],
+        "color": "#dfe3e4"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.06,
+          1,
+          0.08
+        ],
+        "position": [
+          0,
+          0.6,
+          0
+        ],
+        "color": "#dfe3e4"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.57,
+          0.04,
+          0.08
+        ],
+        "position": [
+          -0.315,
+          0.6,
+          0
+        ],
+        "color": "#dfe3e4"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.57,
+          0.04,
+          0.08
+        ],
+        "position": [
+          0.315,
+          0.6,
+          0
+        ],
+        "color": "#dfe3e4"
+      },
+      {
+        "shape": "box",
+        "size": [
+          1.26,
+          1.06,
+          0.02
+        ],
+        "position": [
+          0,
+          0.6,
+          0.02
+        ],
+        "color": "#8fb7c1"
+      }
+    ]
+  },
+  {
+    "id": "railing",
+    "name": "栏杆",
+    "nameEn": "Railing",
+    "category": "architecture",
+    "dimensions": [
+      2.4,
+      1.05,
+      0.12
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          2.4,
+          0.1,
+          0.12
+        ],
+        "position": [
+          0,
+          1,
+          0
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          2.4,
+          0.08,
+          0.1
+        ],
+        "position": [
+          0,
+          0.12,
+          0
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.07,
+          1,
+          0.07
+        ],
+        "position": [
+          -1.1,
+          0.52,
+          0
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.07,
+          1,
+          0.07
+        ],
+        "position": [
+          -0.55,
+          0.52,
+          0
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.07,
+          1,
+          0.07
+        ],
+        "position": [
+          0,
+          0.52,
+          0
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.07,
+          1,
+          0.07
+        ],
+        "position": [
+          0.55,
+          0.52,
+          0
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.07,
+          1,
+          0.07
+        ],
+        "position": [
+          1.1,
+          0.52,
+          0
+        ],
+        "color": "#8d989c"
+      }
+    ]
+  },
+  {
+    "id": "cardboard-box",
+    "name": "纸箱",
+    "nameEn": "Cardboard box",
+    "category": "household",
+    "dimensions": [
+      0.6,
+      0.5,
+      0.5
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          0.6,
+          0.5,
+          0.5
+        ],
+        "position": [
+          0,
+          0.25,
+          0
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.04,
+          0.5,
+          0.51
+        ],
+        "position": [
+          0,
+          0.25,
+          0
+        ],
+        "color": "#76533d"
+      }
+    ]
+  },
+  {
+    "id": "suitcase",
+    "name": "行李箱",
+    "nameEn": "Suitcase",
+    "category": "household",
+    "dimensions": [
+      0.48,
+      0.75,
+      0.24
+    ],
+    "parts": [
+      {
+        "shape": "rounded-box",
+        "size": [
+          0.48,
+          0.64,
+          0.24
+        ],
+        "position": [
+          0,
+          0.35,
+          0
+        ],
+        "color": "#668da6"
+      },
+      {
+        "shape": "rounded-box",
+        "size": [
+          0.035,
+          0.48,
+          0.015
+        ],
+        "position": [
+          -0.12,
+          0.35,
+          -0.124
+        ],
+        "color": "#677885"
+      },
+      {
+        "shape": "rounded-box",
+        "size": [
+          0.035,
+          0.48,
+          0.015
+        ],
+        "position": [
+          0,
+          0.35,
+          -0.124
+        ],
+        "color": "#677885"
+      },
+      {
+        "shape": "rounded-box",
+        "size": [
+          0.035,
+          0.48,
+          0.015
+        ],
+        "position": [
+          0.12,
+          0.35,
+          -0.124
+        ],
+        "color": "#677885"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.022,
+          0.105,
+          0.025
+        ],
+        "position": [
+          -0.075,
+          0.6875,
+          0
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.022,
+          0.105,
+          0.025
+        ],
+        "position": [
+          0.075,
+          0.6875,
+          0
+        ],
+        "color": "#8d989c"
+      },
+      {
+        "shape": "rounded-box",
+        "size": [
+          0.19,
+          0.033,
+          0.045
+        ],
+        "position": [
+          0,
+          0.742,
+          0
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.07,
+          0.055,
+          0.07
+        ],
+        "position": [
+          -0.17,
+          0.035,
+          0
+        ],
+        "color": "#202629",
+        "rotation": [
+          90,
+          0,
+          0
+        ]
+      },
+      {
+        "shape": "cylinder",
+        "size": [
+          0.07,
+          0.055,
+          0.07
+        ],
+        "position": [
+          0.17,
+          0.035,
+          0
+        ],
+        "color": "#202629",
+        "rotation": [
+          90,
+          0,
+          0
+        ]
+      }
+    ]
+  },
+  {
+    "id": "mug",
+    "name": "杯子",
+    "nameEn": "Mug",
+    "category": "household",
+    "dimensions": [
+      0.12,
+      0.1,
+      0.09
+    ],
+    "parts": [
+      {
+        "shape": "cup",
+        "size": [
+          0.085,
+          0.1,
+          0.085
+        ],
+        "position": [
+          -0.015,
+          0.05,
+          0
+        ],
+        "color": "#dfe3e4",
+        "surface": "ceramic"
+      },
+      {
+        "shape": "cup-handle",
+        "size": [
+          0.034,
+          0.071,
+          0.014
+        ],
+        "position": [
+          0.041,
+          0.053,
+          0
+        ],
+        "color": "#dfe3e4",
+        "surface": "ceramic"
+      }
+    ]
+  },
+  {
+    "id": "mirror",
+    "name": "镜子",
+    "nameEn": "Mirror",
+    "category": "household",
+    "dimensions": [
+      0.65,
+      0.9,
+      0.06
+    ],
+    "parts": [
+      {
+        "shape": "box",
+        "size": [
+          0.65,
+          0.9,
+          0.06
+        ],
+        "position": [
+          0,
+          0.45,
+          0
+        ],
+        "color": "#76533d"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.57,
+          0.82,
+          0.015
+        ],
+        "position": [
+          0,
+          0.45,
+          -0.038
+        ],
+        "color": "#8fb7c1"
+      }
+    ]
+  },
+  {
+    "id": "pendant-lamp",
+    "name": "吊灯",
+    "nameEn": "Pendant lamp",
+    "category": "household",
+    "dimensions": [
+      0.45,
+      0.9,
+      0.45
+    ],
+    "parts": [
+      {
+        "shape": "cylinder",
+        "size": [
+          0.04,
+          0.52,
+          0.04
+        ],
+        "position": [
+          0,
+          0.64,
+          0
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "lampshade",
+        "size": [
+          0.45,
+          0.38,
+          0.45
+        ],
+        "position": [
+          0,
+          0.22,
+          0
+        ],
+        "color": "#d9d4ca"
+      }
+    ]
+  },
+  {
+    "id": "ceiling-fan",
+    "name": "吊扇",
+    "nameEn": "Ceiling fan",
+    "category": "household",
+    "dimensions": [
+      1.4,
+      0.25,
+      1.4
+    ],
+    "parts": [
+      {
+        "shape": "cylinder",
+        "size": [
+          0.2,
+          0.25,
+          0.2
+        ],
+        "position": [
+          0,
+          0.125,
+          0
+        ],
+        "color": "#3f474c"
+      },
+      {
+        "shape": "box",
+        "size": [
+          1.4,
+          0.06,
+          0.18
+        ],
+        "position": [
+          0,
+          0.06,
+          0
+        ],
+        "color": "#b88a62"
+      },
+      {
+        "shape": "box",
+        "size": [
+          0.18,
+          0.06,
+          1.4
+        ],
+        "position": [
+          0,
+          0.06,
+          0
+        ],
+        "color": "#b88a62"
+      }
+    ]
+  }
+]

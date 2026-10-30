@@ -4,6 +4,7 @@ import {
   $createTextNode,
   $getRoot,
   $isTextNode,
+  $insertNodes,
   SerializedEditorState,
   LexicalEditor,
 } from "lexical";
@@ -22,10 +23,18 @@ import { EditorRefPlugin } from "@lexical/react/LexicalEditorRefPlugin";
 import { $dfs } from "@lexical/utils";
 
 import { TNodeImage, TSendMessageContent } from "../types";
-import { $isImageNode, ImageNodeRender } from "./nodes";
+import {
+  $createInlineTokenNode,
+  $isImageNode,
+  $isInlineTokenNode,
+  ImageNodeRender,
+  InlineTokenNode,
+  type EditorToken,
+} from "./nodes";
 
 import ImageMentionPlugin from "./plugins/image-mention";
 import SubmitOnEnterPlugin from "./plugins/submit-on-enter";
+import TokenRemovePlugin from "./plugins/token-remove";
 
 interface IEditorProps {
   onSubmit: () => void;
@@ -36,11 +45,20 @@ interface IEditorProps {
   onEmptyStateChange?: (state: boolean) => void;
   placeholder?: string;
   autoFocus?: boolean;
+  onTextChange?: (text: string) => void;
+  onTrigger?: (trigger: "/" | "@") => void;
+  onTokenRemove?: (token: EditorToken) => void;
+  onBlur?: () => void;
 }
 
 export interface IEditorRef {
   getEditor: () => Promise<TSendMessageContent[]>;
   clear: () => void;
+  insertText: (text: string) => void;
+  insertToken: (token: EditorToken) => void;
+  removeToken: (id: string) => void;
+  getContent: () => { text: string; tokens: EditorToken[] };
+  getCaretRect: () => { left: number; top: number } | null;
 }
 
 const Editor = (
@@ -53,6 +71,10 @@ const Editor = (
     onEmptyStateChange,
     placeholder,
     autoFocus = true,
+    onTextChange,
+    onTrigger,
+    onTokenRemove,
+    onBlur,
   }: IEditorProps,
   ref: ForwardedRef<IEditorRef>,
 ) => {
@@ -64,7 +86,7 @@ const Editor = (
     onError(error: Error) {
       throw error;
     },
-    nodes: [ImageNodeRender],
+    nodes: [ImageNodeRender, InlineTokenNode],
     editorState(editor) {
       if (!initialState) return;
       try {
@@ -123,13 +145,70 @@ const Editor = (
         root.clear();
       });
     },
+    insertText: (text) => {
+      editorRef.current?.update(() => {
+        $getRoot().selectEnd();
+        $insertNodes([$createTextNode(text)]);
+      });
+      editorRef.current?.focus();
+    },
+    insertToken: (token) => {
+      editorRef.current?.update(() => {
+        $getRoot().selectEnd();
+        const textNodes = $getRoot().getAllTextNodes();
+        const lastTextNode = textNodes.at(-1);
+        const lastText = lastTextNode?.getTextContent() ?? "";
+        const triggerPattern = token.kind === "subject" ? /@[^\s@]*$/ : /\/[^\s/]*$/;
+        if (lastTextNode && triggerPattern.test(lastText)) {
+          lastTextNode.setTextContent(lastText.replace(triggerPattern, ""));
+        }
+        const tokenNode = $createInlineTokenNode(token, editorRef);
+        const spaceNode = $createTextNode(" ");
+        $insertNodes([tokenNode, spaceNode]);
+        spaceNode.select(1, 1);
+      });
+      editorRef.current?.focus();
+    },
+    removeToken: (id) => {
+      editorRef.current?.update(() => {
+        $dfs().forEach(({ node }) => {
+          if ($isInlineTokenNode(node) && node.getToken().id === id) node.remove();
+        });
+      });
+    },
+    getContent: () => {
+      let content = { text: "", tokens: [] as EditorToken[] };
+      editorRef.current?.read(() => {
+        content = {
+          text: $getRoot().getTextContent().trim(),
+          tokens: $dfs()
+            .map(({ node }) => node)
+            .filter($isInlineTokenNode)
+            .map((node) => node.getToken()),
+        };
+      });
+      return content;
+    },
+    getCaretRect: () => {
+      const rootElement = editorRef.current?.getRootElement();
+      const selection = window.getSelection();
+      if (!rootElement || !selection?.rangeCount) return null;
+      const range = selection.getRangeAt(0).cloneRange();
+      range.collapse(true);
+      const rect = range.getBoundingClientRect();
+      const fallback = rootElement.getBoundingClientRect();
+      return {
+        left: rect.left || fallback.left,
+        top: rect.top || fallback.top,
+      };
+    },
   }));
 
   return (
     <LexicalComposer initialConfig={initialConfig}>
       <PlainTextPlugin
         contentEditable={
-          <ContentEditable className="flex-1 bg-transparent border-0 outline-none w-full h-full min-h-12 resize-none text-sm text-white/90 caret-white" />
+          <ContentEditable onBlur={onBlur} className="flex-1 bg-transparent border-0 outline-none w-full h-full min-h-12 resize-none text-sm text-white/90 caret-white" />
         }
         placeholder={
           <div className="pointer-events-none absolute left-0 top-0 text-sm text-white/40">
@@ -145,7 +224,12 @@ const Editor = (
             const hasText = root
               .getAllTextNodes()
               .some((node) => node.getTextContent().trim() !== "");
-            const hasImage = $dfs().some(({ node }) => $isImageNode(node));
+            const hasImage = $dfs().some(({ node }) => $isImageNode(node) || $isInlineTokenNode(node));
+            const text = root.getTextContent();
+            onTextChange?.(text);
+            if (text.endsWith("/") || text.endsWith("@")) {
+              onTrigger?.(text.at(-1) as "/" | "@");
+            }
             return hasText || hasImage;
           });
 
@@ -156,6 +240,7 @@ const Editor = (
       <SubmitOnEnterPlugin onSubmit={onSubmit} />
       {!noImageMention && <ImageMentionPlugin images={images} />}
       <HistoryPlugin />
+      <TokenRemovePlugin onRemove={onTokenRemove} />
       {autoFocus && <AutoFocusPlugin />}
       <EditorRefPlugin editorRef={editorRef} />
     </LexicalComposer>

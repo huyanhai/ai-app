@@ -149,13 +149,13 @@ export const Switch = ({
     onClick={() => onChange(!checked)}
     className={cn(
       "relative h-5 w-9 shrink-0 rounded-full transition-colors cursor-pointer",
-      checked ? "bg-[#33a3ff]" : "bg-white/15",
+      checked ? "bg-white" : "bg-white/15",
     )}
   >
     <span
       className={cn(
-        "absolute top-0.5 left-0.5 size-4 rounded-full bg-white shadow transition-transform",
-        checked && "translate-x-4",
+        "absolute top-0.5 left-0.5 size-4 rounded-full shadow transition-transform",
+        checked ? "translate-x-4 bg-[#181818]" : "bg-white/70",
       )}
     />
   </button>

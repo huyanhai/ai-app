@@ -24,3 +24,25 @@ model ModelConfig {
 
   @@index([category, enabled])
 }
+
+model AgentSession {
+  id        String         @id
+  title     String
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  messages  AgentMessage[]
+}
+
+model AgentMessage {
+  id        Int          @id @default(autoincrement())
+  sessionId String
+  role      String
+  content   String
+  attachments String?
+  subjects  String?
+  mode      String       @default("agent")
+  createdAt DateTime     @default(now())
+  session   AgentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt, id])
+}

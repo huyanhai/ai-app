@@ -25,12 +25,17 @@ export const backend = new LocalShellBackend({
   virtualMode: false,
 });
 
-export const createAgentWithModel = (runtimeModel: RuntimeModel): DeepAgent =>
+export const createAgentWithModel = (
+  runtimeModel: RuntimeModel,
+  skillIds?: string[],
+): DeepAgent =>
   createDeepAgent({
     model: createChatModel(runtimeModel, { temperature: 0.7, streaming: true }),
     backend,
     tools: [createGenImageTool(runtimeModel)],
-    skills: [resolve(__dirname, '../skills')],
+    skills: skillIds?.length
+      ? skillIds.map((id) => resolve(__dirname, '../skills', id))
+      : [resolve(__dirname, '../skills')],
     subagents: [
       createGenScriptAgent(runtimeModel),
       createGenImageAgent(runtimeModel),

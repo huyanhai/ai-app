@@ -25,19 +25,23 @@ import {
   OnConnectStartParams,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Sparkles } from "lucide-react";
+import { History, Search, Sparkles } from "lucide-react";
 import nodeTypes from "@/components/pipeline/nodes";
 import edgeTypes from "@/components/pipeline/edges";
 import Toolbar from "@/components/pipeline/toolbar";
 import Controls from "@/components/pipeline/controls";
 import AssetModal from "@/components/pipeline/asset-modal";
+import AIChatPanel from "@/components/pipeline/ai-chat-panel";
+import CanvasNodePanel from "@/components/pipeline/canvas-node-panel";
+import { IconButton } from "@/components/ui/icon-button";
 import TextToolbar from "@/components/pipeline/text-toolbar";
 import GeneratorCard, {
   GENERATOR_TYPES,
 } from "@/components/pipeline/nodes/node/generator-card";
 import Menu from "@/components/pipeline/menu";
 import { TMenuRequest, usePipelineStore } from "@/store/pipeline-store";
-import { NodeType, TAllNodes } from "@/components/pipeline/types";
+import { NodeType, TAllNodes, TNodeBase } from "@/components/pipeline/types";
+import type { ReferenceKind, SubjectReference } from "@/components/chat/types";
 import {
   SOURCE_ANCHOR,
   SOURCE_HANDLE,
@@ -78,6 +82,9 @@ const PendingEdge = ({ menuRequest }: { menuRequest: TMenuRequest }) => {
 };
 
 const Flow = () => {
+  const [aiChatOpen, setAIChatOpen] = useState(false);
+  const [aiChatWidth, setAIChatWidth] = useState(400);
+  const [nodePanel, setNodePanel] = useState<"search" | "history" | null>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState<TAllNodes>([
     {
       id: "1",
@@ -276,6 +283,45 @@ const Flow = () => {
     );
   }, [edges, showEdges, hoveredNodeId, currentSelectNode]);
 
+  const labelColors = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          nodes.flatMap((node) =>
+            node.data.labelColor ? [node.data.labelColor] : [],
+          ),
+        ),
+      ),
+    [nodes],
+  );
+
+  const locateNode = (nodeId: string) => {
+    const target = nodes.find((node) => node.id === nodeId);
+    if (!target) return;
+    setNodes(
+      (currentNodes) =>
+        currentNodes.map((node) => ({
+          ...node,
+          selected: node.id === target.id,
+        })) as TAllNodes[],
+    );
+    const panelSpace = aiChatOpen ? aiChatWidth + 26 : 0;
+    const center = screenToFlowPosition({
+      x: (window.innerWidth - panelSpace) / 2,
+      y: window.innerHeight / 2,
+    });
+    setCenter(
+      center.x,
+      target.position.y + (target.measured?.height ?? 0) / 2,
+      { zoom: getZoom(), duration: 300 },
+    );
+  };
+
+  const locateLabelColor = (color: string) => {
+    const target = nodes.find((node) => node.data.labelColor === color);
+    if (target) locateNode(target.id);
+  };
+
   return (
     <div className="w-full h-full relative bg-[#0a0a0a]">
       <ReactFlow
@@ -346,11 +392,94 @@ const Flow = () => {
       <Controls />
       <AssetModal />
 
+      <div
+        className="absolute top-4 z-40 flex items-center gap-2 rounded-xl border border-white/10 bg-[#1c1c1e]/95 px-3 py-2 shadow-2xl"
+        style={{ right: aiChatOpen ? aiChatWidth + 30 : 16 }}
+      >
+        {labelColors.map((color) => (
+          <button
+            key={color}
+            aria-label={`定位到标签色 ${color} 的节点`}
+            title="定位到标记节点"
+            onClick={() => locateLabelColor(color)}
+            className="size-4 cursor-pointer rounded-full transition-transform hover:scale-125"
+            style={{ backgroundColor: color }}
+          />
+        ))}
+        {labelColors.length > 0 && <span className="h-4 w-px bg-white/10" />}
+        <IconButton
+          label="搜索节点"
+          active={nodePanel === "search"}
+          onClick={() => setNodePanel(nodePanel === "search" ? null : "search")}
+        >
+          <Search size={16} />
+        </IconButton>
+        <IconButton
+          label="生成历史"
+          active={nodePanel === "history"}
+          onClick={() => setNodePanel(nodePanel === "history" ? null : "history")}
+        >
+          <History size={16} />
+        </IconButton>
+      </div>
+
+      {nodePanel && (
+        <div
+          className="absolute top-[68px] z-40"
+          style={{ right: aiChatOpen ? aiChatWidth + 30 : 16 }}
+        >
+          <CanvasNodePanel
+            type={nodePanel}
+            nodes={nodes}
+            onClose={() => setNodePanel(null)}
+            onLocate={(nodeId) => {
+              locateNode(nodeId);
+              setNodePanel(null);
+            }}
+          />
+        </div>
+      )}
+
       {/* 与 AI 对话入口（对齐即梦右下角） */}
-      <button className="absolute right-4 bottom-4 z-20 flex items-center gap-2 rounded-full bg-[#1c1c1e]/95 border border-white/5 px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-[#26262a] transition-colors shadow-2xl cursor-pointer nodrag nopan">
+      <button
+        onClick={() => setAIChatOpen(true)}
+        className="absolute right-4 bottom-4 z-20 flex items-center gap-2 rounded-full bg-[#1c1c1e]/95 border border-white/5 px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-[#26262a] transition-colors shadow-2xl cursor-pointer nodrag nopan"
+      >
         <Sparkles size={15} className="text-[#33a3ff]" />
         与 AI 对话
       </button>
+
+      {aiChatOpen && (
+        <AIChatPanel
+          onClose={() => setAIChatOpen(false)}
+          width={aiChatWidth}
+          onWidthChange={setAIChatWidth}
+          subjects={nodes.flatMap<SubjectReference>((node) => {
+            const kinds: Partial<Record<NodeType, ReferenceKind>> = {
+              [NodeType.SubjectNode]: "subject",
+              [NodeType.ImageNode]: "image",
+              [NodeType.VideoNode]: "video",
+              [NodeType.AudioNode]: "audio",
+              [NodeType.TextNode]: "text",
+            };
+            const kind = kinds[node.type as NodeType];
+            if (!kind) return [];
+            const data = node.data as TNodeBase & {
+              name?: string;
+              description?: string;
+              text?: string;
+              url?: string;
+            };
+            return [{
+              id: node.id,
+              kind,
+              name: (kind === "subject" ? data.name : data.title) || node.id,
+              description: kind === "text" ? data.text : data.description,
+              url: data.url,
+            }];
+          })}
+        />
+      )}
 
       {menuRequest && (
         <>

@@ -86,6 +86,7 @@ const Toolbar = () => {
   };
   const setAssetModalOpen = usePipelineStore((s) => s.setAssetModalOpen);
   const [activeTool, setActiveTool] = useState<TToolId | null>(null);
+  const [hoveredTool, setHoveredTool] = useState<TToolId | null>(null);
   const [toolboxOpen, setToolboxOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -173,6 +174,8 @@ const Toolbar = () => {
             <button
               aria-label={tool.label}
               onClick={() => handleClick(tool)}
+              onMouseEnter={() => setHoveredTool(tool.id)}
+              onMouseLeave={() => setHoveredTool(null)}
               className={`relative flex size-9 items-center justify-center rounded-xl transition-colors cursor-pointer ${
                 activeTool === tool.id
                   ? "bg-white/15 text-white"
@@ -221,7 +224,11 @@ const Toolbar = () => {
                 ) : (
                   <button
                     onClick={() => handleClick(row)}
-                    className="flex h-9 items-center text-sm text-white/80 hover:text-white whitespace-nowrap cursor-pointer"
+                    className={`flex h-9 items-center text-sm hover:text-white whitespace-nowrap cursor-pointer ${
+                      activeTool === row.id || hoveredTool === row.id
+                        ? "text-white"
+                        : "text-white/80"
+                    }`}
                   >
                     {row.label}
                   </button>

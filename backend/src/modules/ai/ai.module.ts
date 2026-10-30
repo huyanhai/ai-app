@@ -7,5 +7,6 @@ import { ModelsModule } from '../models/models.module';
   imports: [ModelsModule],
   controllers: [AiController],
   providers: [AiService],
+  exports: [AiService],
 })
 export class AiModule {}

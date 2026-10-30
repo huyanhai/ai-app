@@ -8,12 +8,17 @@ import {
 } from '@/common/utils/stream-constants';
 
 const mockAgent = { streamEvents: jest.fn() };
+const mockChatModel = { stream: jest.fn() };
 
 jest.mock('@/common/llm/agents', () => ({
   createAgentWithModel: () => mockAgent,
   backend: {
     write: jest.fn(),
   },
+}));
+
+jest.mock('@/common/llm', () => ({
+  createChatModel: () => mockChatModel,
 }));
 
 async function* makeAsyncIterable<T>(items: T[]) {
@@ -155,5 +160,62 @@ describe('AiService', () => {
       { type: 'msg_chunk', content: 'tool result' },
       { type: 'msg_end' },
     ]);
+  });
+
+  it('prepends stored conversation messages to the current input', async () => {
+    streamEventsMock.mockResolvedValue({
+      messages: makeAsyncIterable([]),
+      toolCalls: makeAsyncIterable([]),
+      output: Promise.resolve({
+        messages: [{ type: 'ai', content: 'done' }],
+      }),
+    });
+
+    for await (const _event of service.stream(
+      'next',
+      undefined,
+      undefined,
+      undefined,
+      [
+        { role: 'user', content: 'first' },
+        { role: 'assistant', content: 'answer' },
+      ],
+    )) {
+      // Consume the stream.
+    }
+
+    const input = streamEventsMock.mock.calls[0][0];
+    expect(input.messages).toHaveLength(3);
+    expect(input.messages.map((message) => message.content)).toEqual([
+      'first',
+      'answer',
+      'next',
+    ]);
+  });
+
+  it('streams directly from the text model in chat mode', async () => {
+    mockChatModel.stream.mockResolvedValue(
+      makeAsyncIterable([{ content: 'Direct' }, { content: ' answer' }]),
+    );
+
+    const events = [];
+    for await (const event of service.stream(
+      'hi',
+      undefined,
+      undefined,
+      undefined,
+      [],
+      { mode: 'chat' },
+    )) {
+      events.push(event);
+    }
+
+    expect(events).toEqual([
+      { type: 'msg_start', role: 'assistant' },
+      { type: 'msg_chunk', content: 'Direct' },
+      { type: 'msg_chunk', content: ' answer' },
+      { type: 'msg_end' },
+    ]);
+    expect(streamEventsMock).not.toHaveBeenCalled();
   });
 });

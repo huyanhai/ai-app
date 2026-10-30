@@ -106,14 +106,23 @@ export class PipelineService {
         url: null,
       },
     });
-    const { content } = await genImage({ ...messages, runtimeModel: model });
-    queue.push({
-      type: SSE_EVENT.MSG_CHUNK,
-      content: {
-        status: ChunkStatus.SUCCESS,
-        url: content[0].image,
-      },
-    });
+    try {
+      const { content } = await genImage({ ...messages, runtimeModel: model });
+      queue.push({
+        type: SSE_EVENT.MSG_CHUNK,
+        content: {
+          status: ChunkStatus.SUCCESS,
+          url: content[0].image,
+        },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      queue.push({
+        type: SSE_EVENT.MSG_CHUNK,
+        content: { status: ChunkStatus.FAILED, url: null },
+      });
+      queue.push({ type: SSE_EVENT.MSG_ERROR, error: message });
+    }
     queue.push({ type: SSE_EVENT.MSG_END });
 
     yield* queue.generator();

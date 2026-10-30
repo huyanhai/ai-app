@@ -9,9 +9,20 @@ export interface ToolCallType {
 
 export interface AttachmentType {
   name: string;
-  url: string; // Base64 data URI
+  url: string;
   type: string;
+  size?: number;
 }
+
+export interface SubjectReference {
+  id: string;
+  name: string;
+  description?: string;
+  kind?: ReferenceKind;
+  url?: string;
+}
+
+export type ReferenceKind = "subject" | "image" | "video" | "audio" | "text";
 
 export interface MessageType {
   id: string;
@@ -19,5 +30,7 @@ export interface MessageType {
   content: string;
   toolCalls?: ToolCallType[];
   attachments?: AttachmentType[];
+  subjects?: SubjectReference[];
+  mode?: "agent" | "chat";
 }
 

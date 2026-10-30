@@ -15,7 +15,7 @@ interface SendParams {
   files?: { name: string; content: string; type: string; url: string }[];
 }
 
-function applyEvent(
+export function applyEvent(
   msg: MessageType,
   event: Record<string, unknown>,
   assistantMsgId: string,

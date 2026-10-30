@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { Pencil, Star, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isModelReady } from "@/store/model-store";
@@ -80,6 +81,15 @@ const ModelCard = ({
   const Icon = MODEL_CATEGORIES.find((c) => c.value === model.category)!.icon;
   const ready = isModelReady(model);
 
+  useEffect(() => {
+    if (!confirming) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setConfirming(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [confirming]);
+
   const rows = [
     { label: "服务商", value: getProvider(model.provider)?.label ?? "-" },
     { label: "模型 ID", value: model.modelId || "未填写", mono: true },
@@ -96,6 +106,7 @@ const ModelCard = ({
   ];
 
   return (
+    <>
     <div
       className={cn(
         "group flex flex-col rounded-xl border bg-[#1c1c1e] p-4 transition-colors",
@@ -185,24 +196,62 @@ const ModelCard = ({
           >
             <Pencil size={13} />
           </button>
-          {/* 二次确认：第一次点击进入确认态，失焦后恢复 */}
           <button
-            aria-label={confirming ? "确认删除" : "删除"}
-            onClick={() => (confirming ? onRemove() : setConfirming(true))}
-            onBlur={() => setConfirming(false)}
-            className={cn(
-              "flex h-7 items-center justify-center gap-1 rounded-md text-xs transition-colors cursor-pointer",
-              confirming
-                ? "bg-[#ff6b6b]/15 px-2 text-[#ff6b6b]"
-                : "w-7 text-white/50 hover:bg-[#ff6b6b]/15 hover:text-[#ff6b6b]",
-            )}
+            aria-label="删除"
+            onClick={() => setConfirming(true)}
+            className="flex size-7 items-center justify-center rounded-md text-white/50 hover:bg-[#ff6b6b]/15 hover:text-[#ff6b6b] transition-colors cursor-pointer"
           >
             <Trash2 size={13} />
-            {confirming && "确认删除"}
           </button>
         </div>
       </div>
     </div>
+      <AnimatePresence>
+        {confirming && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setConfirming(false)}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          >
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={`delete-model-${model.id}-title`}
+              initial={{ opacity: 0, scale: 0.97, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.97, y: 8 }}
+              transition={{ duration: 0.15 }}
+              onClick={(event) => event.stopPropagation()}
+              className="w-[min(400px,92vw)] rounded-2xl border border-white/10 bg-[#1c1c1e] p-5 shadow-2xl"
+            >
+              <h2 id={`delete-model-${model.id}-title`} className="text-base font-medium text-white">
+                删除模型
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-white/50">
+                确定删除“{model.name}”吗？此操作无法撤销。
+              </p>
+              <div className="mt-6 flex justify-end gap-2">
+                <button
+                  autoFocus
+                  onClick={() => setConfirming(false)}
+                  className="rounded-lg px-4 py-2 text-sm text-white/60 hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={onRemove}
+                  className="rounded-lg bg-[#ff6b6b] px-4 py-2 text-sm text-white hover:bg-[#ff8080] transition-colors cursor-pointer"
+                >
+                  确认删除
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 };
 

@@ -15,8 +15,8 @@ import {
 import {
   NODE_DEFAULT_DATA,
   NODE_TYPE_LABEL,
-  SOURCE_HANDLE,
-  TARGET_HANDLE,
+  SOURCE_ANCHOR,
+  TARGET_ANCHOR,
 } from "./constants";
 
 interface IMenuProps {
@@ -71,17 +71,17 @@ const Menu = ({
           return eds.concat({
             id: nanoid(),
             source: newNode.id,
-            sourceHandle: SOURCE_HANDLE,
+            sourceHandle: SOURCE_ANCHOR,
             target: nodeId,
-            targetHandle: handleId || TARGET_HANDLE,
+            targetHandle: TARGET_ANCHOR,
           });
         }
         return eds.concat({
           id: nanoid(),
           source: nodeId,
-          sourceHandle: handleId || SOURCE_HANDLE,
+          sourceHandle: SOURCE_ANCHOR,
           target: newNode.id,
-          targetHandle: TARGET_HANDLE,
+          targetHandle: TARGET_ANCHOR,
         });
       });
     }

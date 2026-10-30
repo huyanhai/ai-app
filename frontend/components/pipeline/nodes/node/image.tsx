@@ -2,7 +2,7 @@
 import { memo, useMemo } from "react";
 import { NodeProps } from "@xyflow/react";
 import { Image } from "lucide-react";
-import { motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import NodeShell from "./shell";
 import { TNodeImage, NodeType } from "../../types";
 import { ChunkStatus } from "backend/src/common/utils/ai-stream-utils";
@@ -37,7 +37,9 @@ const ImageNode = ({ id, data, selected }: NodeProps<TNodeImage>) => {
         className="relative overflow-hidden rounded-2xl bg-[#1f1f22] border border-white/5 transition-all duration-500"
         style={{ width, height }}
       >
-        {data.status === ChunkStatus.PROCESSING && <Loading />}
+        <AnimatePresence>
+          {data.status === ChunkStatus.PROCESSING && <Loading />}
+        </AnimatePresence>
         {data.url ? (
           <img
             src={data.url}

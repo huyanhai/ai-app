@@ -1,5 +1,7 @@
 @import "tailwindcss";
 /* @plugin "@tailwindcss/typography"; */
+/* Streamdown 组件内部的 Tailwind 工具类需要纳入扫描（路径相对本 CSS 文件） */
+@source "../node_modules/streamdown/dist/*.js";
 
 @theme inline {
   --color-background: #cbcbcb;
@@ -52,4 +54,55 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+}
+
+/* Streamdown 深色适配：其组件引用 shadcn 语义 token（bg-background / text-foreground 等），
+   而全局 token 是浅色主题；pipeline 文本节点与展开弹窗都是深色底，
+   且 @theme inline 会把 token 编译为字面值（无法靠覆盖 CSS 变量），
+   因此在 .markdown-dark 作用域内按类名覆盖。未分层，优先级高于 Tailwind 的分层工具类 */
+.markdown-dark {
+  color: #e4e4e7;
+}
+/* 流式输出光标（Streamdown caret 渲染在最后一个块的 ::after 上）：闪烁 + 主题色 */
+.markdown-dark[data-animating] > * > :last-child::after {
+  color: #33a3ff;
+  animation: streamdown-caret-blink 1s steps(1) infinite;
+}
+@keyframes streamdown-caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+.markdown-dark .bg-background {
+  background-color: #26262a;
+}
+.markdown-dark .bg-muted {
+  background-color: #2e2e33;
+}
+.markdown-dark .bg-sidebar {
+  background-color: #232327;
+}
+.markdown-dark .text-foreground {
+  color: #f4f4f5;
+}
+.markdown-dark .text-muted-foreground {
+  color: #9ca3af;
+}
+.markdown-dark .text-primary {
+  color: #6ea8fe;
+}
+.markdown-dark .bg-primary {
+  background-color: #0755bb;
+}
+.markdown-dark .text-primary-foreground {
+  color: #ffffff;
+}
+.markdown-dark .border-border {
+  border-color: #3f3f46;
+}
+.markdown-dark .divide-border {
+  border-color: #3f3f46;
+}
+.markdown-dark .border-muted-foreground {
+  border-color: #52525b;
 }

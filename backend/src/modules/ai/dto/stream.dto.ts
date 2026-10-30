@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, IsArray, IsOptional } from "class-validator";
+import { IsNotEmpty, IsString, IsArray, IsOptional } from 'class-validator';
 
 export class FileUploadDto {
   @IsString()
@@ -11,10 +11,14 @@ export class FileUploadDto {
 
   @IsString()
   @IsNotEmpty()
-  type: string;    // MIME type
+  type: string; // MIME type
 }
 
 export class streamDto {
+  @IsString()
+  @IsOptional()
+  modelId?: string;
+
   @IsString()
   @IsNotEmpty()
   message: string;

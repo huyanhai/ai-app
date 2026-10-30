@@ -3,6 +3,7 @@ export const SSE_EVENT = {
   MSG_START: 'msg_start',
   MSG_CHUNK: 'msg_chunk',
   MSG_END: 'msg_end',
+  MSG_ERROR: 'msg_error',
   TOOL_START: 'tool_start',
   TOOL_END: 'tool_end',
   TOOL_ERROR: 'tool_error',

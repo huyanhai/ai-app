@@ -129,10 +129,10 @@ const Editor = (
     <LexicalComposer initialConfig={initialConfig}>
       <PlainTextPlugin
         contentEditable={
-          <ContentEditable className="flex-1 bg-transparent border-0 outline-none w-full h-full resize-none text-sm" />
+          <ContentEditable className="flex-1 bg-transparent border-0 outline-none w-full h-full min-h-12 resize-none text-sm text-white/90 caret-white" />
         }
         placeholder={
-          <div className="pointer-events-none absolute left-0 top-0 text-sm text-white/40 p-2">
+          <div className="pointer-events-none absolute left-0 top-0 text-sm text-white/40">
             {placeholder || "描述你的想法"}
           </div>
         }

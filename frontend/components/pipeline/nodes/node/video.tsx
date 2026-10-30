@@ -2,7 +2,7 @@
 import { memo, useMemo } from "react";
 import { NodeProps } from "@xyflow/react";
 import { Play } from "lucide-react";
-import { motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import NodeShell from "./shell";
 import { TNodeImage, NodeType } from "../../types";
 import { ChunkStatus } from "backend/src/common/utils/ai-stream-utils";
@@ -37,10 +37,12 @@ const VideoNode = ({ id, data, selected }: NodeProps<TNodeImage>) => {
         className="relative overflow-hidden rounded-2xl bg-[#1f1f22] border border-white/5 transition-all duration-500"
         style={{ width, height }}
       >
-        {data.status === ChunkStatus.PROCESSING && <Loading />}
+        <AnimatePresence>
+          {data.status === ChunkStatus.PROCESSING && <Loading />}
+        </AnimatePresence>
         {data.status === ChunkStatus.SUCCESS && data.url && (
           <video
-            className="nodrag max-w-full max-h-full w-full h-full object-cover"
+            className="max-w-full max-h-full w-full h-full object-cover"
             src={data.url}
             autoPlay
             loop
@@ -51,6 +53,14 @@ const VideoNode = ({ id, data, selected }: NodeProps<TNodeImage>) => {
         {!data.status && !data.url && (
           <div className="flex h-full w-full items-center justify-center">
             <Play size={32} className="text-white/25" strokeWidth={1.5} />
+          </div>
+        )}
+        {data.status === ChunkStatus.FAILED && (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-4 text-center">
+            <Play size={28} className="text-white/25" strokeWidth={1.5} />
+            <p className="line-clamp-3 text-xs text-red-300/80">
+              {data.error || "视频生成失败"}
+            </p>
           </div>
         )}
       </motion.div>

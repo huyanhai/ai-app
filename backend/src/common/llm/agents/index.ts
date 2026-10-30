@@ -13,22 +13,27 @@ export { GlobalInformationPlanner } from './global-information-planner';
 export { NovelCompressor } from './novel-compressor';
 
 import { createDeepAgent, DeepAgent, LocalShellBackend } from 'deepagents';
-import { alMode } from '..';
+import { createChatModel, RuntimeModel } from '..';
 import { resolve } from 'path';
-import { genImage } from './gen-image';
-import { genImageTools } from '../tools/gen-image';
-import { readImage } from './read-image';
-import { genScript } from './gen-script';
+import { createGenImageAgent } from './gen-image';
+import { createGenImageTool } from '../tools/gen-image';
+import { createReadImageAgent } from './read-image';
+import { createGenScriptAgent } from './gen-script';
 
 export const backend = new LocalShellBackend({
   rootDir: process.cwd(),
   virtualMode: false,
 });
 
-export const agent: DeepAgent = createDeepAgent({
-  model: alMode,
-  backend,
-  tools: [genImageTools],
-  skills: [resolve(__dirname, '../skills')],
-  subagents: [genScript, genImage, readImage],
-});
+export const createAgentWithModel = (runtimeModel: RuntimeModel): DeepAgent =>
+  createDeepAgent({
+    model: createChatModel(runtimeModel, { temperature: 0.7, streaming: true }),
+    backend,
+    tools: [createGenImageTool(runtimeModel)],
+    skills: [resolve(__dirname, '../skills')],
+    subagents: [
+      createGenScriptAgent(runtimeModel),
+      createGenImageAgent(runtimeModel),
+      createReadImageAgent(runtimeModel),
+    ],
+  });

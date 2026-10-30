@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useReactFlow } from "@xyflow/react";
 import {
   ArrowUp,
@@ -15,13 +15,22 @@ import {
 } from "lucide-react";
 import { nanoid } from "nanoid";
 import Editor from "../../editor";
-import Popper from "../../popper";
+import Popper, { IPopperRef } from "../../popper";
 import SizeConfig from "../../chat-input/config/size-config";
 import VideoConfig from "../../chat-input/config/video-config";
 import DurationConfig from "../../chat-input/config/duration-config";
 import Frame from "../../chat-input/frame";
 import { useGenerate } from "../../hooks/use-generate";
-import { NODE_PROMPT_PLACEHOLDER, NODE_PRICE } from "../../constants";
+import {
+  NODE_PROMPT_PLACEHOLDER,
+  NODE_PRICE,
+  TEXT_SCENES,
+} from "../../constants";
+import CameraModal from "../../toolbox/camera-modal";
+import MovementModal from "../../toolbox/movement-modal";
+import PaletteModal from "../../toolbox/palette-modal";
+import StyleModal from "../../toolbox/style-modal";
+import { TCameraSelection } from "../../toolbox/data";
 import {
   NodeType,
   TAllNodes,
@@ -29,6 +38,8 @@ import {
   VideoModeType,
 } from "../../types";
 import { BUTTON_ACTIVE, BUTTON_NORMAL } from "@/constants/class-names";
+import { ModelCategory } from "@/components/models/types";
+import { useModelStore } from "@/store/model-store";
 import { ChunkStatus } from "backend/src/common/utils/ai-stream-utils";
 
 // 可在此表单中生成的节点类型
@@ -50,46 +61,58 @@ const OptionPopper = ({
   options: (string | number)[];
   value?: string | number;
   onChange?: (v: string | number) => void;
-}) => (
-  <Popper
-    content={label}
-    trigger={
-      <div className="flex flex-col gap-1 min-w-24">
-        {options.map((item) => (
-          <div
-            key={item}
-            className={`px-3 py-2 text-xs ${BUTTON_NORMAL} ${
-              value === item ? BUTTON_ACTIVE : ""
-            }`}
-            onClick={() => onChange?.(item)}
-          >
-            {item}
-          </div>
-        ))}
-      </div>
-    }
-  />
-);
+}) => {
+  const popperRef = useRef<IPopperRef>(null);
+
+  return (
+    <Popper
+      ref={popperRef}
+      content={label}
+      trigger={
+        <div className="flex flex-col gap-1 min-w-24">
+          {options.map((item) => (
+            <div
+              key={item}
+              className={`px-3 py-2 text-xs ${BUTTON_NORMAL} ${
+                value === item ? BUTTON_ACTIVE : ""
+              }`}
+              onClick={() => {
+                onChange?.(item);
+                popperRef.current?.closePopper();
+              }}
+            >
+              {item}
+            </div>
+          ))}
+        </div>
+      }
+    />
+  );
+};
+
+type TToolboxId = "camera" | "movement" | "palette" | "style";
 
 // 即梦风格顶部导演工具 pill（相机 / 配色 / 风格 / 运镜），嵌在卡片顶部整行铺满
 const ToolPills = ({
   type,
   onCollapse,
+  onOpen,
 }: {
   type: NodeType;
   onCollapse: () => void;
+  onOpen: (id: TToolboxId) => void;
 }) => {
   const pills =
     type === NodeType.ImageNode
       ? [
-          { icon: <Camera size={14} />, label: "相机" },
-          { icon: <Palette size={14} />, label: "配色" },
-          { icon: <Shapes size={14} />, label: "风格" },
+          { id: "camera" as const, icon: <Camera size={14} />, label: "相机" },
+          { id: "palette" as const, icon: <Palette size={14} />, label: "配色" },
+          { id: "style" as const, icon: <Shapes size={14} />, label: "风格" },
         ]
       : [
-          { icon: <Palette size={14} />, label: "配色" },
-          { icon: <Shapes size={14} />, label: "风格" },
-          { icon: <Video size={14} />, label: "运镜 添加 +" },
+          { id: "palette" as const, icon: <Palette size={14} />, label: "配色" },
+          { id: "style" as const, icon: <Shapes size={14} />, label: "风格" },
+          { id: "movement" as const, icon: <Video size={14} />, label: "运镜" },
         ];
 
   return (
@@ -97,6 +120,7 @@ const ToolPills = ({
       {pills.map((pill) => (
         <button
           key={pill.label}
+          onClick={() => pill.id && onOpen(pill.id)}
           className="flex h-12 flex-1 items-center justify-center gap-1.5 rounded-lg bg-white/5 text-sm text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
         >
           {pill.icon}
@@ -123,13 +147,56 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
   const { setNodes, getNode } = useReactFlow<TAllNodes>();
   const fileRef = useRef<HTMLInputElement>(null);
   const [pillsCollapsed, setPillsCollapsed] = useState(false);
+  const [toolboxOpen, setToolboxOpen] = useState<TToolboxId | null>(null);
+  const models = useModelStore((s) => s.models);
+  const defaults = useModelStore((s) => s.defaults);
   const { editorRef, submit, disabled, setIsEmpty, imageNodes } = useGenerate(
     id,
     type,
     data,
   );
 
+  // 进入画布时从后端 SQLite 加载模型配置
+  useEffect(() => {
+    void useModelStore.getState().loadModels();
+  }, []);
+
   const isMedia = type === NodeType.ImageNode || type === NodeType.VideoNode;
+  const textModels = models.filter(
+    (model) => model.category === ModelCategory.Text && model.enabled,
+  );
+  const defaultTextModel =
+    textModels.find(
+      (model) => model.id === defaults[ModelCategory.Text],
+    ) ?? textModels[0];
+  const textModel = data.config?.model ?? defaultTextModel?.name;
+  const textScene =
+    TEXT_SCENES.find((item) => item.value === data.config?.scene) ??
+    TEXT_SCENES[0];
+  const imageModels = models.filter(
+    (model) => model.category === ModelCategory.Image && model.enabled,
+  );
+  const defaultImageModel =
+    imageModels.find(
+      (model) => model.id === defaults[ModelCategory.Image],
+    ) ?? imageModels[0];
+  const imageModel = data.config?.model ?? defaultImageModel?.name;
+  const videoModels = models.filter(
+    (model) => model.category === ModelCategory.Video && model.enabled,
+  );
+  const defaultVideoModel =
+    videoModels.find(
+      (model) => model.id === defaults[ModelCategory.Video],
+    ) ?? videoModels[0];
+  const videoModel = data.config?.model ?? defaultVideoModel?.name;
+  const audioModels = models.filter(
+    (model) => model.category === ModelCategory.Audio && model.enabled,
+  );
+  const defaultAudioModel =
+    audioModels.find(
+      (model) => model.id === defaults[ModelCategory.Audio],
+    ) ?? audioModels[0];
+  const audioModel = data.config?.model ?? defaultAudioModel?.name;
 
   const changeConfig = (config: TNodeBase["config"]) => {
     const next = { ...data.config, ...config };
@@ -169,13 +236,59 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
       data.config?.videoMode!,
     );
 
-  const canSubmit = type !== NodeType.AudioNode && !disabled;
+  const canSubmit = !disabled;
+
+  // 工具箱选择写回节点 config
+  const confirmToolbox = (patch: Partial<TCameraSelection> | string) => {
+    const toolbox = { ...data.config?.toolbox };
+    if (toolboxOpen === "camera") {
+      toolbox.camera = patch as TCameraSelection;
+    } else if (toolboxOpen === "palette") {
+      toolbox.palette = patch as string;
+    } else if (toolboxOpen === "style") {
+      toolbox.style = patch as string;
+    } else if (toolboxOpen === "movement") {
+      toolbox.movement = patch as string;
+    }
+    changeConfig({ toolbox });
+    setToolboxOpen(null);
+  };
 
   return (
     <div className="nodrag nopan nowheel w-[560px] rounded-2xl bg-[#1c1c1e] border border-white/5 p-3 shadow-2xl">
       {isMedia && !pillsCollapsed && (
-        <ToolPills type={type} onCollapse={() => setPillsCollapsed(true)} />
+        <ToolPills
+          type={type}
+          onCollapse={() => setPillsCollapsed(true)}
+          onOpen={setToolboxOpen}
+        />
       )}
+
+      {/* 导演工具箱弹窗（相机 / 配色 / 风格） */}
+      <CameraModal
+        open={toolboxOpen === "camera"}
+        value={data.config?.toolbox?.camera}
+        onClose={() => setToolboxOpen(null)}
+        onConfirm={confirmToolbox}
+      />
+      <MovementModal
+        open={toolboxOpen === "movement"}
+        value={data.config?.toolbox?.movement}
+        onClose={() => setToolboxOpen(null)}
+        onConfirm={confirmToolbox}
+      />
+      <PaletteModal
+        open={toolboxOpen === "palette"}
+        value={data.config?.toolbox?.palette}
+        onClose={() => setToolboxOpen(null)}
+        onConfirm={confirmToolbox}
+      />
+      <StyleModal
+        open={toolboxOpen === "style"}
+        value={data.config?.toolbox?.style}
+        onClose={() => setToolboxOpen(null)}
+        onConfirm={confirmToolbox}
+      />
       {type === NodeType.VideoNode &&
         data.config?.videoMode === VideoModeType.FirstAndLastFrameToVideo && (
           <Frame config={data.config} changeConfig={changeConfig} />
@@ -220,7 +333,18 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
           className="hidden"
           onChange={handleUploadReference}
         />
-        <div className="relative mt-1 min-h-12 max-h-40 overflow-y-auto">
+        <div
+          onClick={(e) => {
+            // 兜底：点击输入区任意位置都聚焦编辑器
+            const editable = e.currentTarget.querySelector<HTMLElement>(
+              "[contenteditable]",
+            );
+            if (editable && document.activeElement !== editable) {
+              editable.focus();
+            }
+          }}
+          className="relative mt-1 min-h-12 max-h-40 overflow-y-auto cursor-text"
+        >
           <Editor
             key={id}
             ref={editorRef}
@@ -238,12 +362,32 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
       {/* 底部配置条 */}
       <div className="mt-2 flex items-center justify-between">
         <div className="flex items-center gap-1 text-xs">
+          {type === NodeType.TextNode && (
+            <>
+              <OptionPopper
+                label={textModel || "选择模型"}
+                options={textModels.map((model) => model.name)}
+                value={textModel}
+                onChange={(v) => changeConfig({ model: String(v) })}
+              />
+              <OptionPopper
+                label={textScene.label}
+                options={TEXT_SCENES.map((item) => item.label)}
+                value={textScene.label}
+                onChange={(v) =>
+                  changeConfig({
+                    scene: TEXT_SCENES.find((item) => item.label === v)?.value,
+                  })
+                }
+              />
+            </>
+          )}
           {type === NodeType.ImageNode && (
             <>
               <OptionPopper
-                label={data.config?.model || "Seedream 5.0 Lite"}
-                options={["Seedream 5.0 Lite", "Seedream 4.5", "Seedream 4.0"]}
-                value={data.config?.model}
+                label={imageModel || "选择模型"}
+                options={imageModels.map((model) => model.name)}
+                value={imageModel}
                 onChange={(v) => changeConfig({ model: String(v) })}
               />
               <SizeConfig
@@ -262,9 +406,9 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
           {type === NodeType.VideoNode && (
             <>
               <OptionPopper
-                label={data.config?.model || "即梦 Seedance 2.0"}
-                options={["即梦 Seedance 2.0", "即梦 Seedance 2.0 Fast"]}
-                value={data.config?.model}
+                label={videoModel || "选择模型"}
+                options={videoModels.map((model) => model.name)}
+                value={videoModel}
                 onChange={(v) => changeConfig({ model: String(v) })}
               />
               <SizeConfig
@@ -288,7 +432,12 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
           {type === NodeType.AudioNode && (
             <>
               <OptionPopper label="音频生成" options={["音频生成", "音效生成"]} />
-              <OptionPopper label="SeedAudio 1.0" options={["SeedAudio 1.0"]} />
+              <OptionPopper
+                label={audioModel || "选择模型"}
+                options={audioModels.map((model) => model.name)}
+                value={audioModel}
+                onChange={(v) => changeConfig({ model: String(v) })}
+              />
               <OptionPopper label="全能配音" options={["全能配音", "仅人声", "仅配乐"]} />
               <OptionPopper label="音色库" options={["音色库"]} />
               <button
@@ -311,9 +460,6 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
             aria-label="生成"
             onClick={submit}
             disabled={!canSubmit}
-            title={
-              type === NodeType.AudioNode ? "音频生成暂未接入" : undefined
-            }
             className={`flex size-8 items-center justify-center rounded-full transition ${
               canSubmit
                 ? "bg-white text-black hover:bg-white/90 cursor-pointer"

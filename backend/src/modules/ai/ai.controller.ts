@@ -27,6 +27,7 @@ export class AiController {
       body.message,
       body.files,
       abortController.signal,
+      body.modelId,
     );
 
     try {

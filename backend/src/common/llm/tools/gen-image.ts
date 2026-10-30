@@ -1,8 +1,14 @@
 import { StreamDto } from '@/modules/pipeline/dto/stream.dto';
 import { ContentBlock, tool } from 'langchain';
 import * as z from 'zod';
+import { RuntimeModel } from '..';
 
-export async function genImage({ message, config, textList }: StreamDto) {
+export async function genImage({
+  message,
+  config,
+  textList,
+  runtimeModel,
+}: StreamDto & { runtimeModel: RuntimeModel }) {
   let text = '';
   let index = 0;
   const messages = [];
@@ -30,55 +36,55 @@ export async function genImage({ message, config, textList }: StreamDto) {
 
   console.log('messages', messages);
   try {
-    const data = await fetch(process.env.ALI_IMAGE_URL, {
+    const data = await fetch(`${runtimeModel.baseURL}/images/generations`, {
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.ALI_API_KEY}`,
+        Authorization: `Bearer ${runtimeModel.apiKey}`,
       },
       method: 'POST',
       body: JSON.stringify({
-        model: process.env.ALI_IMAGE_MODEL,
-        input: {
-          messages: [
-            {
-              role: 'user',
-              content: messages,
-            },
-          ],
-        },
+        model: runtimeModel.modelId,
+        prompt: text.trim(),
+        n: config?.count || 1,
       }),
     }).then((res) => res.json());
-    const result = data?.output?.choices?.[0]?.message;
 
-    if (result) {
-      return result;
+    if (!Array.isArray(data?.data)) {
+      throw new Error(data?.error?.message || data?.message || '图片生成失败');
     }
-    return data.message;
+
+    return {
+      content: data.data.map((item) => ({
+        image: item.url || `data:image/png;base64,${item.b64_json}`,
+      })),
+    };
   } catch (error) {
     return error;
   }
 }
 
-export const genImageTools: any = tool(
-  async ({ prompt }) => {
-    return genImage({
-      message: [
-        {
-          type: 'text',
-          text: prompt,
+export const createGenImageTool = (runtimeModel: RuntimeModel): any =>
+  tool(
+    async ({ prompt }) => {
+      return genImage({
+        runtimeModel,
+        message: [
+          {
+            type: 'text',
+            text: prompt,
+          },
+        ],
+        textList: [],
+        config: {
+          ratio: '3:2',
         },
-      ],
-      textList: [],
-      config: {
-        ratio: '3:2',
-      },
-    });
-  },
-  {
-    name: '图片生成',
-    description: '当用户需要生成图片的时候，使用此工具进行图片生成',
-    schema: z.object({
-      prompt: z.string().describe('生成图片的提示词'),
-    }),
-  },
-);
+      });
+    },
+    {
+      name: '图片生成',
+      description: '当用户需要生成图片的时候，使用此工具进行图片生成',
+      schema: z.object({
+        prompt: z.string().describe('生成图片的提示词'),
+      }),
+    },
+  );

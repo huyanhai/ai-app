@@ -93,16 +93,26 @@ const Popper = (
     </AnimatePresence>
   );
 
-  // 滚动或 resize 时同步位置
+  // 弹层打开期间持续跟随触发按钮：节点拖拽/画布平移缩放只改变 transform，
+  // 不触发 scroll/resize，需用 rAF 检测位置变化（rect 不变时不 setState）
   useEffect(() => {
     if (!open) return;
-    const sync = () => updatePopoverPosition();
-    window.addEventListener("scroll", sync, true);
-    window.addEventListener("resize", sync);
-    return () => {
-      window.removeEventListener("scroll", sync, true);
-      window.removeEventListener("resize", sync);
+    let frame: number;
+    let lastKey = "";
+    const sync = () => {
+      const el = containerRef.current;
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        const key = `${rect.left},${rect.top},${rect.width},${rect.height}`;
+        if (key !== lastKey) {
+          lastKey = key;
+          updatePopoverPosition();
+        }
+      }
+      frame = requestAnimationFrame(sync);
     };
+    frame = requestAnimationFrame(sync);
+    return () => cancelAnimationFrame(frame);
   }, [open, updatePopoverPosition]);
 
   return (

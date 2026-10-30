@@ -23,6 +23,7 @@ export type StreamEvent =
   | { type: 'msg_start'; role: string }
   | { type: 'msg_chunk'; content: string | IMediaData | IStoryData }
   | { type: 'msg_end' }
+  | { type: 'msg_error'; error: string }
   | {
       type: 'tool_start';
       id: string;

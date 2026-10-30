@@ -28,6 +28,14 @@ export class ConfigDto {
   @IsString()
   @IsOptional()
   lastFrameUrl?: string;
+
+  @IsNumber()
+  @IsOptional()
+  count?: number;
+
+  @IsString()
+  @IsOptional()
+  resolution?: string;
 }
 
 export class TextListDTO {
@@ -52,6 +60,10 @@ export class StreamDto {
   @IsObject()
   @IsOptional()
   config?: ConfigDto;
+
+  @IsString()
+  @IsOptional()
+  modelId?: string;
 
   @IsArray()
   @IsOptional()

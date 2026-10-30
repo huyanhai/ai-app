@@ -2,6 +2,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   MouseEvent as ReactMouseEvent,
@@ -11,6 +12,7 @@ import {
   BackgroundVariant,
   MiniMap,
   ReactFlow,
+  useReactFlow,
   useNodesState,
   useEdgesState,
   OnSelectionChangeParams,
@@ -25,6 +27,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { Sparkles } from "lucide-react";
 import nodeTypes from "@/components/pipeline/nodes";
+import edgeTypes from "@/components/pipeline/edges";
 import Toolbar from "@/components/pipeline/toolbar";
 import Controls from "@/components/pipeline/controls";
 import AssetModal from "@/components/pipeline/asset-modal";
@@ -35,6 +38,12 @@ import GeneratorCard, {
 import Menu from "@/components/pipeline/menu";
 import { TMenuRequest, usePipelineStore } from "@/store/pipeline-store";
 import { NodeType, TAllNodes } from "@/components/pipeline/types";
+import {
+  SOURCE_ANCHOR,
+  SOURCE_HANDLE,
+  TARGET_ANCHOR,
+  TARGET_HANDLE,
+} from "@/components/pipeline/constants";
 
 // 连线拖拽松开后、菜单选择前的半截连线（对齐即梦：菜单弹出时连线保持显示）
 const PendingEdge = ({ menuRequest }: { menuRequest: TMenuRequest }) => {
@@ -80,6 +89,8 @@ const Flow = () => {
     },
   ]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  // hover 中的节点 id：hover/选中节点的直接上下游连线高亮为渐变流光
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
 
   const connectingNodeId = useRef<string | null>(null);
   const connectingHandleId = useRef<string | null>(null);
@@ -99,10 +110,70 @@ const Flow = () => {
   const showMiniMap = usePipelineStore((state) => state.showMiniMap);
   const showEdges = usePipelineStore((state) => state.showEdges);
 
+  const { setCenter, screenToFlowPosition, getZoom, getNode } =
+    useReactFlow<TAllNodes>();
+
+  // 选中生成类节点后，若节点 + 底部生成卡片超出可视区域，平移画布让节点垂直居中
+  const selectedNodeId = currentSelectNode?.id;
+  useEffect(() => {
+    if (
+      !selectedNodeId ||
+      !GENERATOR_TYPES.includes(currentSelectNode?.type as NodeType)
+    ) {
+      return;
+    }
+    // 等 NodeToolbar 渲染完再测量
+    const frame = requestAnimationFrame(() => {
+      const nodeEl = document.querySelector<HTMLElement>(
+        `.react-flow__node[data-id="${selectedNodeId}"]`,
+      );
+      const node = getNode(selectedNodeId);
+      if (!nodeEl || !node) return;
+      const toolbarEl = document.querySelector<HTMLElement>(
+        `.react-flow__node-toolbar[data-id="${selectedNodeId}"]`,
+      );
+      const bottom = Math.max(
+        nodeEl.getBoundingClientRect().bottom,
+        toolbarEl?.getBoundingClientRect().bottom ?? 0,
+      );
+      if (bottom > window.innerHeight - 16) {
+        const zoom = getZoom();
+        // 保持水平方向不变，仅垂直居中
+        const { x } = screenToFlowPosition({
+          x: window.innerWidth / 2,
+          y: window.innerHeight / 2,
+        });
+        const nodeHeight = node.measured?.height ?? 0;
+        setCenter(x, node.position.y + nodeHeight / 2, {
+          zoom,
+          duration: 300,
+        });
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedNodeId]);
+
   const onConnect = useCallback(
     (params: Connection) => {
       connectionSuccessful.current = true;
-      setEdges((eds) => addEdge(params, eds));
+      // 连线锚定到卡片边缘的隐形锚点，而不是悬浮的 + 按钮
+      setEdges((eds) =>
+        addEdge(
+          {
+            ...params,
+            sourceHandle:
+              params.sourceHandle === SOURCE_HANDLE
+                ? SOURCE_ANCHOR
+                : params.sourceHandle,
+            targetHandle:
+              params.targetHandle === TARGET_HANDLE
+                ? TARGET_ANCHOR
+                : params.targetHandle,
+          },
+          eds,
+        ),
+      );
     },
     [setEdges],
   );
@@ -154,6 +225,10 @@ const Flow = () => {
     [setCurrentSelectNode],
   );
 
+  // 工具卡使用 React Flow 中的实时节点（store 里的快照不会随 setNodes 更新，会导致工具箱选择丢失）
+  const liveSelectedNode =
+    nodes.find((n) => n.id === currentSelectNode?.id) ?? null;
+
   // 右键显示菜单
   const onPaneContextMenu = useCallback(
     (event: ReactMouseEvent | MouseEvent) => {
@@ -187,12 +262,26 @@ const Flow = () => {
     closeMenu();
   }, [closeMenu]);
 
+  // hover/选中节点的直接上下游连线激活渐变流光高亮
+  const displayEdges = useMemo(() => {
+    if (!showEdges) return [];
+    const activeIds = new Set(
+      [hoveredNodeId, currentSelectNode?.id].filter(Boolean) as string[],
+    );
+    if (activeIds.size === 0) return edges;
+    return edges.map((edge) =>
+      activeIds.has(edge.source) || activeIds.has(edge.target)
+        ? { ...edge, data: { ...edge.data, active: true } }
+        : edge,
+    );
+  }, [edges, showEdges, hoveredNodeId, currentSelectNode]);
+
   return (
     <div className="w-full h-full relative bg-[#0a0a0a]">
       <ReactFlow
         colorMode="dark"
         nodes={nodes}
-        edges={showEdges ? edges : []}
+        edges={displayEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
@@ -203,18 +292,22 @@ const Flow = () => {
         onPaneClick={onPaneClick}
         onNodeDragStart={onDragStart}
         onSelectionDragStart={onDragStart}
+        onNodeMouseEnter={(_, node) => setHoveredNodeId(node.id)}
+        onNodeMouseLeave={() => setHoveredNodeId(null)}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         panOnScroll={true}
         fitView
         fitViewOptions={{ minZoom: 1, maxZoom: 1 }}
         defaultEdgeOptions={{
+          type: "gradient",
           style: { stroke: "rgba(255,255,255,0.25)", strokeWidth: 1 },
         }}
       >
         <Background
           variant={BackgroundVariant.Dots}
           gap={20}
-          size={1}
+          size={2}
           color="rgba(255,255,255,0.12)"
         />
         {showMiniMap && (
@@ -225,26 +318,26 @@ const Flow = () => {
           />
         )}
 
-        {currentSelectNode &&
-          currentSelectNode.type === NodeType.TextNode && (
+        {liveSelectedNode &&
+          liveSelectedNode.type === NodeType.TextNode && (
             <NodeToolbar
-              nodeId={currentSelectNode.id}
+              nodeId={liveSelectedNode.id}
               position={Position.Top}
               isVisible={true}
               offset={12}
             >
-              <TextToolbar node={currentSelectNode} />
+              <TextToolbar node={liveSelectedNode} />
             </NodeToolbar>
           )}
-        {currentSelectNode &&
-          GENERATOR_TYPES.includes(currentSelectNode.type as NodeType) && (
+        {liveSelectedNode &&
+          GENERATOR_TYPES.includes(liveSelectedNode.type as NodeType) && (
             <NodeToolbar
-              nodeId={currentSelectNode.id}
+              nodeId={liveSelectedNode.id}
               position={Position.Bottom}
               isVisible={true}
               offset={16}
             >
-              <GeneratorCard node={currentSelectNode} />
+              <GeneratorCard node={liveSelectedNode} />
             </NodeToolbar>
           )}
       </ReactFlow>

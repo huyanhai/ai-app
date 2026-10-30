@@ -1,13 +1,16 @@
 /// <reference types="jest" />
 import { Test, TestingModule } from '@nestjs/testing';
 import { AiService } from './ai.service';
-import { agent, backend } from '@/common/llm/agents';
-import { FILE_NOTE_PREFIX, FILE_NOTE_SUFFIX } from '@/common/utils/stream-constants';
+import { backend } from '@/common/llm/agents';
+import {
+  FILE_NOTE_PREFIX,
+  FILE_NOTE_SUFFIX,
+} from '@/common/utils/stream-constants';
+
+const mockAgent = { streamEvents: jest.fn() };
 
 jest.mock('@/common/llm/agents', () => ({
-  agent: {
-    streamEvents: jest.fn(),
-  },
+  createAgentWithModel: () => mockAgent,
   backend: {
     write: jest.fn(),
   },
@@ -21,14 +24,20 @@ async function* makeAsyncIterable<T>(items: T[]) {
 
 describe('AiService', () => {
   let service: AiService;
-  const streamEventsMock = agent.streamEvents as jest.Mock;
+  const streamEventsMock = mockAgent.streamEvents as jest.Mock;
   const backendWriteMock = backend.write as jest.Mock;
 
   beforeEach(async () => {
     jest.clearAllMocks();
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [AiService],
+      providers: [
+        AiService,
+        {
+          provide: require('../models/models.service').ModelsService,
+          useValue: { runtime: jest.fn().mockResolvedValue({}) },
+        },
+      ],
     }).compile();
 
     service = module.get<AiService>(AiService);
@@ -40,9 +49,7 @@ describe('AiService', () => {
 
   it('streams assistant tokens individually and closes the message', async () => {
     streamEventsMock.mockResolvedValue({
-      messages: makeAsyncIterable([
-        { text: makeAsyncIterable(['Hel', 'lo']) },
-      ]),
+      messages: makeAsyncIterable([{ text: makeAsyncIterable(['Hel', 'lo']) }]),
       toolCalls: makeAsyncIterable([]),
       output: Promise.resolve({
         messages: [{ type: 'ai', content: 'Hello' }],
@@ -108,11 +115,7 @@ describe('AiService', () => {
     expect(backendWriteMock).toHaveBeenCalledWith('/notes.md', 'hello');
     expect(streamEventsMock).toHaveBeenCalledWith(
       {
-        messages:
-          'inspect' +
-          FILE_NOTE_PREFIX +
-          '/notes.md' +
-          FILE_NOTE_SUFFIX,
+        messages: 'inspect' + FILE_NOTE_PREFIX + '/notes.md' + FILE_NOTE_SUFFIX,
       },
       { version: 'v3' },
     );
@@ -142,7 +145,12 @@ describe('AiService', () => {
 
     expect(events).toEqual([
       { type: 'tool_start', id: 'tool-1', name: 'search', input: { q: 'x' } },
-      { type: 'tool_end', id: 'tool-1', name: 'search', output: { text: 'tool result' } },
+      {
+        type: 'tool_end',
+        id: 'tool-1',
+        name: 'search',
+        output: { text: 'tool result' },
+      },
       { type: 'msg_start', role: 'assistant' },
       { type: 'msg_chunk', content: 'tool result' },
       { type: 'msg_end' },

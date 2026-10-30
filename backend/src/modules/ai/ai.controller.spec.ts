@@ -8,7 +8,13 @@ describe('AiController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AiController],
-      providers: [AiService],
+      providers: [
+        AiService,
+        {
+          provide: require('../models/models.service').ModelsService,
+          useValue: {},
+        },
+      ],
     }).compile();
 
     controller = module.get<AiController>(AiController);

@@ -1,8 +1,22 @@
 import { Node } from "@xyflow/react";
 import { IMediaData } from "backend/src/common/utils/ai-stream-utils";
+import { TextScene } from "backend/src/common/utils/text-scene";
 import { HumanMessage } from "langchain";
 
 export type TRatio = `${number}:${number}`;
+
+// 导演工具箱选择（相机 / 运镜 / 配色 / 风格）
+export type TNodeToolbox = {
+  camera?: {
+    camera?: string; // 相机
+    lens?: string; // 镜头
+    focal?: string; // 焦距
+    aperture?: string; // 光圈
+  };
+  movement?: string; // 运镜名称
+  palette?: string; // 配色方案名称
+  style?: string; // 风格名称
+};
 
 export enum Placement {
   Top = "top",
@@ -30,6 +44,7 @@ export enum VideoModeType {
 
 export type TNodeBase = {
   title?: string; // 节点标题（创建时自动编号，如 图片 1）
+  labelColor?: string; // 节点右上角标签色
   config?: {
     ratio?: TRatio; // 比例
     videoMode?: VideoModeType; // 生图模式
@@ -39,23 +54,29 @@ export type TNodeBase = {
     resolution?: string; // 清晰度
     count?: number; // 生成数量
     model?: string; // 模型
+    scene?: TextScene; // 文本节点生成场景
+    toolbox?: TNodeToolbox; // 导演工具箱选择
   };
 };
 
 export type TNodeTextData = {
   text: string;
   bg?: string; // 背景色（选中工具条可切换）
+  status?: IMediaData["status"]; // 生成状态
+  error?: string; // 生成失败原因
 } & TNodeBase;
 
 export type TNodeImageData = {
   url: string;
   status?: IMediaData["status"];
+  error?: string;
 } & TNodeBase;
 
 // 音频生成节点数据
 export type TNodeAudioData = {
   url?: string;
   status?: IMediaData["status"];
+  error?: string;
 } & TNodeBase;
 
 // 时间线节点数据

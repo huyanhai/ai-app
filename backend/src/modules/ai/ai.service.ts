@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { agent, backend } from '@/common/llm/agents';
+import { backend, createAgentWithModel } from '@/common/llm/agents';
 import { FileUploadDto } from './dto/stream.dto';
 import { AsyncQueue } from '@/common/utils/async-queue';
 import {
@@ -20,8 +20,11 @@ import {
   SSE_ROLE,
   ERR_STREAM_ABORTED,
 } from '@/common/utils/stream-constants';
+import { ModelsService } from '../models/models.service';
 @Injectable()
 export class AiService {
+  constructor(private readonly models: ModelsService) {}
+
   /**
    * Stream an AI response for the given message, optionally with file attachments.
    * Yields SSE events (msg_start, msg_chunk, msg_end, tool_start, tool_end, tool_error).
@@ -30,6 +33,7 @@ export class AiService {
     message: string,
     files?: FileUploadDto[],
     signal?: AbortSignal,
+    modelId?: string,
   ) {
     const ensureNotAborted = () => {
       if (signal?.aborted) throw new Error(ERR_STREAM_ABORTED);
@@ -41,6 +45,8 @@ export class AiService {
     await this.writeDocFiles(preparedFiles.docFiles, ensureNotAborted);
 
     const inputMessages = buildInputMessages(message, preparedFiles);
+    const model = await this.models.runtime(modelId, 'text');
+    const agent = createAgentWithModel(model);
     const run = (await agent.streamEvents(
       { messages: inputMessages },
       { version: 'v3' },

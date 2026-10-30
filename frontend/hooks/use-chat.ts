@@ -2,6 +2,11 @@ import { useState, useRef, useCallback } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { MessageType } from "@/components/chat/types";
 import { parseSseLine } from "@/lib/sse";
+import {
+  getTextModel,
+  isModelReady,
+  useModelStore,
+} from "@/store/model-store";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
 
@@ -74,6 +79,11 @@ export function useChat() {
   const mutation = useMutation({
     mutationKey: ["chat"],
     mutationFn: async ({ text, files }: SendParams) => {
+      await useModelStore.getState().loadModels();
+      const model = getTextModel();
+      if (!model || !isModelReady(model)) {
+        throw new Error("未配置可用的文本模型，请先在模型配置中完善");
+      }
       const assistantMsgId = Math.random().toString(36).slice(7);
 
       setMessages((prev) => {
@@ -107,6 +117,7 @@ export function useChat() {
           signal: abortController.signal,
           body: JSON.stringify({
             message: text,
+            modelId: model.id,
             files: files
               ? files.map((f) => ({
                   name: f.name,

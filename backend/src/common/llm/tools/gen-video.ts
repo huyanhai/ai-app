@@ -1,19 +1,52 @@
 import { StreamDto } from '../../../modules/pipeline/dto/stream.dto';
 import { ContentBlock, tool } from 'langchain';
 import * as z from 'zod';
+import { RuntimeModel } from '..';
 
 export interface IVideoMedia {
   url: string;
   type: string;
 }
 
-const model = {
-  textToVideo: process.env.ALI_TEXT_VIDEO_MODEL,
-  imageToVideo: process.env.ALI_IMAGE_VIDEO_MODEL,
-  firstAndLastFrameToVideo: process.env.ALI_FRAME_VIDEO_MODEL,
+const videoUrls = (model: RuntimeModel) => {
+  if (model.provider === 'dashscope') {
+    const origin = new URL(model.baseURL).origin;
+    return {
+      create: `${origin}/api/v1/services/aigc/video-generation/video-synthesis`,
+      query: (taskId: string) => `${origin}/api/v1/tasks/${taskId}`,
+    };
+  }
+  return {
+    create: `${model.baseURL}/contents/generations/tasks`,
+    query: (taskId: string) =>
+      `${model.baseURL}/contents/generations/tasks/${taskId}`,
+  };
 };
 
-export async function genVideo({ message, config }: StreamDto) {
+const readResponse = async (response: Response) => {
+  const data = await response.json();
+  if (!response.ok || data?.code) {
+    throw new Error(data?.message || `视频接口请求失败（${response.status}）`);
+  }
+  return data;
+};
+
+export async function queryVideoTask(
+  taskId: string,
+  runtimeModel: RuntimeModel,
+) {
+  const response = await fetch(videoUrls(runtimeModel).query(taskId), {
+    headers: { Authorization: `Bearer ${runtimeModel.apiKey}` },
+  });
+  return readResponse(response);
+}
+
+export async function genVideo({
+  message,
+  config,
+  textList,
+  runtimeModel,
+}: StreamDto & { runtimeModel: RuntimeModel }) {
   let prompt = '';
   let index = 0;
   const media: IVideoMedia[] = [];
@@ -39,64 +72,70 @@ export async function genVideo({ message, config }: StreamDto) {
     media.push({ type: 'last_frame', url: config.lastFrameUrl });
   }
 
-  console.log(prompt, media, model[config.videoMode]);
+  textList?.forEach((item) => {
+    prompt += `${item.action_input}\n${item.supplementary?.style || ''}\n`;
+  });
+
+  console.log(prompt, media, runtimeModel.modelId);
 
   try {
-    const data = await fetch(process.env.ALI_VIDEO_URL, {
+    const data = await fetch(videoUrls(runtimeModel).create, {
       headers: {
         'X-DashScope-Async': 'enable',
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.ALI_API_KEY}`,
+        Authorization: `Bearer ${runtimeModel.apiKey}`,
       },
       method: 'POST',
       body: JSON.stringify({
-        model: model[config.videoMode] || model.textToVideo,
+        model: runtimeModel.modelId,
         input: {
           prompt,
           media,
         },
         parameters: {
-          resolution: '720P',
+          resolution: config?.resolution || '720P',
           duration: config?.duration || 5,
           prompt_extend: true,
           watermark: false,
           ratio: config?.ratio || '16:9',
         },
       }),
-    }).then((res) => res.json());
+    }).then(readResponse);
     const result = data?.output;
 
-    if (result.task_status === 'PENDING') {
+    if (result?.task_id) {
       return result;
     }
-    return data.message;
+    throw new Error(data?.message || '视频生成接口未返回任务 ID');
   } catch (error) {
-    return error;
+    throw error instanceof Error ? error : new Error(String(error));
   }
 }
 
-export const genVideoTools: any = tool(
-  async ({ prompt }) => {
-    return genVideo({
-      message: [
-        {
-          type: 'text',
-          text: prompt,
+export const createGenVideoTool = (runtimeModel: RuntimeModel): any =>
+  tool(
+    async ({ prompt }) => {
+      return genVideo({
+        runtimeModel,
+        message: [
+          {
+            type: 'text',
+            text: prompt,
+          },
+        ],
+        textList: [],
+        config: {
+          videoMode: 'textToVideo',
+          duration: 5,
+          ratio: '16:9',
         },
-      ],
-      textList: [],
-      config: {
-        videoMode: 'textToVideo',
-        duration: 5,
-        ratio: '16:9',
-      },
-    });
-  },
-  {
-    name: '视频生成',
-    description: '当用户需要生成视频的时候，使用此工具进行视频生成',
-    schema: z.object({
-      prompt: z.string().describe('生成视频的提示词'),
-    }),
-  },
-);
+      });
+    },
+    {
+      name: '视频生成',
+      description: '当用户需要生成视频的时候，使用此工具进行视频生成',
+      schema: z.object({
+        prompt: z.string().describe('生成视频的提示词'),
+      }),
+    },
+  );

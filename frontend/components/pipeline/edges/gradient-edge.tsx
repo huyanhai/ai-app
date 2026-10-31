@@ -66,8 +66,8 @@ const GradientEdge = ({
           >
             <animate
               attributeName="stroke-dashoffset"
-              from="0"
-              to="-100"
+              from="-100"
+              to="0"
               dur="1.2s"
               repeatCount="indefinite"
             />

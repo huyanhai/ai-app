@@ -15,6 +15,7 @@ import {
 } from "@/store/model-store";
 import { NodeType, TAllNodes, TNodeImage, TNodeText } from "../types";
 import { IEditorRef } from "../editor";
+import { usePipelineStore } from "@/store/pipeline-store";
 
 // 文本节点走会话接口（见 chat），不在此表中
 const SUBMIT_URL: Partial<Record<NodeType, string>> = {
@@ -33,6 +34,13 @@ export const useGenerate = (
   // 同一节点再次发送时中止上一次未结束的会话
   const abortRef = useRef<AbortController | null>(null);
   const [isEmpty, setIsEmpty] = useState(true);
+  const imageEditorMode = usePipelineStore((state) =>
+    state.imageEditor?.nodeId === nodeId && nodeType === NodeType.ImageNode
+      ? state.imageEditor.mode
+      : null,
+  );
+  const isImageEditing = imageEditorMode === "edit";
+  const isOutpainting = imageEditorMode === "outpaint";
   const { getNode, setNodes } = useReactFlow<TAllNodes>();
 
   // 当前节点 source 句柄引出的连线，目标节点作为参考素材
@@ -158,8 +166,38 @@ export const useGenerate = (
     const url = SUBMIT_URL[nodeType];
     if (!url) return;
 
-    const messages = await editorRef.current?.getEditor();
+    const editorMessages = await editorRef.current?.getEditor();
     editorRef.current?.clear();
+    const editMarkers =
+      nodeData && "editMarkers" in nodeData ? nodeData.editMarkers : undefined;
+    const editPrompt =
+      nodeData && "editPrompt" in nodeData ? nodeData.editPrompt : undefined;
+    const outpaintPrompt =
+      nodeData && "outpaintPrompt" in nodeData ? nodeData.outpaintPrompt : undefined;
+    const messages =
+      isImageEditing && nodeData && "url" in nodeData && nodeData.url
+        ? [
+            { type: "image_url" as const, image_url: nodeData.url },
+            {
+              type: "text" as const,
+              text: `对图片进行智能优化，保持未标记区域和主体特征不变。${editPrompt ? `修改要求：${editPrompt}。` : ""}标记区域：${(editMarkers ?? [])
+                .map((marker, index) =>
+                  marker.type === "pin"
+                    ? `${index + 1}: 点(${(marker.x * 100).toFixed(0)}%, ${(marker.y * 100).toFixed(0)}%)`
+                    : `${index + 1}: 矩形(${(marker.x * 100).toFixed(0)}%, ${(marker.y * 100).toFixed(0)}%, 宽${((marker.width ?? 0) * 100).toFixed(0)}%, 高${((marker.height ?? 0) * 100).toFixed(0)}%)`,
+                )
+                .join("；")}`,
+            },
+          ]
+        : isOutpainting && nodeData && "url" in nodeData && nodeData.url
+          ? [
+              { type: "image_url" as const, image_url: nodeData.url },
+              {
+                type: "text" as const,
+                text: `以原图中心内容为基础向外扩展画面，保持原始图片内容、主体位置、色彩和风格不变，仅自然补全新增区域。${outpaintPrompt ? `扩展要求：${outpaintPrompt}` : ""}`,
+              },
+            ]
+          : editorMessages;
 
     const selectedModel =
       nodeType === NodeType.ImageNode
@@ -183,11 +221,35 @@ export const useGenerate = (
     }
 
     const abortController = new AbortController();
+    const toolbox = nodeData?.config?.toolbox;
+    const toolboxPrompt = [
+      toolbox?.camera?.camera && `相机：${toolbox.camera.camera}`,
+      toolbox?.camera?.lens && `镜头：${toolbox.camera.lens}`,
+      toolbox?.camera?.focal && `焦距：${toolbox.camera.focal}`,
+      toolbox?.camera?.aperture && `光圈：${toolbox.camera.aperture}`,
+      toolbox?.palette && `配色方案：${toolbox.palette}`,
+      toolbox?.style && `画面风格：${toolbox.style}`,
+      toolbox?.movement && `运镜方式：${toolbox.movement}`,
+    ].filter(Boolean).join("\n");
+    const requestMessages = toolboxPrompt
+      ? [...(messages ?? []), { type: "text" as const, text: toolboxPrompt }]
+      : messages;
+    updateNodeData(nodeId, {
+      status: ChunkStatus.PROCESSING,
+      error: undefined,
+    });
     sseFetch({
       url,
       body: JSON.stringify({
-        message: messages,
-        config: nodeData?.config,
+        message: requestMessages,
+        config: {
+          ...nodeData?.config,
+          ratio: isOutpainting && nodeData && "outpaintRatio" in nodeData && nodeData.outpaintRatio !== "original"
+            ? nodeData.outpaintRatio
+            : nodeData?.config?.ratio,
+          edit: isImageEditing || isOutpainting,
+          outpaint: isOutpainting,
+        },
         modelId: selectedModel?.id,
         textList: textNodes.map((node) => {
           try {
@@ -223,7 +285,7 @@ export const useGenerate = (
         error: error instanceof Error ? error.message : String(error),
       });
     });
-  }, [nodeType, nodeData, textNodes, nodeId, updateNodeData, chat]);
+  }, [nodeType, nodeData, textNodes, nodeId, updateNodeData, chat, isImageEditing, isOutpainting]);
 
   return { editorRef, submit, disabled, setIsEmpty, imageNodes };
 };

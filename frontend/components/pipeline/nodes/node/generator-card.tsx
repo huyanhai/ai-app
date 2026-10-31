@@ -1,11 +1,12 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { useReactFlow } from "@xyflow/react";
+import { useNodes, useReactFlow } from "@xyflow/react";
 import {
   ArrowUp,
   AtSign,
   Camera,
   ChevronDown,
+  LoaderCircle,
   Maximize2,
   Palette,
   Shapes,
@@ -35,11 +36,20 @@ import {
   NodeType,
   TAllNodes,
   TNodeBase,
+  TNodeImage,
   VideoModeType,
 } from "../../types";
 import { ModelCategory } from "@/components/models/types";
 import { useModelStore } from "@/store/model-store";
+import { usePipelineStore } from "@/store/pipeline-store";
 import { ChunkStatus } from "backend/src/common/utils/ai-stream-utils";
+import ReferencePicker from "../../reference-picker";
+import MarkerEditor from "./image/marker-editor";
+import OutpaintEditor from "./image/outpaint-editor";
+import type {
+  ReferenceKind,
+  SubjectReference,
+} from "@/components/chat/types";
 
 // 可在此表单中生成的节点类型
 export const GENERATOR_TYPES: NodeType[] = [
@@ -104,9 +114,15 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
   const data = node.data;
 
   const { setNodes, getNode } = useReactFlow<TAllNodes>();
+  const nodes = useNodes<TAllNodes>();
   const fileRef = useRef<HTMLInputElement>(null);
   const [pillsCollapsed, setPillsCollapsed] = useState(false);
   const [toolboxOpen, setToolboxOpen] = useState<TToolboxId | null>(null);
+  const [editorText, setEditorText] = useState("");
+  const [referenceMenuPosition, setReferenceMenuPosition] = useState<{
+    left: number;
+    top: number;
+  } | null>(null);
   const models = useModelStore((s) => s.models);
   const defaults = useModelStore((s) => s.defaults);
   const { editorRef, submit, disabled, setIsEmpty, imageNodes } = useGenerate(
@@ -121,6 +137,14 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
   }, []);
 
   const isMedia = type === NodeType.ImageNode || type === NodeType.VideoNode;
+  const imageEditorMode = usePipelineStore((state) =>
+    state.imageEditor?.nodeId === id && type === NodeType.ImageNode
+      ? state.imageEditor.mode
+      : null,
+  );
+  const isFirstAndLastFrame =
+    type === NodeType.VideoNode &&
+    data.config?.videoMode === VideoModeType.FirstAndLastFrameToVideo;
   const textModels = models.filter(
     (model) => model.category === ModelCategory.Text && model.enabled,
   );
@@ -189,13 +213,76 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
     );
   };
 
-  const noImageMention =
-    type === NodeType.VideoNode &&
-    [VideoModeType.FirstAndLastFrameToVideo, VideoModeType.TextToVideo].includes(
-      data.config?.videoMode!,
-    );
+  const isGenerating = "status" in data && data.status === ChunkStatus.PROCESSING;
+  const canSubmit = !disabled && !isGenerating;
 
-  const canSubmit = !disabled;
+  const references = nodes.flatMap<SubjectReference>((node) => {
+    if (
+      (type === NodeType.ImageNode || type === NodeType.VideoNode) &&
+      node.id === id
+    ) {
+      return [];
+    }
+    const kinds: Partial<Record<NodeType, ReferenceKind>> = {
+      [NodeType.SubjectNode]: "subject",
+      [NodeType.ImageNode]: "image",
+      [NodeType.VideoNode]: "video",
+      [NodeType.AudioNode]: "audio",
+      [NodeType.TextNode]: "text",
+    };
+    const kind = kinds[node.type as NodeType];
+    if (!kind) return [];
+    const referenceData = node.data as TNodeBase & {
+      name?: string;
+      description?: string;
+      text?: string;
+      url?: string;
+    };
+    return [{
+      id: node.id,
+      kind,
+      name: (kind === "subject" ? referenceData.name : referenceData.title) || node.id,
+      description: kind === "text" ? referenceData.text : referenceData.description,
+      url: referenceData.url,
+    }];
+  });
+
+  const openReferenceMenu = () => {
+    const caret = editorRef.current?.getCaretRect();
+    if (!caret) return;
+    setReferenceMenuPosition({
+      left: Math.min(window.innerWidth - 272, Math.max(16, caret.left - 128)),
+      top: caret.top,
+    });
+  };
+
+  const triggerReferenceMenu = () => {
+    editorRef.current?.insertText("@");
+    window.setTimeout(openReferenceMenu, 0);
+  };
+
+  const referenceMenuOpen = referenceMenuPosition !== null;
+  useEffect(() => {
+    if (!referenceMenuOpen) return;
+    let frame = 0;
+    const syncPosition = () => {
+      const caret = editorRef.current?.getCaretRect();
+      if (caret) {
+        const left = Math.min(
+          window.innerWidth - 272,
+          Math.max(16, caret.left - 128),
+        );
+        setReferenceMenuPosition((current) =>
+          current?.left === left && current.top === caret.top
+            ? current
+            : { left, top: caret.top },
+        );
+      }
+      frame = requestAnimationFrame(syncPosition);
+    };
+    frame = requestAnimationFrame(syncPosition);
+    return () => cancelAnimationFrame(frame);
+  }, [referenceMenuOpen]);
 
   // 工具箱选择写回节点 config
   const confirmToolbox = (patch: Partial<TCameraSelection> | string) => {
@@ -213,8 +300,24 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
     setToolboxOpen(null);
   };
 
+  const expandButton = (
+    <button
+      aria-label="展开"
+      className="flex size-7 items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+    >
+      <Maximize2 size={13} />
+    </button>
+  );
+
+  if (imageEditorMode === "edit") {
+    return <MarkerEditor node={node as TNodeImage} onSubmit={() => void submit()} />;
+  }
+  if (imageEditorMode === "outpaint") {
+    return <OutpaintEditor node={node as TNodeImage} onSubmit={() => void submit()} />;
+  }
+
   return (
-    <div className="nodrag nopan nowheel w-[560px] rounded-2xl bg-[#1c1c1e] border border-white/5 p-3 shadow-2xl">
+    <div className="nodrag nopan nowheel pointer-events-auto w-[560px] rounded-2xl bg-[#1c1c1e] border border-white/5 p-3 shadow-2xl">
       {isMedia && !pillsCollapsed && (
         <ToolPills
           type={type}
@@ -248,22 +351,36 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
         onClose={() => setToolboxOpen(null)}
         onConfirm={confirmToolbox}
       />
-      {type === NodeType.VideoNode &&
-        data.config?.videoMode === VideoModeType.FirstAndLastFrameToVideo && (
-          <Frame config={data.config} changeConfig={changeConfig} />
-        )}
+      {isFirstAndLastFrame && (
+        <Frame
+          config={data.config}
+          images={imageNodes}
+          action={expandButton}
+          changeConfig={changeConfig}
+        />
+      )}
 
       {/* 输入区：+ 参考按钮在左上，展开按钮在右上，编辑器整行位于下方（对齐即梦） */}
       <div className="relative">
         <div className="flex items-start justify-between">
-          <button
-            aria-label="添加参考"
-            onClick={() => fileRef.current?.click()}
-            className="size-12 shrink-0 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-          >
-            <Plus size={18} />
-          </button>
-          <div className="flex items-center gap-2">
+          {!isFirstAndLastFrame && (
+            <button
+              aria-label="添加参考"
+              onClick={() => fileRef.current?.click()}
+              className="size-12 shrink-0 overflow-hidden rounded-xl bg-white/5 border border-white/5 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            >
+              {imageNodes[0]?.data.url ? (
+                <img
+                  src={imageNodes[0].data.url}
+                  alt={imageNodes[0].data.title || "参考图片"}
+                  className="size-full object-cover"
+                />
+              ) : (
+                <Plus size={18} />
+              )}
+            </button>
+          )}
+          <div className="ml-auto flex items-center gap-2">
             {isMedia && pillsCollapsed && (
               <button
                 aria-label="展开工具"
@@ -277,12 +394,7 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
                 )}
               </button>
             )}
-            <button
-              aria-label="展开"
-              className="text-white/40 hover:text-white/80 transition-colors cursor-pointer"
-            >
-              <Maximize2 size={13} />
-            </button>
+            {!isFirstAndLastFrame && expandButton}
           </div>
         </div>
         <input
@@ -310,7 +422,20 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
             onSubmit={canSubmit ? submit : () => {}}
             images={imageNodes}
             initialState=""
-            noImageMention={noImageMention}
+            noImageMention
+            onTextChange={(value) => {
+              setEditorText(value);
+              const triggerIndex = value.lastIndexOf("@");
+              if (value.endsWith("@")) {
+                window.setTimeout(openReferenceMenu, 0);
+              } else if (
+                triggerIndex < 0 ||
+                /\s/.test(value.slice(triggerIndex + 1))
+              ) {
+                setReferenceMenuPosition(null);
+              }
+            }}
+            onBlur={() => setReferenceMenuPosition(null)}
             onEmptyStateChange={setIsEmpty}
             placeholder={NODE_PROMPT_PLACEHOLDER[type]}
             autoFocus={false}
@@ -356,6 +481,7 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
               />
               <button
                 aria-label="引用参考"
+                onClick={triggerReferenceMenu}
                 className="flex size-7 items-center justify-center rounded text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
               >
                 <AtSign size={14} />
@@ -382,6 +508,7 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
               />
               <button
                 aria-label="引用参考"
+                onClick={triggerReferenceMenu}
                 className="flex size-7 items-center justify-center rounded text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
               >
                 <AtSign size={14} />
@@ -401,6 +528,7 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
               <OptionPopper label="音色库" options={["音色库"]} />
               <button
                 aria-label="引用参考"
+                onClick={triggerReferenceMenu}
                 className="flex size-7 items-center justify-center rounded text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
               >
                 <AtSign size={14} />
@@ -417,6 +545,7 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
           )}
           <button
             aria-label="生成"
+            aria-busy={isGenerating}
             onClick={submit}
             disabled={!canSubmit}
             className={`flex size-8 items-center justify-center rounded-full transition ${
@@ -425,10 +554,37 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
                 : "bg-white/10 text-white/30 cursor-not-allowed"
             }`}
           >
-            <ArrowUp size={16} />
+            {isGenerating ? (
+              <LoaderCircle size={16} className="animate-spin" />
+            ) : (
+              <ArrowUp size={16} />
+            )}
           </button>
         </div>
       </div>
+      {referenceMenuPosition && (
+        <ReferencePicker
+          references={references}
+          position={referenceMenuPosition}
+          query={editorText.slice(editorText.lastIndexOf("@") + 1)}
+          allowedKinds={
+            type === NodeType.ImageNode
+              ? ["subject", "image"]
+              : undefined
+          }
+          onSelect={(reference) =>
+            editorRef.current?.insertToken({
+              id: reference.id,
+              kind: "subject",
+              label: reference.name,
+              description: reference.description,
+              url: reference.url,
+              referenceKind: reference.kind,
+            })
+          }
+          onClose={() => setReferenceMenuPosition(null)}
+        />
+      )}
     </div>
   );
 };

@@ -56,6 +56,7 @@ export type TNodeBase = {
     model?: string; // 模型
     scene?: TextScene; // 文本节点生成场景
     toolbox?: TNodeToolbox; // 导演工具箱选择
+    edit?: boolean; // 基于当前图片进行智能改图
   };
 };
 
@@ -70,7 +71,28 @@ export type TNodeImageData = {
   url: string;
   status?: IMediaData["status"];
   error?: string;
+  editMarkers?: TImageEditMarker[];
+  editPast?: TImageEditMarker[][];
+  editFuture?: TImageEditMarker[][];
+  editPrompt?: string;
+  outpaintPrompt?: string;
+  outpaintRatio?: string;
+  outpaintWidth?: number;
+  outpaintHeight?: number;
+  outpaintZoom?: number;
+  outpaintX?: number;
+  outpaintY?: number;
 } & TNodeBase;
+
+export type TImageEditMarker = {
+  id: string;
+  type: "pin" | "rectangle";
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+  note?: string;
+};
 
 // 音频生成节点数据
 export type TNodeAudioData = {

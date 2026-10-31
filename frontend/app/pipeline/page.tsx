@@ -35,6 +35,7 @@ import AIChatPanel from "@/components/pipeline/ai-chat-panel";
 import CanvasNodePanel from "@/components/pipeline/canvas-node-panel";
 import { IconButton } from "@/components/ui/icon-button";
 import TextToolbar from "@/components/pipeline/text-toolbar";
+import MediaToolbar from "@/components/pipeline/media-toolbar";
 import GeneratorCard, {
   GENERATOR_TYPES,
 } from "@/components/pipeline/nodes/node/generator-card";
@@ -114,6 +115,7 @@ const Flow = () => {
   const menuRequest = usePipelineStore((state) => state.menuRequest);
   const openMenu = usePipelineStore((state) => state.openMenu);
   const closeMenu = usePipelineStore((state) => state.closeMenu);
+  const closeImageEditor = usePipelineStore((state) => state.setImageEditor);
   const showMiniMap = usePipelineStore((state) => state.showMiniMap);
   const showEdges = usePipelineStore((state) => state.showEdges);
 
@@ -262,7 +264,8 @@ const Flow = () => {
       return;
     }
     closeMenu();
-  }, [closeMenu]);
+    closeImageEditor(null);
+  }, [closeMenu, closeImageEditor]);
 
   // 直接拖拽节点/框选拖动时也关闭创建菜单（连带隐藏半截连线）
   const onDragStart = useCallback(() => {
@@ -340,6 +343,7 @@ const Flow = () => {
         onSelectionDragStart={onDragStart}
         onNodeMouseEnter={(_, node) => setHoveredNodeId(node.id)}
         onNodeMouseLeave={() => setHoveredNodeId(null)}
+        onMove={() => window.dispatchEvent(new Event("resize"))}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         panOnScroll={true}
@@ -376,12 +380,26 @@ const Flow = () => {
             </NodeToolbar>
           )}
         {liveSelectedNode &&
+          [NodeType.ImageNode, NodeType.VideoNode, NodeType.AudioNode].includes(
+            liveSelectedNode.type as NodeType,
+          ) && (
+            <NodeToolbar
+              nodeId={liveSelectedNode.id}
+              position={Position.Top}
+              isVisible={true}
+              offset={12}
+            >
+              <MediaToolbar node={liveSelectedNode} />
+            </NodeToolbar>
+          )}
+        {liveSelectedNode &&
           GENERATOR_TYPES.includes(liveSelectedNode.type as NodeType) && (
             <NodeToolbar
               nodeId={liveSelectedNode.id}
               position={Position.Bottom}
               isVisible={true}
               offset={16}
+              className="pointer-events-none"
             >
               <GeneratorCard node={liveSelectedNode} />
             </NodeToolbar>

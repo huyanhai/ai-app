@@ -13,6 +13,8 @@ import {
   useReactFlow,
 } from "@xyflow/react";
 import { Ban, Plus, Tags } from "lucide-react";
+import { AnimatePresence } from "motion/react";
+import { ChunkStatus } from "backend/src/common/utils/ai-stream-utils";
 import {
   NODE_TYPE_LABEL,
   SOURCE_ANCHOR,
@@ -23,6 +25,7 @@ import {
 import { NodeType, TAllNodes } from "../../types";
 import { usePipelineStore } from "@/store/pipeline-store";
 import { useClickOutSide } from "@/hooks/use-click-outside";
+import Loading from "../loading";
 
 interface INodeShellProps {
   id: string;
@@ -31,6 +34,7 @@ interface INodeShellProps {
   title?: string;
   icon?: ReactNode;
   children: ReactNode;
+  chromeVisible?: boolean;
 }
 
 const LABEL_COLORS = ["#22d3ee", "#6366f1", "#a855f7", "#f97316", "#eab308"];
@@ -170,9 +174,15 @@ const NodeShell = ({
   title,
   icon,
   children,
+  chromeVisible = true,
 }: INodeShellProps) => {
   // 创建菜单打开期间，作为连线起点的节点保持 + 手柄可见
   const menuOpen = usePipelineStore((s) => s.menuRequest?.nodeId === id);
+  const { getNode } = useReactFlow<TAllNodes>();
+  const nodeData = getNode(id)?.data;
+  const processing =
+    [NodeType.ImageNode, NodeType.VideoNode, NodeType.AudioNode].includes(type) &&
+    nodeData && "status" in nodeData && nodeData.status === ChunkStatus.PROCESSING;
   // 连线拖拽过程中（未松开鼠标），起点节点的 + 手柄保持可见
   const connecting = useConnection((c) => c.inProgress && c.fromNode?.id === id);
   const handlesVisible = selected || menuOpen || connecting;
@@ -180,51 +190,28 @@ const NodeShell = ({
   return (
     <div className="group/node relative">
       {/* 标题栏 */}
-      <div className="absolute -top-6 left-0 right-0 flex items-center gap-1 text-white/60 select-none">
+      {chromeVisible && <div className="absolute -top-6 left-0 right-0 flex items-center gap-1 text-white/60 select-none">
         {icon}
         <span className="text-xs font-medium whitespace-nowrap">
           {title || NODE_TYPE_LABEL[type]}
         </span>
         <LabelColorPicker id={id} />
-      </div>
+      </div>}
 
-      <MagneticHandle
-        id={SOURCE_HANDLE}
-        type={SOURCE_HANDLE}
-        side="left"
-        selected={handlesVisible}
-      />
-      <MagneticHandle
-        id={TARGET_HANDLE}
-        type={TARGET_HANDLE}
-        side="right"
-        selected={handlesVisible}
-      />
-
-      {/* 隐形连线锚点：固定在卡片左右边缘，连线的实际起止位置 */}
-      <Handle
-        id={SOURCE_ANCHOR}
-        type="source"
-        position={Position.Left}
-        isConnectable={false}
-        className="opacity-0! pointer-events-none! w-px! h-6! min-w-0! min-h-0! border-0! bg-transparent!"
-        style={{ left: 0, top: "50%", transform: "translateY(-50%)" }}
-      />
-      <Handle
-        id={TARGET_ANCHOR}
-        type="target"
-        position={Position.Right}
-        isConnectable={false}
-        className="opacity-0! pointer-events-none! w-px! h-6! min-w-0! min-h-0! border-0! bg-transparent!"
-        style={{ right: 0, top: "50%", transform: "translateY(-50%)" }}
-      />
+      {chromeVisible && <>
+        <MagneticHandle id={SOURCE_HANDLE} type={SOURCE_HANDLE} side="left" selected={handlesVisible} />
+        <MagneticHandle id={TARGET_HANDLE} type={TARGET_HANDLE} side="right" selected={handlesVisible} />
+        <Handle id={SOURCE_ANCHOR} type="source" position={Position.Left} isConnectable={false} className="opacity-0! pointer-events-none! w-px! h-6! min-w-0! min-h-0! border-0! bg-transparent!" style={{ left: 0, top: "50%", transform: "translateY(-50%)" }} />
+        <Handle id={TARGET_ANCHOR} type="target" position={Position.Right} isConnectable={false} className="opacity-0! pointer-events-none! w-px! h-6! min-w-0! min-h-0! border-0! bg-transparent!" style={{ right: 0, top: "50%", transform: "translateY(-50%)" }} />
+      </>}
 
       <div
-        className={`rounded-2xl transition-shadow cursor-grab active:cursor-grabbing ${
-          selected ? "ring-2 ring-white/40" : ""
+        className={`relative rounded-2xl transition-shadow cursor-grab active:cursor-grabbing ${chromeVisible ? "overflow-hidden" : "overflow-visible"} ${
+          selected && chromeVisible ? "ring-2 ring-white/40" : ""
         }`}
       >
         {children}
+        <AnimatePresence>{processing && <Loading />}</AnimatePresence>
       </div>
     </div>
   );

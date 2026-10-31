@@ -135,10 +135,12 @@ export function StageModal({
   title,
   children,
   onClose,
+  className = "w-[420px]",
 }: {
   title: string;
   children: ReactNode;
   onClose: () => void;
+  className?: string;
 }) {
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/55 p-6" onMouseDown={onClose}>
@@ -146,7 +148,7 @@ export function StageModal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="w-[420px] rounded-xl border border-white/10 bg-[#242424] p-5 shadow-2xl"
+        className={`max-h-[85vh] overflow-y-auto rounded-xl border border-white/10 bg-[#242424] p-5 shadow-2xl ${className}`}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">

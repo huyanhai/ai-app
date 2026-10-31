@@ -5,10 +5,15 @@ import Popper, { IPopperRef } from "../../popper";
 import { BUTTON_ACTIVE, BUTTON_NORMAL } from "@/constants/class-names";
 
 const videoModeMap = {
-  [VideoModeType.TextToVideo]: "文生视频",
-  [VideoModeType.ImageToVideo]: "图生视频",
+  [VideoModeType.TextToVideo]: "智能参考",
+  [VideoModeType.ImageToVideo]: "智能参考",
   [VideoModeType.FirstAndLastFrameToVideo]: "首尾帧",
 };
+
+const videoModes = [
+  VideoModeType.TextToVideo,
+  VideoModeType.FirstAndLastFrameToVideo,
+];
 
 interface IConfigProps extends TNodeBase {
   changeConfig: (config: TNodeBase["config"]) => void;
@@ -23,7 +28,7 @@ const VideoConfig = ({ config, changeConfig }: IConfigProps) => {
       content={videoModeMap[config?.videoMode!]}
       trigger={
         <div className="flex flex-col gap-1">
-          {Object.values(VideoModeType).map((item, index) => (
+          {videoModes.map((item, index) => (
             <div
               key={index}
               className={`p-2 ${BUTTON_NORMAL} ${config?.videoMode === item && BUTTON_ACTIVE}`}

@@ -10,3 +10,4 @@ backend/uploads
 dist
 .playwright-cli
 .sql
+output

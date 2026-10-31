@@ -9,16 +9,20 @@ import {
   type NodeKey,
   type SerializedLexicalNode,
 } from "lexical";
-import { AtSign, AudioLines, FileText, Image, Shuffle, Type, Video, X } from "lucide-react";
+import { AtSign, AudioLines, FileText, Image, MapPin, Shuffle, Type, Video, X } from "lucide-react";
 import type { ReferenceKind } from "@/components/chat/types";
+import type { TImageEditMarker } from "../../types";
 
 export interface EditorToken {
   id: string;
   kind: "skill" | "attachment" | "subject";
   label: string;
+  description?: string;
   url?: string;
   mimeType?: string;
   referenceKind?: ReferenceKind;
+  markerIndex?: number;
+  marker?: TImageEditMarker;
 }
 
 interface SerializedInlineTokenNode extends SerializedLexicalNode {
@@ -36,7 +40,39 @@ function InlineToken({
 }) {
   const referenceIcons = { subject: AtSign, image: Image, video: Video, audio: AudioLines, text: Type };
   const Icon = token.kind === "skill" ? Shuffle : token.kind === "subject" ? referenceIcons[token.referenceKind ?? "subject"] : FileText;
-  const isImage = token.kind === "attachment" && token.mimeType?.startsWith("image/") && token.url;
+  const isImage = token.url && (token.referenceKind === "image" || (token.kind === "attachment" && token.mimeType?.startsWith("image/")));
+
+  if (token.markerIndex && token.marker && token.url) {
+    const marker = token.marker;
+    const cropped = marker.type === "rectangle" && marker.width && marker.height;
+    return (
+      <span
+        contentEditable={false}
+        data-marker-id={token.id}
+        className="mx-0.5 inline-flex cursor-default items-center gap-1 align-middle"
+      >
+        <span className="relative inline-block size-7 overflow-hidden rounded border border-white/10">
+          <img
+            src={token.url}
+            alt=""
+            className={cropped ? "absolute max-w-none" : "size-full object-cover"}
+            style={cropped ? {
+              width: `${100 / marker.width!}%`,
+              height: `${100 / marker.height!}%`,
+              left: `${(-marker.x / marker.width!) * 100}%`,
+              top: `${(-marker.y / marker.height!) * 100}%`,
+            } : undefined}
+          />
+        </span>
+        <span className="relative inline-block size-5 text-sky-500">
+          <MapPin size={20} fill="currentColor" stroke="white" className="[&_circle]:hidden" />
+          <span className="absolute inset-0 text-center leading-normal pt-0.5 text-[9px] font-bold text-white">
+            {token.markerIndex}
+          </span>
+        </span>
+      </span>
+    );
+  }
 
   return (
     <span contentEditable={false} className="mx-0.5 inline-flex max-w-48 items-center gap-1.5 rounded-md bg-white/[0.06] px-1.5 py-0.5 align-middle text-xs text-white/75">
@@ -103,6 +139,10 @@ export class InlineTokenNode extends DecoratorNode<ReactNode> {
 
   getToken() {
     return this.__token;
+  }
+
+  setToken(token: EditorToken) {
+    this.getWritable().__token = token;
   }
 }
 

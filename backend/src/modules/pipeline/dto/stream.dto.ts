@@ -6,7 +6,7 @@ import {
   IsObject,
   IsNumber,
 } from 'class-validator';
-import { ContentBlock, HumanMessage } from 'langchain';
+import { ContentBlock } from 'langchain';
 
 export class ConfigDto {
   @IsString()
@@ -20,6 +20,8 @@ export class ConfigDto {
   @IsString()
   @IsOptional()
   videoMode?: 'textToVideo' | 'imageToVideo' | 'firstAndLastFrameToVideo';
+  edit?: boolean;
+  outpaint?: boolean;
 
   @IsString()
   @IsOptional()
@@ -55,7 +57,7 @@ export class TextListDTO {
 export class StreamDto {
   @IsArray()
   @IsNotEmpty()
-  message: ContentBlock.Text[];
+  message: ContentBlock[];
 
   @IsObject()
   @IsOptional()

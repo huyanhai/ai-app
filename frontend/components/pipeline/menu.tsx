@@ -61,9 +61,10 @@ const Menu = ({
         ...structuredClone(NODE_DEFAULT_DATA[type]),
         title: `${NODE_TYPE_LABEL[type]} ${count + 1}`,
       },
+      selected: true,
     } as TAllNodes;
 
-    setNodes((nds) => nds.concat(newNode));
+    setNodes((nds) => nds.map((node): TAllNodes => ({ ...node, selected: false })).concat(newNode));
 
     if (nodeId) {
       setEdges((eds) => {

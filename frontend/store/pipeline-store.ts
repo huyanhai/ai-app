@@ -1,6 +1,11 @@
 import { create } from "zustand";
 import { TAllNodes } from "@/components/pipeline/types";
 
+export type ImageEditorState = {
+  nodeId: string;
+  mode: "edit" | "outpaint";
+} | null;
+
 // 节点上 + 按钮 / 连线拖拽结束时请求打开节点创建菜单
 export type TMenuRequest = {
   position: { x: number; y: number };
@@ -22,6 +27,8 @@ type TPipelineStore = {
   toggleEdges: () => void;
   assetModalOpen: boolean;
   setAssetModalOpen: (open: boolean) => void;
+  imageEditor: ImageEditorState;
+  setImageEditor: (editor: ImageEditorState) => void;
 };
 
 export const usePipelineStore = create<TPipelineStore>((set) => ({
@@ -46,4 +53,6 @@ export const usePipelineStore = create<TPipelineStore>((set) => ({
   toggleEdges: () => set((s) => ({ showEdges: !s.showEdges })),
   assetModalOpen: false,
   setAssetModalOpen: (open) => set({ assetModalOpen: open }),
+  imageEditor: null,
+  setImageEditor: (imageEditor) => set({ imageEditor }),
 }));

@@ -18,16 +18,19 @@ interface ReferencePickerProps {
   references: SubjectReference[];
   position: { left: number; top: number };
   query: string;
+  allowedKinds?: ReferenceKind[];
   onSelect: (reference: SubjectReference) => void;
   onClose: () => void;
 }
 
-export default function ReferencePicker({ references, position, query, onSelect, onClose }: ReferencePickerProps) {
+export default function ReferencePicker({ references, position, query, allowedKinds, onSelect, onClose }: ReferencePickerProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [activeKind, setActiveKind] = useState<ReferenceKind | null>(null);
   useClickOutSide(menuRef, onClose, true);
   const normalizedQuery = query.toLocaleLowerCase();
-  const matches = (reference: SubjectReference) => reference.name.toLocaleLowerCase().includes(normalizedQuery);
+  const matches = (reference: SubjectReference) =>
+    (!allowedKinds || allowedKinds.includes(reference.kind ?? "subject")) &&
+    reference.name.toLocaleLowerCase().includes(normalizedQuery);
   const searchMode = normalizedQuery.length > 0;
   const recent = searchMode
     ? references.filter(matches)
@@ -60,7 +63,7 @@ export default function ReferencePicker({ references, position, query, onSelect,
       )}
       {!searchMode && <div className="px-2 py-1.5 text-xs text-white/35">添加参考</div>}
       {!searchMode && <div className="relative">
-        {CATEGORIES.map(({ kind, label, icon: Icon }) => (
+        {CATEGORIES.filter(({ kind }) => !allowedKinds || allowedKinds.includes(kind)).map(({ kind, label, icon: Icon }) => (
           <div key={kind} className="relative">
             <button
               type="button"

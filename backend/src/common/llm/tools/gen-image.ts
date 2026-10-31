@@ -36,18 +36,47 @@ export async function genImage({
 
   console.log('messages', messages);
   try {
-    const data = await fetch(`${runtimeModel.baseURL}/images/generations`, {
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${runtimeModel.apiKey}`,
-      },
-      method: 'POST',
-      body: JSON.stringify({
-        model: runtimeModel.modelId,
-        prompt: text.trim(),
-        n: config?.count || 1,
-      }),
-    }).then((res) => res.json());
+    const sourceImages = messages
+      .filter((item) => 'image' in item)
+      .map((item) => item.image as string);
+    let response: Response;
+    if (config?.edit && sourceImages.length > 0) {
+      const form = new FormData();
+      form.append('model', runtimeModel.modelId);
+      form.append('prompt', text.trim());
+      form.append('n', String(config?.count || 1));
+      if (config?.outpaint) {
+        const [width, height] = (config.ratio || '1:1').split(':').map(Number);
+        const ratio = width / height;
+        form.append('size', ratio > 1 ? '1536x1024' : ratio < 1 ? '1024x1536' : '1024x1024');
+      }
+      for (const [index, sourceImage] of sourceImages.entries()) {
+        const imageResponse = await fetch(sourceImage);
+        if (!imageResponse.ok) {
+          throw new Error(`参考图片读取失败（${imageResponse.status}）`);
+        }
+        form.append('image', await imageResponse.blob(), `image-${index}.png`);
+      }
+      response = await fetch(`${runtimeModel.baseURL}/images/edits`, {
+        headers: { Authorization: `Bearer ${runtimeModel.apiKey}` },
+        method: 'POST',
+        body: form,
+      });
+    } else {
+      response = await fetch(`${runtimeModel.baseURL}/images/generations`, {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${runtimeModel.apiKey}`,
+        },
+        method: 'POST',
+        body: JSON.stringify({
+          model: runtimeModel.modelId,
+          prompt: text.trim(),
+          n: config?.count || 1,
+        }),
+      });
+    }
+    const data = await response.json();
 
     if (!Array.isArray(data?.data)) {
       throw new Error(data?.error?.message || data?.message || '图片生成失败');

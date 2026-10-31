@@ -2,11 +2,10 @@
 import { memo, useMemo } from "react";
 import { NodeProps } from "@xyflow/react";
 import { Play } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 import NodeShell from "./shell";
 import { TNodeImage, NodeType } from "../../types";
 import { ChunkStatus } from "backend/src/common/utils/ai-stream-utils";
-import Loading from "../loading";
 
 const IMAGE_HEIGHT = 250;
 
@@ -37,9 +36,6 @@ const VideoNode = ({ id, data, selected }: NodeProps<TNodeImage>) => {
         className="relative overflow-hidden rounded-2xl bg-[#1f1f22] border border-white/5 transition-all duration-500"
         style={{ width, height }}
       >
-        <AnimatePresence>
-          {data.status === ChunkStatus.PROCESSING && <Loading />}
-        </AnimatePresence>
         {data.status === ChunkStatus.SUCCESS && data.url && (
           <video
             className="max-w-full max-h-full w-full h-full object-cover"

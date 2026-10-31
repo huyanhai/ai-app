@@ -7,11 +7,9 @@ import {
 } from "react";
 import { NodeProps } from "@xyflow/react";
 import { AudioLines, Pause, Play } from "lucide-react";
-import { AnimatePresence } from "motion/react";
 import NodeShell from "./shell";
 import { TNodeAudio, NodeType } from "../../types";
 import { ChunkStatus } from "backend/src/common/utils/ai-stream-utils";
-import Loading from "../loading";
 
 // 即梦风格音频内容卡片：空态居中音频图标
 const AudioNode = ({ id, data, selected }: NodeProps<TNodeAudio>) => {
@@ -77,9 +75,6 @@ const AudioNode = ({ id, data, selected }: NodeProps<TNodeAudio>) => {
       icon={<AudioLines size={12} />}
     >
       <div className="relative flex size-[250px] items-center justify-center overflow-hidden rounded-2xl bg-[#1f1f22] border border-white/5">
-        <AnimatePresence>
-          {data.status === ChunkStatus.PROCESSING && <Loading />}
-        </AnimatePresence>
         {data.url ? (
           <div className="relative h-full w-full px-5 py-5">
             <audio

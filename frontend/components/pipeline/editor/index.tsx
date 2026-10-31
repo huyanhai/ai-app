@@ -57,6 +57,7 @@ export interface IEditorRef {
   insertText: (text: string) => void;
   insertToken: (token: EditorToken) => void;
   removeToken: (id: string) => void;
+  syncTokens: (tokens: EditorToken[]) => void;
   getContent: () => { text: string; tokens: EditorToken[] };
   getCaretRect: () => { left: number; top: number } | null;
 }
@@ -133,6 +134,17 @@ const Editor = (
                 image_url: node.getConfig().url,
               });
             }
+            if ($isInlineTokenNode(node)) {
+              const token = node.getToken();
+              if (token.referenceKind === "image" && token.url) {
+                messages.push({ type: "image_url", image_url: token.url });
+              } else if (token.kind === "subject") {
+                messages.push({
+                  type: "text",
+                  text: token.description || token.label,
+                });
+              }
+            }
           });
 
           resolve(messages);
@@ -176,6 +188,24 @@ const Editor = (
         });
       });
     },
+    syncTokens: (tokens) => {
+      editorRef.current?.update(() => {
+        const tokenNodes = $dfs()
+          .map(({ node }) => node)
+          .filter($isInlineTokenNode);
+        tokenNodes.forEach((node) => {
+          const token = tokens.find((item) => item.id === node.getToken().id);
+          if (token) node.setToken(token);
+          else node.remove();
+        });
+        tokens.forEach((token) => {
+          if (!tokenNodes.some((node) => node.getToken().id === token.id)) {
+            $getRoot().selectEnd();
+            $insertNodes([$createInlineTokenNode(token, editorRef), $createTextNode(" ")]);
+          }
+        });
+      });
+    },
     getContent: () => {
       let content = { text: "", tokens: [] as EditorToken[] };
       editorRef.current?.read(() => {
@@ -208,10 +238,10 @@ const Editor = (
     <LexicalComposer initialConfig={initialConfig}>
       <PlainTextPlugin
         contentEditable={
-          <ContentEditable onBlur={onBlur} className="flex-1 bg-transparent border-0 outline-none w-full h-full min-h-12 resize-none text-sm text-white/90 caret-white" />
+          <ContentEditable onBlur={onBlur} className="max-h-30 w-full flex-1 overflow-y-auto border-0 bg-transparent text-sm leading-5 text-white/90 caret-white outline-none [&_p]:m-0 [&_p]:flex [&_p]:min-h-5 [&_p]:flex-wrap [&_p]:items-center [&_p:empty]:block [&_p:has(>br:only-child)]:block [&_p:has(>br:only-child)]:leading-5" />
         }
         placeholder={
-          <div className="pointer-events-none absolute left-0 top-0 text-sm text-white/40">
+          <div className="pointer-events-none absolute left-0 top-0 text-sm leading-5 text-white/40">
             {placeholder || "描述你的想法"}
           </div>
         }

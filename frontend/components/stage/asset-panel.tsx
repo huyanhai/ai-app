@@ -38,7 +38,7 @@ export function AssetPanel({
   const showLibrary = scope !== "我的";
 
   return (
-    <aside className="absolute inset-y-3 left-3 z-40 flex w-[248px] flex-col overflow-hidden rounded-xl border border-white/10 bg-[#1b1b1b]/95 shadow-2xl backdrop-blur">
+    <aside className="relative z-20 flex w-[248px] shrink-0 flex-col overflow-hidden border-r border-white/10 bg-[#1b1b1b]">
       <div className="flex h-12 shrink-0 items-center gap-2 border-b border-white/6 px-3 text-xs font-medium"><Box size={15} /><h2>资产</h2><IconButton label="关闭资产" className="ml-auto" onClick={onClose}><PanelLeftClose size={15} /></IconButton></div>
       <div role="tablist" aria-label="资产" className="flex h-12 shrink-0 items-center justify-around border-b border-white/6 px-2">
         {TABS.map((item) => { const Icon = item.icon; return <button key={item.id} type="button" role="tab" aria-label={item.label} aria-selected={tab === item.id} onClick={() => { setTab(item.id); setScope("全部"); setSearch(""); }} className={`relative flex size-9 items-center justify-center text-white/40 hover:text-white ${tab === item.id ? "text-white after:absolute after:-bottom-[6px] after:left-0 after:h-0.5 after:w-full after:bg-white" : ""}`}><Icon size={17} /></button>; })}

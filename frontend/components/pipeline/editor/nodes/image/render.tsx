@@ -9,15 +9,18 @@ import { ReactNode } from "react";
 
 export interface IImageNode extends SerializedLexicalNode {
   url: string;
+  title?: string;
 }
 
 export class ImageNodeRender extends DecoratorNode<ReactNode> {
   // 图片地址
   __url: string;
+  __title?: string;
 
   constructor(data: IImageNode, key?: NodeKey) {
     super(key);
     this.__url = data.url;
+    this.__title = data.title;
   }
 
   static getType(): string {
@@ -26,13 +29,13 @@ export class ImageNodeRender extends DecoratorNode<ReactNode> {
 
   static clone(node: ImageNodeRender): ImageNodeRender {
     return new ImageNodeRender(
-      { url: node.__url, type: "image", version: 1 },
+      { url: node.__url, title: node.__title, type: "image", version: 1 },
       node.__key,
     );
   }
 
   static importJSON(data: IImageNode): ImageNodeRender {
-    return $createImageNode(data.url);
+    return $createImageNode(data.url, data.title);
   }
 
   exportJSON(): IImageNode {
@@ -40,6 +43,7 @@ export class ImageNodeRender extends DecoratorNode<ReactNode> {
       type: "image",
       version: 1,
       url: this.__url,
+      title: this.__title,
     };
   }
 
@@ -60,7 +64,7 @@ export class ImageNodeRender extends DecoratorNode<ReactNode> {
   }
 
   decorate(): ReactNode {
-    return <ImageNode url={this.__url} isSelected status="success" />;
+    return <ImageNode url={this.__url} fileName={this.__title} isSelected status="success" />;
   }
 
   getConfig() {
@@ -70,9 +74,10 @@ export class ImageNodeRender extends DecoratorNode<ReactNode> {
   }
 }
 
-export function $createImageNode(url: string): ImageNodeRender {
+export function $createImageNode(url: string, title?: string): ImageNodeRender {
   return new ImageNodeRender({
     url,
+    title,
     type: "image",
     version: 1,
   });

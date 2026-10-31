@@ -1,4 +1,31 @@
 export type StageTool = "select" | "translate" | "rotate" | "scale";
+export type StagePoint = [number, number, number];
+export type CameraProperty = "position" | "target" | "fov" | "roll";
+export type CameraKeyframe = { time: number; value: StagePoint | number };
+export type CameraKeyframes = Partial<Record<CameraProperty, CameraKeyframe[]>>;
+export type CharacterProperty = "position" | "rotation" | "scale";
+
+export type CharacterAction = {
+  id: string;
+  name: string;
+  kind: "action" | "walk" | "run";
+  start: number;
+  duration: number;
+  motionAssetId?: string;
+};
+
+export type CharacterKeyframe = {
+  time: number;
+  value: StagePoint;
+  actionId?: string;
+};
+
+export type CharacterPose = {
+  name: string;
+  assetId?: string;
+  rotations: Record<string, StagePoint>;
+  positions?: Record<string, StagePoint>;
+};
 
 export type LightSettings = {
   color: string;
@@ -31,6 +58,21 @@ export type StageObject = {
   locked: boolean;
   modelUrl?: string;
   modelFormat?: "fbx" | "glb" | "gltf";
+  actions?: CharacterAction[];
+  characterKeyframes?: Partial<Record<CharacterProperty, CharacterKeyframe[]>>;
+  pathAutoRotate?: boolean;
+  pose?: CharacterPose;
+  path?: StagePoint[];
+  pathOrigin?: StagePoint;
+  pathActionId?: string;
+  target?: StagePoint;
+  fov?: number;
+  roll?: number;
+  cameraPath?: StagePoint[];
+  targetPath?: StagePoint[];
+  cameraPathOrigin?: StagePoint;
+  targetPathOrigin?: StagePoint;
+  cameraKeyframes?: CameraKeyframes;
 };
 
 export type Shot = {

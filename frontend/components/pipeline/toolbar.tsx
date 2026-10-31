@@ -227,7 +227,7 @@ const Toolbar = () => {
                     className={`flex h-9 items-center text-sm hover:text-white whitespace-nowrap cursor-pointer ${
                       activeTool === row.id || hoveredTool === row.id
                         ? "text-white"
-                        : "text-white/80"
+                        : "text-white/60"
                     }`}
                   >
                     {row.label}

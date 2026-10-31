@@ -109,10 +109,8 @@ const ModelCard = ({
     <>
     <div
       className={cn(
-        "group flex flex-col rounded-xl border bg-[#1c1c1e] p-4 transition-colors",
-        isDefault
-          ? "border-[#33a3ff]/40"
-          : "border-white/5 hover:border-white/15",
+        "group flex flex-col rounded-xl border border-white/5 bg-[#1c1c1e] p-4 transition-colors",
+        !isDefault && "hover:border-white/15",
         !model.enabled && "opacity-60",
       )}
     >

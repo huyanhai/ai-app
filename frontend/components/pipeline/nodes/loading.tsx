@@ -79,7 +79,12 @@ const Loading = () => {
       const progress = ((time - startTime) % CYCLE_DURATION) / CYCLE_DURATION;
       const radius = progress * maxRadius;
 
-      context.fillStyle = "rgba(255, 255, 255, 0.8)";
+      const gradient = context.createLinearGradient(0, 0, width, height);
+      gradient.addColorStop(0, "rgba(34, 211, 238, 0.85)");
+      gradient.addColorStop(0.35, "rgba(99, 102, 241, 0.85)");
+      gradient.addColorStop(0.7, "rgba(168, 85, 247, 0.85)");
+      gradient.addColorStop(1, "rgba(249, 115, 22, 0.85)");
+      context.fillStyle = gradient;
       context.beginPath();
       dots.forEach((dot) => {
         const distance = Math.hypot(dot.x - width / 2, dot.y - height / 2);

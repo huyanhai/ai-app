@@ -1,18 +1,19 @@
-import { CARD } from "@/constants/class-names";
-import { Plus, X } from "lucide-react";
-import { motion } from "motion/react";
-import { useState, useRef } from "react";
-import { TNodeBase } from "../types";
+import { ArrowLeftRight, Plus, X } from "lucide-react";
+import { useRef, type ReactNode } from "react";
+import { TNodeBase, TNodeImage } from "../types";
 
 interface IFrameProps {
   config?: TNodeBase["config"];
+  images: TNodeImage[];
+  action?: ReactNode;
   changeConfig: (config: TNodeBase["config"]) => void;
 }
 
-const Frame = ({ config, changeConfig }: IFrameProps) => {
-  const [hover, setHover] = useState(false);
+const Frame = ({ config, images, action, changeConfig }: IFrameProps) => {
   const firstFrameRef = useRef<HTMLInputElement>(null);
   const lastFrameRef = useRef<HTMLInputElement>(null);
+  const firstFrameUrl = config?.firstFrameUrl ?? images[0]?.data.url;
+  const lastFrameUrl = config?.lastFrameUrl ?? images[1]?.data.url;
 
   const handleUpload = (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -31,15 +32,7 @@ const Frame = ({ config, changeConfig }: IFrameProps) => {
   };
 
   return (
-    <motion.div
-      onMouseEnter={() => {
-        setHover(true);
-      }}
-      onMouseLeave={() => {
-        setHover(false);
-      }}
-      className="nodrag absolute top-1/2 -left-22 -translate-y-1/2 h-[80%] w-20 flex items-center justify-end z-10"
-    >
+    <div className="nodrag mb-3 flex items-start gap-3">
       <input
         type="file"
         ref={firstFrameRef}
@@ -54,80 +47,77 @@ const Frame = ({ config, changeConfig }: IFrameProps) => {
         accept="image/*"
         onChange={(e) => handleUpload(e, "lastFrameUrl")}
       />
-      <motion.div
-        animate={{
-          rotate: hover ? 2 : 6,
-          translateX: hover ? -44 : -6,
-        }}
-        whileHover={{
-          translateY: -5,
-        }}
-        transition={{ duration: 0.2 }}
+      <button
+        type="button"
+        aria-label="上传首帧"
         onClick={() => {
-          if (!config?.firstFrameUrl) {
+          if (!firstFrameUrl) {
             firstFrameRef.current?.click();
           }
         }}
-        className={`${CARD} p-0! ${config?.firstFrameUrl && "border-white/0!"} backdrop-blur-xs bg-black/70 cursor-pointer w-14 h-20 shrink-0 -translate-x-6 absolute flex flex-col justify-center items-center overflow-hidden group`}
+        className="group relative flex size-12 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-white/5 bg-white/5 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
       >
-        {config?.firstFrameUrl ? (
+        {firstFrameUrl ? (
           <>
             <img
-              src={config.firstFrameUrl}
+              src={firstFrameUrl}
               className="w-full h-full object-cover"
             />
-            <div
-              className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
-              onClick={(e) => {
-                e.stopPropagation();
-                changeConfig({ firstFrameUrl: undefined });
-              }}
-            >
-              <X size={16} />
-            </div>
+            {config?.firstFrameUrl && (
+              <div
+                className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  changeConfig({ firstFrameUrl: undefined });
+                }}
+              >
+                <X size={16} />
+              </div>
+            )}
           </>
         ) : (
           <>
             <Plus size={16} />
-            <span className="text-xs mt-1">首帧</span>
           </>
         )}
-      </motion.div>
-      <motion.div
-        whileHover={{
-          translateY: -5,
-        }}
+      </button>
+      <ArrowLeftRight size={16} className="shrink-0 self-center text-white/30" />
+      <button
+        type="button"
+        aria-label="上传尾帧"
         onClick={() => {
-          if (!config?.lastFrameUrl) {
+          if (!lastFrameUrl) {
             lastFrameRef.current?.click();
           }
         }}
-        className={`${CARD} p-0! ${config?.lastFrameUrl && "border-white/0!"} backdrop-blur-xs bg-black/70 cursor-pointer w-14 h-20 -rotate-6 shrink-0 absolute flex flex-col justify-center items-center overflow-hidden group`}
+        className="group relative flex size-12 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-white/5 bg-white/5 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
       >
-        {config?.lastFrameUrl ? (
+        {lastFrameUrl ? (
           <>
             <img
-              src={config.lastFrameUrl}
+              src={lastFrameUrl}
               className="w-full h-full object-cover"
             />
-            <div
-              className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
-              onClick={(e) => {
-                e.stopPropagation();
-                changeConfig({ lastFrameUrl: undefined });
-              }}
-            >
-              <X size={16} />
-            </div>
+            {config?.lastFrameUrl && (
+              <div
+                className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  changeConfig({ lastFrameUrl: undefined });
+                }}
+              >
+                <X size={16} />
+              </div>
+            )}
           </>
         ) : (
           <>
             <Plus size={16} />
-            <span className="text-xs mt-1">尾帧</span>
           </>
         )}
-      </motion.div>
-    </motion.div>
+      </button>
+      {action && <div className="ml-auto">{action}</div>}
+    </div>
   );
 };
 

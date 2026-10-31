@@ -10,16 +10,18 @@ import {
 } from "lexical";
 import { memo, useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { TNodeImage, TNodeImageData } from "../../types";
+import { TNodeImage } from "../../types";
 import { $createImageNode } from "../nodes";
 import { CARD } from "@/constants/class-names";
 
 class MentionOption extends MenuOption {
   url: string;
+  title: string;
 
-  constructor(url: string) {
-    super(url);
-    this.url = url;
+  constructor(image: TNodeImage) {
+    super(image.id);
+    this.url = image.data.url;
+    this.title = image.data.title || "图片";
   }
 }
 
@@ -41,18 +43,15 @@ const ImageMentionPlugin = ({ images }: { images: TNodeImage[] }) => {
 
   const options = useMemo(() => {
     return images
-      .filter((img) => img.data.url.includes(query || ""))
-      .map((image) => new MentionOption(image.data.url))
+      .filter((image) =>
+        (image.data.title || "图片").toLowerCase().includes((query || "").toLowerCase()),
+      )
+      .map((image) => new MentionOption(image))
       .slice(0, 5);
   }, [images, query]);
 
   return (
-    <LexicalTypeaheadMenuPlugin<
-      Omit<TNodeImageData, "title"> & {
-        key: string;
-        setRefElement: (element: HTMLElement) => void;
-      }
-    >
+    <LexicalTypeaheadMenuPlugin<MentionOption>
       commandPriority={COMMAND_PRIORITY_EDITOR}
       onQueryChange={setQuery}
       triggerFn={checkForTriggerMatch}
@@ -62,7 +61,7 @@ const ImageMentionPlugin = ({ images }: { images: TNodeImage[] }) => {
         editor.update(() => {
           const node = nodeKey ? $getNodeByKey(nodeKey) : null;
           if (node?.isAttached()) {
-            const imageNode = $createImageNode(option.url);
+            const imageNode = $createImageNode(option.url, option.title);
             const spaceNode = $createTextNode(" ");
             node.replace(imageNode);
             imageNode.insertAfter(spaceNode);
@@ -108,7 +107,7 @@ const ImageMentionPlugin = ({ images }: { images: TNodeImage[] }) => {
                   className="block w-8 h-8 rounded-md object-cover"
                 />
                 <span className="inline-block truncate text-xs">
-                  {option.url}
+                  {option.title}
                 </span>
               </div>
             ))}

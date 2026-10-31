@@ -197,7 +197,8 @@ export class PipelineService {
       content: { status: ChunkStatus.PROCESSING, url: null },
     });
 
-    const idea = message[0].text;
+    const firstMessage = message[0];
+    const idea = firstMessage?.type === 'text' ? String(firstMessage.text) : '';
 
     // 1. 生成故事
     const { text } = await story(senModel, idea);

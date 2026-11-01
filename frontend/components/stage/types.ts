@@ -3,6 +3,7 @@ export type StagePoint = [number, number, number];
 export type CameraProperty = "position" | "target" | "fov" | "roll";
 export type CameraKeyframe = { time: number; value: StagePoint | number };
 export type CameraKeyframes = Partial<Record<CameraProperty, CameraKeyframe[]>>;
+export type CameraMotion = { id: string; name: string; start: number; duration: number };
 export type CharacterProperty = "position" | "rotation" | "scale";
 
 export type CharacterAction = {
@@ -73,6 +74,7 @@ export type StageObject = {
   cameraPathOrigin?: StagePoint;
   targetPathOrigin?: StagePoint;
   cameraKeyframes?: CameraKeyframes;
+  cameraMotions?: CameraMotion[];
 };
 
 export type Shot = {

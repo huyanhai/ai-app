@@ -87,4 +87,33 @@ describe('genImage', () => {
     const form = fetchMock.mock.calls[1][1]?.body as FormData;
     expect(form.get('size')).toBe('1536x1024');
   });
+
+  it('uses the reference image and landscape size for presets', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch');
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        blob: jest.fn().mockResolvedValue(new Blob(['image'])),
+      } as unknown as Response)
+      .mockResolvedValueOnce({
+        json: jest.fn().mockResolvedValue({ data: [{ url: 'result.png' }] }),
+      } as unknown as Response);
+
+    await genImage({
+      message: [
+        { type: 'image_url', image_url: 'source.png' },
+        { type: 'text', text: 'create a character three-view' },
+      ],
+      config: { ratio: '16:9', edit: true, preset: 'character-three-view' },
+      runtimeModel: {
+        id: 'model-config-id', provider: 'test-provider', baseURL: 'https://example.com',
+        apiKey: 'test-key', modelId: 'image-model', params: '{}',
+      },
+    });
+
+    expect(fetchMock.mock.calls[1][0]).toBe('https://example.com/images/edits');
+    const form = fetchMock.mock.calls[1][1]?.body as FormData;
+    expect(form.get('image')).toBeInstanceOf(Blob);
+    expect(form.get('size')).toBe('1536x864');
+  });
 });

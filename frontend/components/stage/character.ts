@@ -1,6 +1,7 @@
 import { CharacterProperty, StageObject, StagePoint } from "./types";
 
 export function getCharacterValue(object: StageObject, property: CharacterProperty, time: number): StagePoint {
+  if (property === "rotation" && object.pathAutoRotate) return [0, 0, 0];
   const base = object[property];
   const frames = [...(object.characterKeyframes?.[property] ?? [])].sort((a, b) => a.time - b.time);
   if (!frames.length) return base;

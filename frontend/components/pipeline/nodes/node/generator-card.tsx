@@ -25,6 +25,8 @@ import { useGenerate } from "../../hooks/use-generate";
 import {
   NODE_PROMPT_PLACEHOLDER,
   NODE_PRICE,
+  SOURCE_RIGHT_ANCHOR,
+  TARGET_LEFT_ANCHOR,
   TEXT_SCENES,
 } from "../../constants";
 import CameraModal from "../../toolbox/camera-modal";
@@ -46,6 +48,8 @@ import { ChunkStatus } from "backend/src/common/utils/ai-stream-utils";
 import ReferencePicker from "../../reference-picker";
 import MarkerEditor from "./image/marker-editor";
 import OutpaintEditor from "./image/outpaint-editor";
+import UpscaleEditor from "./image/upscale-editor";
+import { getImagePreset } from "./image/presets";
 import type {
   ReferenceKind,
   SubjectReference,
@@ -112,8 +116,12 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
   const id = node.id;
   const type = node.type as NodeType;
   const data = node.data;
+  const imagePreset = type === NodeType.ImageNode
+    ? getImagePreset((data as TNodeImage["data"]).preset)
+    : undefined;
+  const ImagePresetIcon = imagePreset?.icon;
 
-  const { setNodes, getNode } = useReactFlow<TAllNodes>();
+  const { setNodes, setEdges, getNode } = useReactFlow<TAllNodes>();
   const nodes = useNodes<TAllNodes>();
   const fileRef = useRef<HTMLInputElement>(null);
   const [pillsCollapsed, setPillsCollapsed] = useState(false);
@@ -199,7 +207,7 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
     const url = URL.createObjectURL(file);
     const current = getNode(id);
     const position = current
-      ? { x: current.position.x - 320, y: current.position.y }
+      ? { x: current.position.x - 320, y: current.position.y + (imagePreset ? imageNodes.length * 80 : 0) }
       : { x: 0, y: 0 };
     const refId = nanoid();
     setNodes(
@@ -211,6 +219,15 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
           data: { url, status: ChunkStatus.SUCCESS },
         } as TAllNodes) as TAllNodes[],
     );
+    if (imagePreset) {
+      setEdges((edges) => edges.concat({
+        id: nanoid(),
+        source: refId,
+        sourceHandle: SOURCE_RIGHT_ANCHOR,
+        target: id,
+        targetHandle: TARGET_LEFT_ANCHOR,
+      }));
+    }
   };
 
   const isGenerating = "status" in data && data.status === ChunkStatus.PROCESSING;
@@ -315,10 +332,16 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
   if (imageEditorMode === "outpaint") {
     return <OutpaintEditor node={node as TNodeImage} onSubmit={() => void submit()} />;
   }
+  if (imageEditorMode === "upscale") {
+    return <UpscaleEditor node={node as TNodeImage} onSubmit={() => void submit()} />;
+  }
+  if (imageEditorMode === "cutout") {
+    return null;
+  }
 
   return (
     <div className="nodrag nopan nowheel pointer-events-auto w-[560px] rounded-2xl bg-[#1c1c1e] border border-white/5 p-3 shadow-2xl">
-      {isMedia && !pillsCollapsed && (
+      {isMedia && !imagePreset && !pillsCollapsed && (
         <ToolPills
           type={type}
           onCollapse={() => setPillsCollapsed(true)}
@@ -364,24 +387,35 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
       <div className="relative">
         <div className="flex items-start justify-between">
           {!isFirstAndLastFrame && (
-            <button
-              aria-label="添加参考"
-              onClick={() => fileRef.current?.click()}
-              className="size-12 shrink-0 overflow-hidden rounded-xl bg-white/5 border border-white/5 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-            >
-              {imageNodes[0]?.data.url ? (
-                <img
-                  src={imageNodes[0].data.url}
-                  alt={imageNodes[0].data.title || "参考图片"}
-                  className="size-full object-cover"
-                />
-              ) : (
-                <Plus size={18} />
-              )}
-            </button>
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              {imagePreset && imageNodes.map((image) => (
+                <div key={image.id} className="size-12 shrink-0 overflow-hidden rounded-xl border border-white/5">
+                  <img
+                    src={image.data.url}
+                    alt={image.data.title || "参考图片"}
+                    className="size-full object-cover"
+                  />
+                </div>
+              ))}
+              <button
+                aria-label="添加参考"
+                onClick={() => fileRef.current?.click()}
+                className="size-12 shrink-0 overflow-hidden rounded-xl bg-white/5 border border-white/5 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                {!imagePreset && imageNodes[0]?.data.url ? (
+                  <img
+                    src={imageNodes[0].data.url}
+                    alt={imageNodes[0].data.title || "参考图片"}
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  <Plus size={18} />
+                )}
+              </button>
+            </div>
           )}
           <div className="ml-auto flex items-center gap-2">
-            {isMedia && pillsCollapsed && (
+            {isMedia && !imagePreset && pillsCollapsed && (
               <button
                 aria-label="展开工具"
                 onClick={() => setPillsCollapsed(false)}
@@ -416,30 +450,40 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
           }}
           className="relative mt-1 min-h-12 max-h-40 overflow-y-auto cursor-text"
         >
-          <Editor
-            key={id}
-            ref={editorRef}
-            onSubmit={canSubmit ? submit : () => {}}
-            images={imageNodes}
-            initialState=""
-            noImageMention
-            onTextChange={(value) => {
-              setEditorText(value);
-              const triggerIndex = value.lastIndexOf("@");
-              if (value.endsWith("@")) {
-                window.setTimeout(openReferenceMenu, 0);
-              } else if (
-                triggerIndex < 0 ||
-                /\s/.test(value.slice(triggerIndex + 1))
-              ) {
-                setReferenceMenuPosition(null);
-              }
-            }}
-            onBlur={() => setReferenceMenuPosition(null)}
-            onEmptyStateChange={setIsEmpty}
-            placeholder={NODE_PROMPT_PLACEHOLDER[type]}
-            autoFocus={false}
-          />
+          <div className="flex min-h-12 items-start gap-2">
+            {imagePreset && ImagePresetIcon && (
+              <span className="inline-flex h-5 shrink-0 items-center gap-1.5 rounded-md bg-white/[0.06] px-2 text-xs text-white/75">
+                <ImagePresetIcon size={13} />
+                {imagePreset.label}
+              </span>
+            )}
+            <div className="relative min-w-0 flex-1">
+              <Editor
+                key={id}
+                ref={editorRef}
+                onSubmit={canSubmit ? submit : () => {}}
+                images={imageNodes}
+                initialState=""
+                noImageMention
+                onTextChange={(value) => {
+                  setEditorText(value);
+                  const triggerIndex = value.lastIndexOf("@");
+                  if (value.endsWith("@")) {
+                    window.setTimeout(openReferenceMenu, 0);
+                  } else if (
+                    triggerIndex < 0 ||
+                    /\s/.test(value.slice(triggerIndex + 1))
+                  ) {
+                    setReferenceMenuPosition(null);
+                  }
+                }}
+                onBlur={() => setReferenceMenuPosition(null)}
+                onEmptyStateChange={setIsEmpty}
+                placeholder={NODE_PROMPT_PLACEHOLDER[type]}
+                autoFocus={false}
+              />
+            </div>
+          </div>
         </div>
       </div>
 

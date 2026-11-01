@@ -3,7 +3,7 @@ import { TAllNodes } from "@/components/pipeline/types";
 
 export type ImageEditorState = {
   nodeId: string;
-  mode: "edit" | "outpaint";
+  mode: "edit" | "outpaint" | "upscale" | "cutout";
 } | null;
 
 // 节点上 + 按钮 / 连线拖拽结束时请求打开节点创建菜单

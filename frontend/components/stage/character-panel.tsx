@@ -2,7 +2,7 @@
 
 import { Diamond } from "lucide-react";
 import { getCharacterValue } from "./character";
-import { Toggle } from "./controls";
+import { NumericInput, Toggle } from "./controls";
 import { CharacterProperty, StageObject, StagePoint } from "./types";
 
 const LABELS: Record<CharacterProperty, string> = { position: "位置", rotation: "旋转", scale: "缩放" };
@@ -27,7 +27,7 @@ export function CharacterPanel({ object, currentTime, keyframeTime, onChange, on
         </div>
         <div className="flex gap-1">{(["X", "Y", "Z"] as const).map((axis, index) => <label key={axis} className="flex h-9 min-w-0 flex-1 items-center gap-1 rounded-md bg-white/[0.045] px-2 text-[10px] text-white/35">
           <span>{axis}</span>
-          <input aria-label={`${object.name}${LABELS[property]} ${axis}`} type="number" step={property === "rotation" ? 1 : 0.1} value={Number((property === "rotation" ? value[index] * 180 / Math.PI : value[index]).toFixed(2))} disabled={object.locked || rotationLocked} onChange={(event) => { const next = [...value] as StagePoint; next[index] = property === "rotation" ? Number(event.target.value) * Math.PI / 180 : Number(event.target.value); onChange(property, next); }} className="min-w-0 flex-1 bg-transparent text-right text-xs text-white/70 outline-none disabled:cursor-not-allowed disabled:opacity-35" />
+          <NumericInput label={`${object.name}${LABELS[property]} ${axis}`} step={property === "rotation" ? 1 : 0.1} value={Number((property === "rotation" ? value[index] * 180 / Math.PI : value[index]).toFixed(2))} disabled={object.locked || rotationLocked} onChange={(nextValue) => { const next = [...value] as StagePoint; next[index] = property === "rotation" ? nextValue * Math.PI / 180 : nextValue; onChange(property, next); }} className="min-w-0 flex-1 bg-transparent text-right text-xs text-white/70 outline-none disabled:opacity-35" />
         </label>)}</div>
       </section>;
     })}

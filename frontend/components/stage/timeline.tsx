@@ -73,6 +73,7 @@ type StageTimelineProps = {
   onCharacterAction: (id: string) => void;
   onCharacterPath: (id: string, kind: "walk" | "move") => void;
   onCameraPath: (id: string, kind: "camera" | "target") => void;
+  onCameraPreset: (id: string) => void;
   onCameraKeyframesDelete: (
     selection: { cameraId: string; property: CameraProperty; time: number }[],
   ) => void;
@@ -125,6 +126,7 @@ export function StageTimeline({
   onCharacterAction,
   onCharacterPath,
   onCameraPath,
+  onCameraPreset,
   onCameraKeyframesDelete,
   onCharacterKeyframesDelete,
   onActionDurationChange,
@@ -164,6 +166,20 @@ export function StageTimeline({
     (_, index) => (index * duration) / 10,
   );
   const playheadLeft = `calc(${(currentTime / duration) * 100}% + ${7.5 - (16 * currentTime) / duration}px)`;
+  const snapTimes = [
+    ...cameras.flatMap((camera) => CAMERA_PROPERTIES.flatMap((property) => camera.cameraKeyframes?.[property.id]?.map((frame) => frame.time) ?? [])),
+    ...characters.flatMap((character) => CHARACTER_PROPERTIES.flatMap((property) => character.characterKeyframes?.[property.id]?.map((frame) => frame.time) ?? [])),
+  ];
+  const snapTime = (time: number) => {
+    const width = rulerScrollRef.current?.scrollWidth ?? 0;
+    if (!width) return time;
+    const threshold = (duration / width) * 8;
+    const closest = snapTimes.reduce<number | undefined>((nearest, frameTime) => {
+      if (Math.abs(frameTime - time) > threshold) return nearest;
+      return nearest === undefined || Math.abs(frameTime - time) < Math.abs(nearest - time) ? frameTime : nearest;
+    }, undefined);
+    return closest ?? time;
+  };
   const visibleCharacters = characters.filter(
     (object) => !hideEmpty || hasCharacterAnimation(object),
   );
@@ -523,7 +539,7 @@ export function StageTimeline({
                     max={duration}
                     step={0.01}
                     value={currentTime}
-                    onChange={(event) => onTimeChange(Number(event.target.value))}
+                    onChange={(event) => onTimeChange(snapTime(Number(event.target.value)))}
                     className="absolute inset-0 h-8 w-full cursor-col-resize opacity-0"
                   />
                 </div>
@@ -592,10 +608,7 @@ export function StageTimeline({
                     <button
                       type="button"
                       onClick={() => {
-                        setExpandedCameras((current) => ({
-                          ...current,
-                          [camera.id]: true,
-                        }));
+                        onCameraPreset(camera.id);
                         setCameraMenu(null);
                       }}
                       className="flex w-full items-center gap-2 rounded px-2 py-2 text-left hover:bg-white/8"
@@ -784,6 +797,24 @@ export function StageTimeline({
                   <div key={camera.id} className="mx-2">
                     <div className="relative h-8 rounded bg-black/20">
                       {trackGrid()}
+                      {camera.cameraMotions?.map((motion) => (
+                        <button
+                          type="button"
+                          key={motion.id}
+                          title={`${motion.name} · ${motion.start.toFixed(2)}–${(motion.start + motion.duration).toFixed(2)} 秒`}
+                          onClick={() => onTimeChange(motion.start)}
+                          className="absolute inset-y-1 flex min-w-0 items-center overflow-hidden rounded-md border border-white/20 bg-[#2b2b2b]/90 px-2 text-left text-[10px] whitespace-nowrap text-white/60"
+                          style={{
+                            left: `${(motion.start / duration) * 100}%`,
+                            width: `${(motion.duration / duration) * 100}%`,
+                          }}
+                        >
+                          <span className="relative z-20 ml-3 flex min-w-0 items-center gap-1.5 bg-[#2b2b2b] py-0.5 pr-1">
+                            <Route size={11} className="shrink-0" />
+                            <span className="truncate">{motion.name} · {motion.duration.toFixed(1)} 秒</span>
+                          </span>
+                        </button>
+                      ))}
                       {keyframeTimes.map((time) => {
                         const selected = CAMERA_PROPERTIES.some((property) =>
                           selectedKeyframes.has(

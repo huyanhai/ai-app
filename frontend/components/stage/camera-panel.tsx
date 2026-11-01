@@ -2,7 +2,7 @@
 
 import { Diamond } from "lucide-react";
 import { getCameraValue, hasCameraKeyframe } from "./camera";
-import { NumberField } from "./controls";
+import { NumberField, NumericInput } from "./controls";
 import { CameraProperty, StageObject, StagePoint } from "./types";
 
 const LABELS: Record<CameraProperty, string> = { position: "机位位置", target: "注视点", fov: "视野", roll: "画面倾斜" };
@@ -16,7 +16,7 @@ export function CameraPanel({ object, currentTime, keyframeTime, onChange, onTog
 }) {
   const vectorEditor = (property: "position" | "target") => {
     const value = getCameraValue(object, property, currentTime) as StagePoint;
-    return <div className="flex gap-1">{(["X", "Y", "Z"] as const).map((axis, index) => <label key={axis} className="flex h-9 min-w-0 flex-1 items-center gap-1 rounded-md bg-white/[0.045] px-2 text-[10px] text-white/35"><span>{axis}</span><input aria-label={`${LABELS[property]} ${axis}`} type="number" step={0.1} value={Number(value[index].toFixed(2))} disabled={object.locked} onChange={(event) => { const next = [...value] as StagePoint; next[index] = Number(event.target.value); onChange(property, next); }} className="min-w-0 flex-1 bg-transparent text-right text-xs text-white/70 outline-none" /></label>)}</div>;
+    return <div className="flex gap-1">{(["X", "Y", "Z"] as const).map((axis, index) => <label key={axis} className="flex h-9 min-w-0 flex-1 items-center gap-1 rounded-md bg-white/[0.045] px-2 text-[10px] text-white/35"><span>{axis}</span><NumericInput label={`${LABELS[property]} ${axis}`} step={0.1} value={Number(value[index].toFixed(2))} disabled={object.locked} onChange={(nextValue) => { const next = [...value] as StagePoint; next[index] = nextValue; onChange(property, next); }} className="min-w-0 flex-1 bg-transparent text-right text-xs text-white/70 outline-none" /></label>)}</div>;
   };
   return <div className="space-y-3">{(["position", "target", "fov", "roll"] as const).map((property) => {
     const keyed = hasCameraKeyframe(object, property, keyframeTime);

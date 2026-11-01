@@ -16,6 +16,7 @@ import {
 import { NodeType, TAllNodes, TNodeImage, TNodeText } from "../types";
 import { IEditorRef } from "../editor";
 import { usePipelineStore } from "@/store/pipeline-store";
+import { getImagePreset } from "../nodes/node/image/presets";
 
 // 文本节点走会话接口（见 chat），不在此表中
 const SUBMIT_URL: Partial<Record<NodeType, string>> = {
@@ -41,6 +42,7 @@ export const useGenerate = (
   );
   const isImageEditing = imageEditorMode === "edit";
   const isOutpainting = imageEditorMode === "outpaint";
+  const isUpscaling = imageEditorMode === "upscale";
   const { getNode, setNodes } = useReactFlow<TAllNodes>();
 
   // 当前节点 source 句柄引出的连线，目标节点作为参考素材
@@ -48,13 +50,19 @@ export const useGenerate = (
     id: nodeId,
     handleType: "source",
   });
+  const incomingConnections = useNodeConnections({
+    id: nodeId,
+    handleType: "target",
+  });
 
   const { textNodes, imageNodes } = useMemo(() => {
     const textNodes: TNodeText[] = [];
     const imageNodes: TNodeImage[] = [];
+    const isPresetNode = Boolean(nodeData && "preset" in nodeData && nodeData.preset);
+    const referenceConnections = isPresetNode ? incomingConnections : connections;
 
-    connections.forEach((con) => {
-      const node = getNode(con.target);
+    referenceConnections.forEach((con) => {
+      const node = getNode(isPresetNode ? con.source : con.target);
       if (node?.type === NodeType.TextNode) {
         textNodes.push(node as TNodeText);
       }
@@ -63,7 +71,7 @@ export const useGenerate = (
       }
     });
     return { textNodes, imageNodes };
-  }, [connections, getNode]);
+  }, [connections, incomingConnections, getNode, nodeData]);
 
   const disabled = useMemo(() => {
     return !textNodes.length && !imageNodes.length && isEmpty;
@@ -168,12 +176,19 @@ export const useGenerate = (
 
     const editorMessages = await editorRef.current?.getEditor();
     editorRef.current?.clear();
+    const imagePreset = nodeData && "preset" in nodeData
+      ? getImagePreset(nodeData.preset)
+      : undefined;
     const editMarkers =
       nodeData && "editMarkers" in nodeData ? nodeData.editMarkers : undefined;
     const editPrompt =
       nodeData && "editPrompt" in nodeData ? nodeData.editPrompt : undefined;
     const outpaintPrompt =
       nodeData && "outpaintPrompt" in nodeData ? nodeData.outpaintPrompt : undefined;
+    const upscaleDetail =
+      nodeData && "upscaleDetail" in nodeData ? nodeData.upscaleDetail ?? 50 : 50;
+    const upscaleResolution =
+      nodeData && "upscaleResolution" in nodeData ? nodeData.upscaleResolution ?? "4K" : "4K";
     const messages =
       isImageEditing && nodeData && "url" in nodeData && nodeData.url
         ? [
@@ -197,7 +212,26 @@ export const useGenerate = (
                 text: `以原图中心内容为基础向外扩展画面，保持原始图片内容、主体位置、色彩和风格不变，仅自然补全新增区域。${outpaintPrompt ? `扩展要求：${outpaintPrompt}` : ""}`,
               },
             ]
-          : editorMessages;
+          : isUpscaling && nodeData && "url" in nodeData && nodeData.url
+            ? [
+                { type: "image_url" as const, image_url: nodeData.url },
+                {
+                  type: "text" as const,
+                  text: `对原图进行智能超清，保持画面内容、构图、主体特征、色彩和风格不变，提升清晰度并自然补充细节。目标分辨率：${upscaleResolution}；细节生成程度：${upscaleDetail}。`,
+                },
+              ]
+            : imagePreset
+              ? [
+                  ...imageNodes
+                    .filter((image) => image.data.url)
+                    .map((image) => ({ type: "image_url" as const, image_url: image.data.url })),
+                  {
+                    type: "text" as const,
+                    text: `${imagePreset.prompt}\n画面比例：${nodeData?.config?.ratio ?? imagePreset.ratio}，完整展示所有主体和画面内容，不要裁切。`,
+                  },
+                  ...(editorMessages ?? []),
+                ]
+              : editorMessages;
 
     const selectedModel =
       nodeType === NodeType.ImageNode
@@ -247,8 +281,12 @@ export const useGenerate = (
           ratio: isOutpainting && nodeData && "outpaintRatio" in nodeData && nodeData.outpaintRatio !== "original"
             ? nodeData.outpaintRatio
             : nodeData?.config?.ratio,
-          edit: isImageEditing || isOutpainting,
+          resolution: isUpscaling ? upscaleResolution : nodeData?.config?.resolution,
+          edit: isImageEditing || isOutpainting || isUpscaling || Boolean(imagePreset),
           outpaint: isOutpainting,
+          upscale: isUpscaling,
+          preset: imagePreset?.id,
+          upscaleDetail: isUpscaling ? upscaleDetail : undefined,
         },
         modelId: selectedModel?.id,
         textList: textNodes.map((node) => {
@@ -285,7 +323,7 @@ export const useGenerate = (
         error: error instanceof Error ? error.message : String(error),
       });
     });
-  }, [nodeType, nodeData, textNodes, nodeId, updateNodeData, chat, isImageEditing, isOutpainting]);
+  }, [nodeType, nodeData, textNodes, imageNodes, nodeId, updateNodeData, chat, isImageEditing, isOutpainting, isUpscaling]);
 
   return { editorRef, submit, disabled, setIsEmpty, imageNodes };
 };

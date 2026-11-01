@@ -35,6 +35,76 @@ export function Toggle({
   );
 }
 
+export function NumericInput({ label, value, onChange, step = 0.1, min = -999, max = 999, disabled = false, className = "" }: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  step?: number;
+  min?: number;
+  max?: number;
+  disabled?: boolean;
+  className?: string;
+}) {
+  const drag = useRef<{ x: number; value: number; moved: boolean } | null>(null);
+  const [draft, setDraft] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const update = (next: number) => onChange(Math.min(max, Math.max(min, Number(next.toFixed(2)))));
+  return <input
+    aria-label={label}
+    type="number"
+    inputMode="decimal"
+    value={draft ?? value}
+    step={step}
+    min={min}
+    max={max}
+    disabled={disabled}
+    readOnly={!editing}
+    onChange={(event) => {
+      if (!editing) return;
+      const text = event.target.value;
+      setDraft(text);
+      if (!text.trim()) return;
+      const next = Number(text);
+      if (Number.isFinite(next)) update(next);
+    }}
+    onBlur={() => {
+      if (draft?.trim()) {
+        const next = Number(draft);
+        if (Number.isFinite(next)) update(next);
+      }
+      setDraft(null);
+      setEditing(false);
+    }}
+    onPointerDown={(event) => {
+      if (disabled || editing || event.button !== 0) return;
+      event.preventDefault();
+      drag.current = { x: event.clientX, value, moved: false };
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }}
+    onPointerMove={(event) => {
+      if (!drag.current || editing) return;
+      const distance = event.clientX - drag.current.x;
+      if (Math.abs(distance) < 2) return;
+      drag.current.moved = true;
+      setDraft(null);
+      event.currentTarget.blur();
+      update(drag.current.value + distance * step);
+    }}
+    onPointerUp={(event) => {
+      const clicked = Boolean(drag.current && !drag.current.moved);
+      drag.current = null;
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+      if (clicked && !disabled) {
+        setDraft(String(value));
+        setEditing(true);
+        event.currentTarget.focus();
+      }
+    }}
+    onPointerCancel={() => { drag.current = null; }}
+    className={`${editing ? "cursor-text" : "cursor-ew-resize select-none"} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none disabled:cursor-not-allowed ${className}`}
+  />;
+}
+
 export function NumberField({
   label,
   value,
@@ -74,17 +144,13 @@ export function NumberField({
       >
         {label}
       </button>
-      <input
-        aria-label={label}
-        type="number"
+      <NumericInput
+        label={label}
         value={value}
         step={step}
         min={min}
         max={max}
-        onChange={(event) => {
-          const next = Number(event.target.value);
-          if (Number.isFinite(next)) onChange(Math.min(max, Math.max(min, next)));
-        }}
+        onChange={onChange}
         className="ml-auto w-14 min-w-0 bg-transparent text-right text-white/75 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
       />
       {suffix && <span className="ml-1 text-white/35">{suffix}</span>}

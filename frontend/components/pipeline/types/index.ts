@@ -82,6 +82,9 @@ export type TNodeImageData = {
   outpaintZoom?: number;
   outpaintX?: number;
   outpaintY?: number;
+  upscaleResolution?: string;
+  upscaleDetail?: number;
+  preset?: string;
 } & TNodeBase;
 
 export type TImageEditMarker = {

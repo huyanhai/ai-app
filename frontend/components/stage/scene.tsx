@@ -51,6 +51,16 @@ type SceneProps = {
   selectedBone?: string;
   onSelectBone?: (objectId: string, boneName: string, rotation: StagePoint) => void;
   onPoseChange?: (objectId: string, boneName: string, rotation: StagePoint, position?: StagePoint) => void;
+  cameraPreset?: {
+    step: 1 | 2 | 3;
+    target: StagePoint;
+    cameraPath: StagePoint[];
+    targetPath: StagePoint[];
+    placingTarget: boolean;
+    onTargetChange: (target: StagePoint) => void;
+    onTargetPlace: (target: StagePoint) => void;
+    onAngleChange: (angle: number) => void;
+  } | null;
 };
 
 function SceneLights({ settings }: { settings: StageSettings }) {
@@ -118,6 +128,51 @@ function PathVisualization({ points, origin, color = "#b2d2b7" }: { points: Stag
       {points.map((point, index) => <mesh key={`${point.join("-")}-${index}`} position={[point[0], point[1] + 0.07, point[2]]} raycast={() => null}><octahedronGeometry args={[0.085, 0]} /><meshBasicMaterial color={color} depthTest={false} /></mesh>)}
     </group>
   );
+}
+
+function CameraPresetVisualization({ preset }: { preset: NonNullable<SceneProps["cameraPreset"]> }) {
+  const targetGroup = useRef<THREE.Group>(null!);
+  const rotating = useRef(false);
+  const path = preset.cameraPath.length > 1 ? preset.cameraPath : preset.targetPath;
+  const color = preset.cameraPath.length > 1 ? "#d6a84f" : "#5cc8d7";
+  const updateAngle = (point: THREE.Vector3) => {
+    preset.onAngleChange(Math.atan2(point.x - preset.target[0], point.z - preset.target[2]));
+  };
+  const targetMarker = <>
+    <mesh raycast={() => null}><sphereGeometry args={[0.09, 20, 16]} /><meshBasicMaterial color="#ff6666" depthTest={false} /></mesh>
+    <mesh position={[0, -preset.target[1] / 2, 0]} raycast={() => null}><cylinderGeometry args={[0.008, 0.008, Math.max(0.01, preset.target[1]), 6]} /><meshBasicMaterial color="#ff6666" transparent opacity={0.6} depthTest={false} /></mesh>
+  </>;
+  if (preset.step === 1) return <>
+    {preset.placingTarget ? <GroundPlacement onPlace={preset.onTargetPlace} /> : <TransformControls object={targetGroup} mode="translate" size={0.7} onMouseUp={() => {
+      if (targetGroup.current) preset.onTargetChange(targetGroup.current.position.toArray());
+    }}><group ref={targetGroup} position={preset.target}>{targetMarker}</group></TransformControls>}
+  </>;
+  if (preset.step !== 2) return null;
+  return <>
+    <group position={preset.target}>{targetMarker}</group>
+    {path.length > 1 && <PathVisualization points={path} color={color} />}
+    {path.length > 1 && <group position={path[0]} scale={0.65}><CameraModel target={preset.target} /></group>}
+    {path.length > 1 && <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]}
+      onPointerDown={(event) => {
+        if (event.button !== 0) return;
+        event.stopPropagation();
+        rotating.current = true;
+        (event.target as HTMLElement | null)?.setPointerCapture(event.pointerId);
+        updateAngle(event.point);
+      }}
+      onPointerMove={(event) => {
+        if (!rotating.current) return;
+        event.stopPropagation();
+        updateAngle(event.point);
+      }}
+      onPointerUp={(event) => {
+        rotating.current = false;
+        const target = event.target as HTMLElement | null;
+        if (target?.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
+      }}
+      onPointerCancel={() => { rotating.current = false; }}
+    ><planeGeometry args={[200, 200]} /><meshBasicMaterial transparent opacity={0} depthWrite={false} /></mesh>}
+  </>;
 }
 
 type PoseViewProps = {
@@ -642,7 +697,7 @@ function GroundPlacement({ onPlace }: { onPlace?: (position: [number, number, nu
   );
 }
 
-function World({ settings, objects, selectedId, tool, preview = false, playing = false, currentTime = 0, resetKey, focusKey, bottomOffset = 0, placing = false, pathDraft, showPath = true, onSelect, onTransform, onPlace, onAddAction, onStartPath, onPathPoint, poseMode, selectedBone, onSelectBone, onPoseChange, labelRefs }: SceneProps & { labelRefs: LabelRefs }) {
+function World({ settings, objects, selectedId, tool, preview = false, playing = false, currentTime = 0, resetKey, focusKey, bottomOffset = 0, placing = false, pathDraft, showPath = true, onSelect, onTransform, onPlace, onAddAction, onStartPath, onPathPoint, poseMode, selectedBone, onSelectBone, onPoseChange, cameraPreset, labelRefs }: SceneProps & { labelRefs: LabelRefs }) {
   const animatedObjects = objects.map((object) => {
     if (object.type === "camera") return {
       ...object,
@@ -693,6 +748,7 @@ function World({ settings, objects, selectedId, tool, preview = false, playing =
       )}
       {placing && !preview && <GroundPlacement onPlace={onPlace} />}
       {pathDraft && !preview && <GroundPlacement onPlace={onPathPoint} />}
+      {cameraPreset && !preview && <CameraPresetVisualization preset={cameraPreset} />}
       {!preview && showPath && objects.filter((object) => object.path && object.id !== pathDraft?.objectId).map((object) => <PathVisualization key={`path-${object.id}`} points={[object.pathOrigin ?? object.position, ...object.path!]} />)}
       {!preview && showPath && pathDraft && <PathVisualization points={pathDraft.points} origin={pathDraft.origin} color={pathDraft.kind === "camera" ? "#d6a84f" : pathDraft.kind === "target" ? "#5cc8d7" : "#b2d2b7"} />}
       {!preview && showPath && objects.filter((object) => object.id === selectedId && object.cameraPath && object.id !== pathDraft?.objectId).map((object) => <PathVisualization key={`camera-path-${object.id}`} points={object.cameraPath!} origin={object.cameraPathOrigin ?? (object.cameraKeyframes?.position?.[0]?.value as StagePoint | undefined) ?? getCameraPathOrigin(object, "camera", currentTime)} color="#d6a84f" />)}
@@ -701,7 +757,7 @@ function World({ settings, objects, selectedId, tool, preview = false, playing =
         <SelectableObject key={object.id} object={object} selected={!placing && object.id === selectedId} tool={tool} preview={preview} currentTime={currentTime} pathEditing={Boolean(pathDraft)} onSelect={onSelect} onTransform={onTransform} onAddAction={onAddAction} onStartPath={onStartPath} poseMode={poseMode} selectedBone={selectedBone} onSelectBone={onSelectBone} onPoseChange={onPoseChange} />
       ))}
       {!preview && animatedObjects.filter((object) => object.type !== "camera" || object.id === selectedId).map((object) => <LabelProjection key={`label-${object.id}`} object={object} labelRefs={labelRefs} />)}
-      {preview ? <PreviewCamera object={selected?.type === "camera" ? selected : animatedObjects.find((object) => object.type === "camera")} /> : <DirectorControls resetKey={resetKey} focusKey={focusKey} selected={selected} placing={placing || Boolean(pathDraft)} />}
+      {preview ? <PreviewCamera object={selected?.type === "camera" ? selected : animatedObjects.find((object) => object.type === "camera")} /> : <DirectorControls resetKey={resetKey} focusKey={focusKey} selected={selected} placing={placing || Boolean(pathDraft) || Boolean(cameraPreset?.placingTarget)} />}
       {!preview && (
         <GizmoHelper alignment="bottom-right" margin={[64, 64 + bottomOffset]}>
           <GizmoViewport axisColors={["#ed6464", "#70c795", "#6d85e8"]} labelColor="#171717" />

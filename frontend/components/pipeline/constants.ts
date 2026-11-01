@@ -6,6 +6,8 @@ export const TARGET_HANDLE = "target";
 // 连线锚点：+ 按钮手柄仅用于交互，实际连线锚定在卡片边缘的隐形 Handle 上
 export const SOURCE_ANCHOR = "source-anchor";
 export const TARGET_ANCHOR = "target-anchor";
+export const SOURCE_RIGHT_ANCHOR = "source-right-anchor";
+export const TARGET_LEFT_ANCHOR = "target-left-anchor";
 
 // 各节点类型的中文名称
 export const NODE_TYPE_LABEL: Record<NodeType, string> = {

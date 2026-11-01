@@ -25,6 +25,10 @@ export class ConfigDto {
 
   @IsString()
   @IsOptional()
+  preset?: string;
+
+  @IsString()
+  @IsOptional()
   firstFrameUrl?: string;
 
   @IsString()

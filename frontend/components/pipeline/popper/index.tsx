@@ -18,6 +18,7 @@ import { ChevronDown } from "lucide-react";
 interface IPopperProps {
   trigger: ReactNode;
   content: ReactNode;
+  preferredPlacement?: Placement;
 }
 
 export interface IPopperRef {
@@ -25,7 +26,7 @@ export interface IPopperRef {
 }
 
 const Popper = (
-  { trigger, content }: IPopperProps,
+  { trigger, content, preferredPlacement }: IPopperProps,
   ref: ForwardedRef<IPopperRef>,
 ) => {
   const [open, setOpen] = useState(false);
@@ -42,7 +43,7 @@ const Popper = (
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const spaceAbove = rect.top;
-    const nextPlacement = spaceAbove < 200 ? Placement.Bottom : Placement.Top;
+    const nextPlacement = preferredPlacement ?? (spaceAbove < 200 ? Placement.Bottom : Placement.Top);
     setPlacement(nextPlacement);
 
     if (nextPlacement === Placement.Top) {
@@ -62,7 +63,7 @@ const Popper = (
         zIndex: 9999,
       });
     }
-  }, []);
+  }, [preferredPlacement]);
 
   function configHandle() {
     if (!open) {

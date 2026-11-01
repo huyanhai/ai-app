@@ -18,8 +18,10 @@ import { ChunkStatus } from "backend/src/common/utils/ai-stream-utils";
 import {
   NODE_TYPE_LABEL,
   SOURCE_ANCHOR,
+  SOURCE_RIGHT_ANCHOR,
   SOURCE_HANDLE,
   TARGET_ANCHOR,
+  TARGET_LEFT_ANCHOR,
   TARGET_HANDLE,
 } from "../../constants";
 import { NodeType, TAllNodes } from "../../types";
@@ -203,6 +205,8 @@ const NodeShell = ({
         <MagneticHandle id={TARGET_HANDLE} type={TARGET_HANDLE} side="right" selected={handlesVisible} />
         <Handle id={SOURCE_ANCHOR} type="source" position={Position.Left} isConnectable={false} className="opacity-0! pointer-events-none! w-px! h-6! min-w-0! min-h-0! border-0! bg-transparent!" style={{ left: 0, top: "50%", transform: "translateY(-50%)" }} />
         <Handle id={TARGET_ANCHOR} type="target" position={Position.Right} isConnectable={false} className="opacity-0! pointer-events-none! w-px! h-6! min-w-0! min-h-0! border-0! bg-transparent!" style={{ right: 0, top: "50%", transform: "translateY(-50%)" }} />
+        <Handle id={SOURCE_RIGHT_ANCHOR} type="source" position={Position.Right} isConnectable={false} className="opacity-0! pointer-events-none! w-px! h-6! min-w-0! min-h-0! border-0! bg-transparent!" style={{ right: 0, top: "50%", transform: "translateY(-50%)" }} />
+        <Handle id={TARGET_LEFT_ANCHOR} type="target" position={Position.Left} isConnectable={false} className="opacity-0! pointer-events-none! w-px! h-6! min-w-0! min-h-0! border-0! bg-transparent!" style={{ left: 0, top: "50%", transform: "translateY(-50%)" }} />
       </>}
 
       <div

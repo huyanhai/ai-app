@@ -92,12 +92,12 @@ const OutpaintCanvas = ({ node }: { node: TNodeImage }) => {
       if (start.direction.includes("e")) next.outpaintWidth = Math.max(original.width - start.x, start.width + dx);
       if (start.direction.includes("w")) {
         next.outpaintX = Math.min(0, start.x + dx);
-        next.outpaintWidth = start.x + start.width - next.outpaintWidth;
+        next.outpaintWidth = start.x + start.width - next.outpaintX;
       }
       if (start.direction.includes("s")) next.outpaintHeight = Math.max(original.height - start.y, start.height + dy);
       if (start.direction.includes("n")) {
         next.outpaintY = Math.min(0, start.y + dy);
-        next.outpaintHeight = start.y + start.height - next.outpaintHeight;
+        next.outpaintHeight = start.y + start.height - next.outpaintY;
       }
     }
     setNodes((nodes) => nodes.map((item) =>

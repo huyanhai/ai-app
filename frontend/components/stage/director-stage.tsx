@@ -39,7 +39,7 @@ import {
   Undo2,
   X,
 } from "lucide-react";
-import { ColorField, NumberField, StageModal, Toggle } from "./controls";
+import { ColorField, NumberField, NumericInput, StageModal, Toggle } from "./controls";
 import { IconButton } from "@/components/ui/icon-button";
 import { AssetPanel } from "./asset-panel";
 import { ActionPanel, ActionPreset } from "./action-panel";
@@ -48,6 +48,8 @@ import { StageTimeline } from "./timeline";
 import { PosePanel } from "./pose-panel";
 import { CameraPanel } from "./camera-panel";
 import { CharacterPanel } from "./character-panel";
+import { CameraPresetDialog, CameraPresetWizard } from "./camera-preset-panel";
+import { applyCameraPresetResult, CameraPresetDefinition, CameraPresetDraft, createCameraPresetResult } from "./camera-presets";
 import { getCharacterValue } from "./character";
 import { bakeCharacterPose } from "./motion";
 import { createBezierPath, getCameraPathOrigin, getCameraValue, hasCameraKeyframe } from "./camera";
@@ -110,6 +112,10 @@ export default function DirectorStage({ nodeId }: { nodeId: string }) {
   const [selectedBone, setSelectedBone] = useState<string>();
   const [pathDraft, setPathDraft] = useState<{ objectId: string; kind: "character" | "camera" | "target"; origin: StagePoint; points: StagePoint[]; redo: StagePoint[] } | null>(null);
   const [pathActionOpen, setPathActionOpen] = useState(false);
+  const [cameraPresetCameraId, setCameraPresetCameraId] = useState<string | null>(null);
+  const [cameraPresetDraft, setCameraPresetDraft] = useState<CameraPresetDraft | null>(null);
+  const [cameraPresetTime, setCameraPresetTime] = useState(0);
+  const [freeCameraMovement, setFreeCameraMovement] = useState(false);
   const [showPath, setShowPath] = useState(true);
   const [shots, setShots] = useState<Shot[]>([]);
   const [playing, setPlaying] = useState(false);
@@ -134,7 +140,13 @@ export default function DirectorStage({ nodeId }: { nodeId: string }) {
   const characters = objects.filter((object) => object.type === "character" && object.name.includes(search));
   const props = objects.filter((object) => object.type === "prop" && object.name.includes(search));
   const hasCharacterActions = objects.some((object) => object.actions?.length);
+  const hasCameraMovement = objects.some((object) => Object.values(object.cameraKeyframes ?? {}).some((frames) => frames?.length));
   const keyframeTime = Math.round(currentTime * frameRate) / frameRate;
+  const cameraPresetCamera = objects.find((object) => object.id === cameraPresetDraft?.cameraId && object.type === "camera");
+  const cameraPresetResult = cameraPresetCamera && cameraPresetDraft ? createCameraPresetResult(cameraPresetCamera, cameraPresetDraft, frameRate) : null;
+  const cameraPresetObjects = cameraPresetCamera && cameraPresetResult ? objects.map((object) => object.id === cameraPresetCamera.id ? applyCameraPresetResult(object, cameraPresetResult) : object) : objects;
+  const sceneObjects = cameraPresetDraft?.step === 3 ? cameraPresetObjects : objects;
+  const sceneTime = cameraPresetDraft?.step === 3 ? cameraPresetTime : currentTime;
 
   useEffect(() => {
     setSelectedBone(undefined);
@@ -183,6 +195,17 @@ export default function DirectorStage({ nodeId }: { nodeId: string }) {
     return () => window.clearInterval(timer);
   }, [duration, loop, playing]);
 
+  useEffect(() => {
+    if (cameraPresetDraft?.step !== 3) return;
+    const start = cameraPresetDraft.start;
+    const end = start + cameraPresetDraft.duration;
+    setCameraPresetTime(start);
+    const timer = window.setInterval(() => {
+      setCameraPresetTime((time) => time + 0.05 >= end ? start : time + 0.05);
+    }, 50);
+    return () => window.clearInterval(timer);
+  }, [cameraPresetDraft?.step, cameraPresetDraft?.start, cameraPresetDraft?.duration]);
+
   const updateSettings = useCallback((patch: Partial<StageSettings>) => {
     setSettings((current) => ({ ...current, ...patch }));
     setDirty(true);
@@ -218,7 +241,7 @@ export default function DirectorStage({ nodeId }: { nodeId: string }) {
       const item = TOOL_ITEMS.find((toolItem) => toolItem.key === event.key);
       if (item && (item.id !== "rotate" || !rotationLocked)) setTool(item.id);
       if (event.key.toLowerCase() === "g") dropToGround();
-      if (event.code === "Space" && mode === "dynamic" && (shots.length || hasCharacterActions)) {
+      if (event.code === "Space" && mode === "dynamic" && (shots.length || hasCharacterActions || hasCameraMovement)) {
         event.preventDefault();
         setPlaying((value) => !value);
       }
@@ -226,11 +249,14 @@ export default function DirectorStage({ nodeId }: { nodeId: string }) {
         setPathDraft(null);
         setPathActionOpen(false);
         setActionObjectId(null);
+        setFreeCameraMovement(false);
+        setCameraPresetDraft(null);
+        setCameraPresetCameraId(null);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [dropToGround, hasCharacterActions, mode, rotationLocked, shots.length]);
+  }, [dropToGround, hasCameraMovement, hasCharacterActions, mode, rotationLocked, shots.length]);
 
   const startPath = (objectId: string) => {
     const object = objects.find((item) => item.id === objectId);
@@ -244,10 +270,65 @@ export default function DirectorStage({ nodeId }: { nodeId: string }) {
   const startCameraPath = (objectId: string, kind: "camera" | "target") => {
     const object = objects.find((item) => item.id === objectId && item.type === "camera");
     if (!object) return;
+    setFreeCameraMovement(false);
     setSelectedId(objectId);
     const savedOrigin = kind === "camera" ? object.cameraPathOrigin : object.targetPathOrigin;
     setPathDraft({ objectId, kind, origin: savedOrigin ?? getCameraPathOrigin(object, kind, currentTime), points: (kind === "camera" ? object.cameraPath : object.targetPath) ?? [], redo: [] });
     setShowPath(true);
+  };
+
+  const openCameraPresets = (objectId: string) => {
+    setSelectedId(objectId);
+    setCameraPresetCameraId(objectId);
+    setPreviewOpen(true);
+    setPlaying(false);
+  };
+
+  const startCameraPreset = (preset: CameraPresetDefinition) => {
+    const camera = objects.find((object) => object.id === cameraPresetCameraId && object.type === "camera");
+    if (!camera) return;
+    const position = getCameraValue(camera, "position", currentTime) as StagePoint;
+    const target = getCameraValue(camera, "target", currentTime) as StagePoint;
+    const distance = Math.max(1, Math.hypot(position[0] - target[0], position[2] - target[2]));
+    setCameraPresetDraft({
+      cameraId: camera.id,
+      preset,
+      step: 1,
+      position,
+      target,
+      angle: Math.atan2(position[0] - target[0], position[2] - target[2]),
+      distance,
+      start: keyframeTime,
+      duration: 3,
+      amplitude: 1,
+      placingTarget: false,
+    });
+    setCameraPresetCameraId(null);
+    setPathDraft(null);
+    setPendingAsset(null);
+    setPreviewOpen(true);
+  };
+
+  const updateCameraPreset = (patch: Partial<CameraPresetDraft>) => {
+    setCameraPresetDraft((current) => current ? { ...current, ...patch } : current);
+  };
+
+  const applyCameraPreset = () => {
+    if (!cameraPresetCamera || !cameraPresetResult || !cameraPresetDraft) return;
+    updateObject(cameraPresetCamera.id, applyCameraPresetResult(cameraPresetCamera, cameraPresetResult));
+    setDuration((current) => Math.max(current, cameraPresetResult.end));
+    setCurrentTime(cameraPresetDraft.start);
+    setSelectedId(cameraPresetCamera.id);
+    setCameraPresetDraft(null);
+    setToast(`已添加运镜：${cameraPresetDraft.preset.name}`);
+  };
+
+  const startCustomCameraMovement = (kind: "camera" | "target" | "free") => {
+    if (!cameraPresetCameraId) return;
+    const cameraId = cameraPresetCameraId;
+    setCameraPresetCameraId(null);
+    startCameraPath(cameraId, kind === "camera" ? "camera" : "target");
+    setFreeCameraMovement(kind === "free");
   };
 
   const finishCameraPath = () => {
@@ -272,6 +353,12 @@ export default function DirectorStage({ nodeId }: { nodeId: string }) {
       },
     });
     setDuration((current) => Math.max(current, frames[frames.length - 1].time));
+    if (freeCameraMovement && property === "target") {
+      setPathDraft({ objectId: object.id, kind: "camera", origin: getCameraPathOrigin(object, "camera", currentTime), points: object.cameraPath ?? [], redo: [] });
+      setToast("注视点路径已生成，请继续绘制机位路径");
+      return;
+    }
+    setFreeCameraMovement(false);
     setPathDraft(null);
     setToast(property === "target" ? "已生成注视点路径关键帧" : "已生成机位路径关键帧");
   };
@@ -605,17 +692,27 @@ export default function DirectorStage({ nodeId }: { nodeId: string }) {
   const scene = (
     <StageScene
       settings={settings}
-      objects={objects}
-      selectedId={selectedId}
+      objects={sceneObjects}
+      selectedId={cameraPresetDraft && cameraPresetDraft.step !== 3 ? "" : selectedId}
       tool={tool}
       playing={playing}
-      currentTime={currentTime}
+      currentTime={sceneTime}
       resetKey={resetKey}
       focusKey={focusKey}
       placing={Boolean(pendingAsset)}
       pathDraft={pathDraft}
+      cameraPreset={cameraPresetDraft && cameraPresetResult ? {
+        step: cameraPresetDraft.step,
+        target: cameraPresetDraft.target,
+        cameraPath: cameraPresetResult.cameraPath ? [cameraPresetResult.cameraPathOrigin!, ...cameraPresetResult.cameraPath] : [],
+        targetPath: cameraPresetResult.targetPath ? [cameraPresetResult.targetPathOrigin!, ...cameraPresetResult.targetPath] : [],
+        placingTarget: cameraPresetDraft.placingTarget,
+        onTargetChange: (target) => updateCameraPreset({ target }),
+        onTargetPlace: (target) => updateCameraPreset({ target, placingTarget: false }),
+        onAngleChange: (angle) => updateCameraPreset({ angle }),
+      } : null}
       showPath={showPath}
-      onSelect={setSelectedId}
+      onSelect={cameraPresetDraft ? undefined : setSelectedId}
       onTransform={transformObject}
       onAddAction={setActionObjectId}
       onStartPath={startPath}
@@ -702,6 +799,7 @@ export default function DirectorStage({ nodeId }: { nodeId: string }) {
         {assetsOpen && <AssetPanel onClose={() => { setAssetsOpen(false); setPendingAsset(null); }} onAdd={(type, name) => setPendingAsset({ type, name })} onImport={importModel} onEnvironment={(environment) => { const presets: Record<string, Partial<StageSettings>> = { 影棚: { backgroundColor: "#171717", groundColor: "#242424", environment }, 城市: { backgroundColor: "#202833", groundColor: "#30343a", environment }, 自然: { backgroundColor: "#26322d", groundColor: "#303b32", environment }, 纯黑: { backgroundColor: "#000000", groundColor: "#080808", environment } }; updateSettings(presets[environment]); }} />}
         <section aria-label="3D viewport" className="relative min-w-0 flex-1 overflow-hidden">
           <div className="absolute inset-0">{scene}</div>
+          {cameraPresetDraft && <CameraPresetWizard draft={cameraPresetDraft} onChange={updateCameraPreset} onClose={() => setCameraPresetDraft(null)} onApply={applyCameraPreset} />}
 
           <nav aria-label="对象" className="absolute left-3 top-3 z-20 flex flex-col items-center gap-2">
             <button type="button" aria-label="资产" onClick={() => { setAssetsOpen((open) => !open); setPendingAsset(null); setShotsOpen(false); }} className={`group relative flex size-11 items-center justify-center rounded-lg border text-xs shadow-lg ${assetsOpen ? "border-white/25 bg-[#303030] text-white" : "border-white/10 bg-[#202020]/95 text-white/65"}`}><Cuboid size={18} /><span className="pointer-events-none absolute left-[calc(100%+10px)] top-1/2 z-50 -translate-y-1/2 whitespace-nowrap rounded-md border border-white/10 bg-[#2b2b2b] px-2.5 py-1.5 text-[11px] text-white/85 opacity-0 shadow-xl transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">资产</span></button>
@@ -715,12 +813,12 @@ export default function DirectorStage({ nodeId }: { nodeId: string }) {
 
           {pendingAsset && <div className="absolute left-1/2 top-4 z-40 flex min-w-[320px] -translate-x-1/2 items-center gap-3 rounded-xl border border-white/10 bg-[#202020]/95 px-4 py-3 shadow-2xl"><Focus size={22} className="text-white/75" /><div><div className="text-xs font-medium">放置 {pendingAsset.name}</div><div className="mt-1 text-[10px] text-white/40">点击地面放置对象</div></div><button type="button" aria-label="取消放置" onClick={() => setPendingAsset(null)} className="ml-auto flex items-center gap-1 rounded-md border border-white/10 px-3 py-2 text-xs text-white/65 hover:bg-white/8"><X size={13} />取消</button></div>}
 
-          {pathDraft && <div className="absolute left-1/2 top-4 z-40 flex w-[min(760px,calc(100%-180px))] -translate-x-1/2 items-center gap-3 rounded-xl border border-white/10 bg-[#202020]/95 px-4 py-3 shadow-2xl"><Route size={20} className="shrink-0 text-white/70" /><span className="min-w-0 flex-1 truncate text-xs text-white/65">已添加 {pathDraft.points.length} 个点 · 按住地面定点，向上拖动设置高度</span><IconButton label="显示或隐藏路径" active={showPath} onClick={() => setShowPath((visible) => !visible)}><Eye size={15} /></IconButton><IconButton label="撤销路径点" disabled={!pathDraft.points.length} onClick={() => setPathDraft((current) => { if (!current?.points.length) return current; const point = current.points[current.points.length - 1]; return { ...current, points: current.points.slice(0, -1), redo: [...current.redo, point] }; })}><Undo2 size={15} /></IconButton><IconButton label="重做路径点" disabled={!pathDraft.redo.length} onClick={() => setPathDraft((current) => { if (!current?.redo.length) return current; const point = current.redo[current.redo.length - 1]; return { ...current, points: [...current.points, point], redo: current.redo.slice(0, -1) }; })}><Redo2 size={15} /></IconButton><button type="button" className="flex items-center gap-1 rounded-md border border-white/10 px-3 py-2 text-xs text-white/60 hover:bg-white/8" onClick={() => { setPathDraft(null); setPathActionOpen(false); }}><X size={13} />取消</button><button type="button" disabled={pathDraft.points.length < (pathDraft.kind === "character" ? 2 : 1)} className="flex items-center gap-1 rounded-md bg-white px-3 py-2 text-xs text-black disabled:opacity-25" onClick={() => pathDraft.kind === "character" ? setPathActionOpen(true) : finishCameraPath()}><Check size={13} />完成</button></div>}
+          {pathDraft && <div className="absolute left-1/2 top-4 z-40 flex w-[min(760px,calc(100%-180px))] -translate-x-1/2 items-center gap-3 rounded-xl border border-white/10 bg-[#202020]/95 px-4 py-3 shadow-2xl"><Route size={20} className="shrink-0 text-white/70" /><span className="min-w-0 flex-1 truncate text-xs text-white/65">已添加 {pathDraft.points.length} 个点 · 按住地面定点，向上拖动设置高度</span><IconButton label="显示或隐藏路径" active={showPath} onClick={() => setShowPath((visible) => !visible)}><Eye size={15} /></IconButton><IconButton label="撤销路径点" disabled={!pathDraft.points.length} onClick={() => setPathDraft((current) => { if (!current?.points.length) return current; const point = current.points[current.points.length - 1]; return { ...current, points: current.points.slice(0, -1), redo: [...current.redo, point] }; })}><Undo2 size={15} /></IconButton><IconButton label="重做路径点" disabled={!pathDraft.redo.length} onClick={() => setPathDraft((current) => { if (!current?.redo.length) return current; const point = current.redo[current.redo.length - 1]; return { ...current, points: [...current.points, point], redo: current.redo.slice(0, -1) }; })}><Redo2 size={15} /></IconButton><button type="button" className="flex items-center gap-1 rounded-md border border-white/10 px-3 py-2 text-xs text-white/60 hover:bg-white/8" onClick={() => { setPathDraft(null); setPathActionOpen(false); setFreeCameraMovement(false); }}><X size={13} />取消</button><button type="button" disabled={pathDraft.points.length < (pathDraft.kind === "character" ? 2 : 1)} className="flex items-center gap-1 rounded-md bg-white px-3 py-2 text-xs text-black disabled:opacity-25" onClick={() => pathDraft.kind === "character" ? setPathActionOpen(true) : finishCameraPath()}><Check size={13} />完成</button></div>}
 
           {viewMenuOpen && <div className="absolute left-16 top-[290px] z-30 w-40 rounded-lg border border-white/10 bg-[#252525] p-2 shadow-xl"><Toggle label="显示网格" checked={settings.showGrid} onChange={(showGrid) => updateSettings({ showGrid })} /><Toggle label="显示地面" checked={settings.showGround} onChange={(showGround) => updateSettings({ showGround })} /><button type="button" className="mt-1 w-full rounded-md px-2 py-2 text-left text-xs text-white/55 hover:bg-white/8" onClick={() => { setResetKey((key) => key + 1); setViewMenuOpen(false); }}>重置导演视角</button></div>}
 
           {previewOpen ? <div className={`absolute z-10 overflow-hidden rounded-xl border border-white/20 bg-black shadow-xl transition-all ${splitPreview ? "bottom-4 right-4 top-4" : "right-4 top-4"}`} style={splitPreview ? { width: "42%" } : { width: previewSize, height: previewSize * 0.59 }}>
-            <div className="absolute inset-0"><StageScene settings={settings} objects={objects} selectedId={selectedId} tool={tool} preview playing={playing} currentTime={currentTime} /></div>
+            <div className="absolute inset-0"><StageScene settings={settings} objects={cameraPresetDraft ? cameraPresetObjects : objects} selectedId={selectedId} tool={tool} preview playing={playing} currentTime={cameraPresetDraft?.step === 3 ? cameraPresetTime : cameraPresetDraft?.start ?? currentTime} /></div>
             <div className="absolute left-3 top-3 flex h-8 items-center gap-2 rounded-md border border-white/10 bg-[#202020]/90 px-2 text-xs"><MoreHorizontal size={14} className="text-white/40" /><Aperture size={13} /><span>机位</span><ChevronDown size={12} className="text-white/40" /></div>
             <IconButton label="收起机位预览" className="absolute right-3 top-3 bg-[#202020]/90" onClick={() => setPreviewOpen(false)}><ChevronDown size={15} /></IconButton>
             <button type="button" onClick={() => setSplitPreview((split) => !split)} className="absolute bottom-3 right-3 flex items-center gap-1 text-[10px] text-white/45 hover:text-white">分屏预览<Maximize2 size={11} /></button>
@@ -740,7 +838,7 @@ export default function DirectorStage({ nodeId }: { nodeId: string }) {
           <section className="flex h-[38%] min-h-[205px] flex-col border-b-[5px] border-[#111]"><div className="flex h-12 shrink-0 items-center gap-2 px-3 text-xs font-medium"><List size={15} /><h2>对象</h2><IconButton label="收起对象与属性面板" className="ml-auto" onClick={() => setRightPanel(false)}><PanelRightClose size={14} /></IconButton></div><div className="mx-3 mb-2 flex h-9 items-center gap-2 rounded-md bg-white/[0.055] px-2"><Search size={14} className="text-white/30" /><input aria-label="搜索对象" placeholder="搜索对象" value={search} onChange={(event) => setSearch(event.target.value)} className="min-w-0 flex-1 bg-transparent text-xs text-white/75 outline-none placeholder:text-white/25" /></div><div className="min-h-0 flex-1 overflow-y-auto">{renderObjectGroup("camera", "机位", cameras)}{renderObjectGroup("character", "角色", characters)}{renderObjectGroup("prop", "物体", props)}{!cameras.length && !characters.length && !props.length && <p className="py-8 text-center text-xs text-white/25">未找到对象</p>}</div></section>
           <section className="min-h-0 flex-1 overflow-y-auto px-3 pb-5 [&_input[type=number]]:[font-variant-numeric:tabular-nums]"><div className="sticky top-0 z-10 flex h-12 items-center gap-2 bg-[#1b1b1b] text-xs font-medium"><SlidersHorizontal size={14} /><h2>属性</h2></div>{mode === "static" && selectedObject?.type === "character" && <div role="tablist" aria-label="角色属性" className="mb-4 grid grid-cols-2 rounded-lg bg-black/25 p-1">{(["object", "pose"] as const).map((tab) => <button key={tab} type="button" role="tab" aria-selected={propertyTab === tab} onClick={() => setPropertyTab(tab)} className={propertyTab === tab ? "rounded-md py-2 text-xs bg-white/10 text-white" : "rounded-md py-2 text-xs text-white/35 hover:text-white/70"}>{tab === "object" ? "对象" : "姿势"}</button>)}</div>}{propertyTab === "pose" && mode === "static" && selectedObject?.type === "character" ? <PosePanel object={selectedObject} selectedBone={selectedBone} onChange={(boneName, rotation) => updatePoseBone(selectedObject.id, boneName, rotation)} onReset={() => { if (selectedObject.pose?.assetId) void applyPose(selectedObject.id, selectedObject.pose); }} /> : <>{!selectedObject && <><div className="mb-2 flex items-center text-xs text-white/50"><span>环境预设</span><div className="relative ml-auto"><button type="button" aria-label="环境预设" className="flex h-8 w-32 items-center justify-between rounded-md bg-white/[0.045] px-2 text-white/65" onClick={() => setEnvironmentOpen((open) => !open)}>{settings.environment}<ChevronDown size={12} /></button>{environmentOpen && <div className="absolute right-0 top-9 z-30 w-32 rounded-md border border-white/10 bg-[#292929] p-1 shadow-xl">{ENVIRONMENTS.map((environment) => <button type="button" key={environment} className="flex w-full items-center justify-between rounded px-2 py-2 text-left text-xs text-white/60 hover:bg-white/8" onClick={() => { const presets: Record<string, Partial<StageSettings>> = { 影棚: { backgroundColor: "#171717", groundColor: "#242424", environment }, 城市: { backgroundColor: "#202833", groundColor: "#30343a", environment }, 自然: { backgroundColor: "#26322d", groundColor: "#303b32", environment }, 纯黑: { backgroundColor: "#000000", groundColor: "#080808", environment } }; updateSettings(presets[environment]); setEnvironmentOpen(false); }}>{environment}{settings.environment === environment && <Check size={12} />}</button>)}</div>}</div></div><ColorField label="背景颜色" value={settings.backgroundColor} onChange={(backgroundColor) => updateSettings({ backgroundColor })} /><ColorField label="地面颜色" value={settings.groundColor} onChange={(groundColor) => updateSettings({ groundColor })} /><Toggle label="显示地面" checked={settings.showGround} onChange={(showGround) => updateSettings({ showGround })} /><NumberField label="地面不透明度" value={settings.groundOpacity} min={0} max={100} step={1} suffix="%" onChange={(groundOpacity) => updateSettings({ groundOpacity })} /><NumberField label="曝光" value={settings.exposure} min={0} max={3} step={0.01} onChange={(exposure) => updateSettings({ exposure })} /><Toggle label="显示网格" checked={settings.showGrid} onChange={(showGrid) => updateSettings({ showGrid })} />
           <LightEditor title="主光" light={settings.mainLight} onChange={(patch) => updateLight("mainLight", patch)} main /><div className="my-3 h-px bg-white/5" /><LightEditor title="补光" light={settings.fillLight} onChange={(patch) => updateLight("fillLight", patch)} /><div className="my-3 h-px bg-white/5" /><LightEditor title="轮廓光" light={settings.rimLight} onChange={(patch) => updateLight("rimLight", patch)} /></>}
-          {selectedObject?.type === "camera" ? <div className="mt-5 border-t border-white/8 pt-4"><h3 className="mb-3 text-xs text-white/75">{selectedObject.name} · 镜头属性</h3><CameraPanel object={selectedObject} currentTime={currentTime} keyframeTime={keyframeTime} onChange={changeCameraValue} onToggleKeyframe={(property) => toggleCameraKeyframe(selectedObject.id, property)} /></div> : selectedObject?.type === "character" ? <div className="mt-5 border-t border-white/8 pt-4"><h3 className="mb-3 text-xs text-white/75">{selectedObject.name} · 变换</h3><CharacterPanel object={selectedObject} currentTime={currentTime} keyframeTime={keyframeTime} onChange={(property, value) => transformObject(selectedObject.id, { ...selectedObject, [property]: value })} onToggleKeyframe={(property) => toggleCharacterKeyframe(selectedObject.id, property)} onAutoRotateChange={(checked) => { updateObject(selectedObject.id, { ...selectedObject, pathAutoRotate: checked }); if (checked && tool === "rotate") setTool("translate"); }} /></div> : selectedObject && <div className="mt-5 border-t border-white/8 pt-4"><h3 className="mb-3 text-xs text-white/75">{selectedObject.name} · 变换</h3><div className="space-y-2">{(["position", "rotation", "scale"] as const).map((key) => <div key={key} className="flex items-center gap-1 text-[10px] text-white/40"><span className="w-8">{key === "position" ? "位置" : key === "rotation" ? "旋转" : "缩放"}</span>{selectedObject[key].map((value, index) => <input key={index} aria-label={`${key} ${index}`} type="number" step={key === "rotation" ? 1 : 0.1} value={Number((key === "rotation" ? value * 180 / Math.PI : value).toFixed(2))} disabled={selectedObject.locked} onChange={(event) => { const values = [...selectedObject[key]] as [number, number, number]; values[index] = key === "rotation" ? Number(event.target.value) * Math.PI / 180 : Number(event.target.value); transformObject(selectedObject.id, { ...selectedObject, [key]: values }); }} className="h-8 min-w-0 flex-1 rounded bg-white/[0.045] px-1 text-center text-white/65 outline-none disabled:opacity-40" />)}</div>)}</div></div>}</>}
+          {selectedObject?.type === "camera" ? <div className="mt-5 border-t border-white/8 pt-4"><h3 className="mb-3 text-xs text-white/75">{selectedObject.name} · 镜头属性</h3><CameraPanel object={selectedObject} currentTime={currentTime} keyframeTime={keyframeTime} onChange={changeCameraValue} onToggleKeyframe={(property) => toggleCameraKeyframe(selectedObject.id, property)} /></div> : selectedObject?.type === "character" ? <div className="mt-5 border-t border-white/8 pt-4"><h3 className="mb-3 text-xs text-white/75">{selectedObject.name} · 变换</h3><CharacterPanel object={selectedObject} currentTime={currentTime} keyframeTime={keyframeTime} onChange={(property, value) => transformObject(selectedObject.id, { ...selectedObject, [property]: value })} onToggleKeyframe={(property) => toggleCharacterKeyframe(selectedObject.id, property)} onAutoRotateChange={(checked) => { updateObject(selectedObject.id, { ...selectedObject, pathAutoRotate: checked }); if (checked && tool === "rotate") setTool("translate"); }} /></div> : selectedObject && <div className="mt-5 border-t border-white/8 pt-4"><h3 className="mb-3 text-xs text-white/75">{selectedObject.name} · 变换</h3><div className="space-y-2">{(["position", "rotation", "scale"] as const).map((key) => <div key={key} className="flex items-center gap-1 text-[10px] text-white/40"><span className="w-8">{key === "position" ? "位置" : key === "rotation" ? "旋转" : "缩放"}</span>{selectedObject[key].map((value, index) => <NumericInput key={index} label={`${key} ${index}`} step={key === "rotation" ? 1 : 0.1} value={Number((key === "rotation" ? value * 180 / Math.PI : value).toFixed(2))} disabled={selectedObject.locked} onChange={(nextValue) => { const values = [...selectedObject[key]] as [number, number, number]; values[index] = key === "rotation" ? nextValue * Math.PI / 180 : nextValue; transformObject(selectedObject.id, { ...selectedObject, [key]: values }); }} className="h-8 min-w-0 flex-1 rounded bg-white/[0.045] px-1 text-center text-white/65 outline-none disabled:opacity-40" />)}</div>)}</div></div>}</>}
           </section>
         </aside>}
         {!rightPanel && <IconButton label="展开对象与属性面板" className="absolute right-3 top-3 z-30 bg-[#202020]" onClick={() => setRightPanel(true)}><PanelRightOpen size={16} /></IconButton>}
@@ -762,7 +860,7 @@ export default function DirectorStage({ nodeId }: { nodeId: string }) {
           loop={loop}
           hideEmpty={hideEmpty}
           exporting={exporting}
-          currentTime={currentTime}
+          currentTime={sceneTime}
           duration={duration}
           frameRate={frameRate}
           zoom={timelineZoom}
@@ -774,7 +872,7 @@ export default function DirectorStage({ nodeId }: { nodeId: string }) {
           onPlayingChange={setPlaying}
           onLoopChange={setLoop}
           onHideEmptyChange={setHideEmpty}
-          onTimeChange={setCurrentTime}
+          onTimeChange={cameraPresetDraft?.step === 3 ? setCameraPresetTime : setCurrentTime}
           onDurationChange={setDuration}
           onFrameRateChange={setFrameRate}
           onZoomChange={setTimelineZoom}
@@ -784,6 +882,7 @@ export default function DirectorStage({ nodeId }: { nodeId: string }) {
           onCharacterAction={setActionObjectId}
           onCharacterPath={(id) => startPath(id)}
           onCameraPath={startCameraPath}
+          onCameraPreset={openCameraPresets}
           onCameraKeyframesDelete={deleteCameraKeyframes}
           onCharacterKeyframesDelete={deleteCharacterKeyframes}
           onActionDurationChange={resizeAction}
@@ -794,6 +893,7 @@ export default function DirectorStage({ nodeId }: { nodeId: string }) {
 
       {actionObjectId && <ActionPanel poseMode={mode === "static"} onClose={() => setActionObjectId(null)} onSelect={selectAction} />}
       {pathActionOpen && pathDraft && <ActionPanel pathMode onClose={() => setPathActionOpen(false)} onSelect={selectAction} />}
+      {cameraPresetCameraId && <CameraPresetDialog onClose={() => setCameraPresetCameraId(null)} onSelect={startCameraPreset} onCustom={startCustomCameraMovement} />}
 
       {switchOpen && <StageModal title="将静态预演场景应用于动态预演？" onClose={() => { setSwitchOpen(false); setOverwrite(false); }}><p className="text-xs leading-6 text-white/45">复制静态预演中的内容，保留演出时间轴，不复制角色姿势。时间轴中的角色须仍在静态预演中。</p><label className="my-5 flex cursor-pointer items-center gap-2 text-xs text-white/65"><input type="checkbox" checked={overwrite} onChange={(event) => setOverwrite(event.target.checked)} className="accent-white" />确认覆盖动态预演场景</label><div className="flex justify-end gap-2"><button type="button" className="rounded-md px-3 py-2 text-xs text-white/55 hover:bg-white/8" onClick={() => switchMode(false)}>不同步，直接切换</button><button type="button" disabled={!overwrite} className="rounded-md bg-white px-3 py-2 text-xs text-black disabled:opacity-25" onClick={() => switchMode(true)}>覆盖并切换</button></div></StageModal>}
       {shortcutsOpen && <StageModal title="快捷键" onClose={() => setShortcutsOpen(false)}><div className="space-y-1">{[...TOOL_ITEMS.map((item) => [item.label, item.key]), ["落到地面", "G"], ["播放 / 暂停", "Space"]].map(([label, key]) => <div key={label} className="flex items-center justify-between border-b border-white/5 py-3 text-xs text-white/55"><span>{label}</span><kbd className="rounded border border-white/10 bg-black/20 px-2 py-1 text-white/75">{key}</kbd></div>)}</div></StageModal>}

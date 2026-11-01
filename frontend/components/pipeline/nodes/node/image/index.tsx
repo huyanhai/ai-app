@@ -12,6 +12,7 @@ import {
   NodeType,
 } from "../../../types";
 import OutpaintCanvas from "./outpaint-canvas";
+import CutoutEditor from "./cutout-editor";
 import { ChunkStatus } from "backend/src/common/utils/ai-stream-utils";
 import { usePipelineStore } from "@/store/pipeline-store";
 
@@ -25,6 +26,7 @@ const ImageNode = ({ id, data, selected }: NodeProps<TNodeImage>) => {
   const editorMode = usePipelineStore((state) => state.imageEditor?.nodeId === id ? state.imageEditor.mode : null);
   const editing = editorMode === "edit";
   const outpainting = editorMode === "outpaint";
+  const cutouting = editorMode === "cutout";
   const startRef = useRef<{ x: number; y: number } | null>(null);
   const imageRef = useRef<HTMLDivElement>(null);
   const resizeRef = useRef<{
@@ -128,6 +130,8 @@ const ImageNode = ({ id, data, selected }: NodeProps<TNodeImage>) => {
     >
       {outpainting && data.url ? (
         <OutpaintCanvas node={{ id, data } as TNodeImage} />
+      ) : cutouting && data.url ? (
+        <CutoutEditor url={data.url} width={width} height={height} />
       ) : (
       <motion.div
         ref={imageRef}
@@ -185,7 +189,7 @@ const ImageNode = ({ id, data, selected }: NodeProps<TNodeImage>) => {
               src={data.url}
               alt="image"
               draggable={false}
-              className="w-full h-full object-cover pointer-events-none"
+              className={`w-full h-full ${data.preset ? "object-contain" : "object-cover"} pointer-events-none`}
             />
             {editing && [...markers, ...(draft ? [draft] : [])].map((marker, index) => (
               marker.type === "rectangle" ? (

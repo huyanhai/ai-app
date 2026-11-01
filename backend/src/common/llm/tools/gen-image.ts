@@ -3,6 +3,15 @@ import { ContentBlock, tool } from 'langchain';
 import * as z from 'zod';
 import { RuntimeModel } from '..';
 
+const PRESET_SIZES: Record<string, string> = {
+  '21:9': '1536x658',
+  '16:9': '1536x864',
+  '4:3': '1536x1152',
+  '1:1': '1024x1024',
+  '3:4': '1152x1536',
+  '9:16': '864x1536',
+};
+
 export async function genImage({
   message,
   config,
@@ -45,7 +54,9 @@ export async function genImage({
       form.append('model', runtimeModel.modelId);
       form.append('prompt', text.trim());
       form.append('n', String(config?.count || 1));
-      if (config?.outpaint) {
+      if (config?.preset) {
+        form.append('size', PRESET_SIZES[config.ratio] || '1024x1024');
+      } else if (config?.outpaint) {
         const [width, height] = (config.ratio || '1:1').split(':').map(Number);
         const ratio = width / height;
         form.append('size', ratio > 1 ? '1536x1024' : ratio < 1 ? '1024x1536' : '1024x1024');

@@ -53,7 +53,7 @@ import { applyCameraPresetResult, CameraPresetDefinition, CameraPresetDraft, cre
 import { getCharacterValue } from "./character";
 import { bakeCharacterPose } from "./motion";
 import { createBezierPath, getCameraPathOrigin, getCameraValue, hasCameraKeyframe } from "./camera";
-import { CameraProperty, CharacterKeyframe, CharacterProperty, DEFAULT_OBJECTS, DEFAULT_SETTINGS, LightSettings, Shot, StageObject, StagePoint, StageSettings, StageTool } from "./types";
+import { CameraKeyframe, CameraMotion, CameraProperty, CharacterKeyframe, CharacterProperty, DEFAULT_OBJECTS, DEFAULT_SETTINGS, LightSettings, Shot, StageObject, StagePoint, StageSettings, StageTool } from "./types";
 
 const ENVIRONMENTS = ["影棚", "城市", "自然", "纯黑"];
 const getCharacterModelUrl = (name = "") => name.includes("女性") ? "/stage/models/xbot.fbx" : "/stage/models/ybot.fbx";
@@ -65,6 +65,9 @@ const getCharacterPosition = (object: StageObject, time: number): StagePoint => 
   const point = curve.getPoint(Math.min(1, Math.max(0, (time - action.start) / action.duration)));
   return [point.x, point.y, point.z];
 };
+
+const isCameraMotionFrame = (frame: CameraKeyframe, motion: CameraMotion) =>
+  frame.motionId === motion.id || (!frame.motionId && frame.time >= motion.start - 0.0001 && frame.time <= motion.start + motion.duration + 0.0001);
 const withCharacterPositionKeyframes = (object: StageObject, frames: CharacterKeyframe[]): StageObject => {
   const pathPatch: Partial<StageObject> = {};
   if (object.path !== undefined || object.pathOrigin !== undefined) {
@@ -397,6 +400,55 @@ export default function DirectorStage({ nodeId }: { nodeId: string }) {
         }
       });
       return { ...object, cameraKeyframes, ...pathPatch };
+    }));
+    setDirty(true);
+  };
+
+  const moveCameraMotion = (cameraId: string, motionId: string, start: number) => {
+    setObjects((current) => current.map((object) => {
+      if (object.id !== cameraId) return object;
+      const motion = object.cameraMotions?.find((item) => item.id === motionId);
+      if (!motion) return object;
+      const nextStart = Math.min(Math.max(0, start), Math.max(0, duration - motion.duration));
+      const delta = nextStart - motion.start;
+      const cameraKeyframes = { ...object.cameraKeyframes };
+      (["position", "target", "fov", "roll"] as const).forEach((property) => {
+        const moved = (cameraKeyframes[property] ?? []).map((frame) => isCameraMotionFrame(frame, motion)
+          ? { ...frame, time: Math.round((frame.time + delta) * frameRate) / frameRate, motionId }
+          : frame);
+        const movedTimes = new Set(moved.filter((frame) => frame.motionId === motionId).map((frame) => frame.time));
+        cameraKeyframes[property] = moved.filter((frame) => frame.motionId === motionId || !movedTimes.has(frame.time)).sort((a, b) => a.time - b.time);
+      });
+      return {
+        ...object,
+        cameraMotions: object.cameraMotions?.map((item) => item.id === motionId ? { ...item, start: nextStart } : item),
+        cameraKeyframes,
+      };
+    }));
+    setDirty(true);
+  };
+
+  const deleteCameraMotion = (cameraId: string, motionId: string) => {
+    setObjects((current) => current.map((object) => {
+      if (object.id !== cameraId) return object;
+      const motion = object.cameraMotions?.find((item) => item.id === motionId);
+      if (!motion) return object;
+      const cameraKeyframes = { ...object.cameraKeyframes };
+      (["position", "target", "fov", "roll"] as const).forEach((property) => {
+        cameraKeyframes[property] = (cameraKeyframes[property] ?? []).filter((frame) => !isCameraMotionFrame(frame, motion));
+      });
+      const pathPatch: Partial<StageObject> = {};
+      if (object.cameraPath !== undefined) {
+        const points = (cameraKeyframes.position ?? []).flatMap((frame) => Array.isArray(frame.value) ? [frame.value] : []);
+        pathPatch.cameraPath = points.length ? points.slice(1) : undefined;
+        pathPatch.cameraPathOrigin = points[0];
+      }
+      if (object.targetPath !== undefined) {
+        const points = (cameraKeyframes.target ?? []).flatMap((frame) => Array.isArray(frame.value) ? [frame.value] : []);
+        pathPatch.targetPath = points.length ? points.slice(1) : undefined;
+        pathPatch.targetPathOrigin = points[0];
+      }
+      return { ...object, cameraMotions: object.cameraMotions?.filter((item) => item.id !== motionId), cameraKeyframes, ...pathPatch };
     }));
     setDirty(true);
   };
@@ -883,6 +935,8 @@ export default function DirectorStage({ nodeId }: { nodeId: string }) {
           onCharacterPath={(id) => startPath(id)}
           onCameraPath={startCameraPath}
           onCameraPreset={openCameraPresets}
+          onCameraMotionMove={moveCameraMotion}
+          onCameraMotionDelete={deleteCameraMotion}
           onCameraKeyframesDelete={deleteCameraKeyframes}
           onCharacterKeyframesDelete={deleteCharacterKeyframes}
           onActionDurationChange={resizeAction}

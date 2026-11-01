@@ -144,12 +144,14 @@ export function createCameraPresetResult(camera: StageObject, draft: CameraPrese
 
   const movingCamera = preset.category === "fixed-target" && preset.id !== "dutch";
   const movingTarget = preset.category === "fixed-camera";
+  const motion = { id: `${camera.id}-${preset.id}-${start}-${duration}`, name: preset.name, start, duration };
   const keyframeCount = PRESET_KEYFRAME_COUNTS[preset.id] ?? 10;
   const animatedIndices = Array.from({ length: keyframeCount }, (_, index) => Math.round((index * samples) / (keyframeCount - 1)));
   const endpointIndices = [0, samples];
   const frames = <T extends StagePoint | number>(values: T[], indices: number[]): CameraKeyframe[] => indices.map((index) => ({
     time: Math.round((start + (duration * index) / samples) * frameRate) / frameRate,
     value: values[index],
+    motionId: motion.id,
   }));
   const keyframes: CameraKeyframes = {
     position: frames(positions, movingCamera ? animatedIndices : endpointIndices),
@@ -161,7 +163,7 @@ export function createCameraPresetResult(camera: StageObject, draft: CameraPrese
   return {
     start,
     end: start + duration,
-    motion: { id: `${camera.id}-${preset.id}-${start}-${duration}`, name: preset.name, start, duration },
+    motion,
     keyframes,
     ...(movingCamera ? { cameraPath: positions.slice(1), cameraPathOrigin: positions[0] } : {}),
     ...(movingTarget ? { targetPath: targets.slice(1), targetPathOrigin: targets[0] } : {}),

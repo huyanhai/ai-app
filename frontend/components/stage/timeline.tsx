@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 import { IconButton } from "@/components/ui/icon-button";
 import { NumberField } from "./controls";
-import { CameraProperty, CharacterAction, CharacterProperty, Shot, StageObject } from "./types";
+import { CameraMotion, CameraProperty, CharacterAction, CharacterProperty, Shot, StageObject } from "./types";
 
 const CAMERA_PROPERTIES: { id: CameraProperty; label: string }[] = [
   { id: "position", label: "机位位置" },
@@ -74,6 +74,8 @@ type StageTimelineProps = {
   onCharacterPath: (id: string, kind: "walk" | "move") => void;
   onCameraPath: (id: string, kind: "camera" | "target") => void;
   onCameraPreset: (id: string) => void;
+  onCameraMotionMove: (cameraId: string, motionId: string, start: number) => void;
+  onCameraMotionDelete: (cameraId: string, motionId: string) => void;
   onCameraKeyframesDelete: (
     selection: { cameraId: string; property: CameraProperty; time: number }[],
   ) => void;
@@ -127,6 +129,8 @@ export function StageTimeline({
   onCharacterPath,
   onCameraPath,
   onCameraPreset,
+  onCameraMotionMove,
+  onCameraMotionDelete,
   onCameraKeyframesDelete,
   onCharacterKeyframesDelete,
   onActionDurationChange,
@@ -138,6 +142,14 @@ export function StageTimeline({
     initialDuration: number;
     pixelsPerSecond: number;
   } | null>(null);
+  const motionDragging = useRef<{
+    cameraId: string;
+    motionId: string;
+    startX: number;
+    initialStart: number;
+    pixelsPerSecond: number;
+  } | null>(null);
+  const motionWasDragged = useRef(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const rulerScrollRef = useRef<HTMLDivElement>(null);
   const trackScrollRef = useRef<HTMLDivElement>(null);
@@ -153,6 +165,7 @@ export function StageTimeline({
   const [selectedKeyframes, setSelectedKeyframes] = useState<Set<string>>(
     new Set(),
   );
+  const [selectedMotion, setSelectedMotion] = useState<{ cameraId: string; motionId: string } | null>(null);
   const [marquee, setMarquee] = useState<{
     left: number;
     top: number;
@@ -179,6 +192,18 @@ export function StageTimeline({
       return nearest === undefined || Math.abs(frameTime - time) < Math.abs(nearest - time) ? frameTime : nearest;
     }, undefined);
     return closest ?? time;
+  };
+  const selectKeyframes = (keys: string[]) => {
+    setSelectedKeyframes(new Set(keys));
+    setSelectedMotion(null);
+  };
+  const selectCameraMotion = (camera: StageObject, motion: CameraMotion, start = motion.start) => {
+    const delta = start - motion.start;
+    const keys = CAMERA_PROPERTIES.flatMap((property) => (camera.cameraKeyframes?.[property.id] ?? [])
+      .filter((frame) => frame.motionId === motion.id || (!frame.motionId && frame.time >= motion.start - 0.0001 && frame.time <= motion.start + motion.duration + 0.0001))
+      .map((frame) => keyframeKey(camera.id, property.id, Math.round((frame.time + delta) * frameRate) / frameRate)));
+    setSelectedKeyframes(new Set(keys));
+    setSelectedMotion({ cameraId: camera.id, motionId: motion.id });
   };
   const visibleCharacters = characters.filter(
     (object) => !hideEmpty || hasCharacterAnimation(object),
@@ -222,12 +247,19 @@ export function StageTimeline({
         target.isContentEditable
       )
         return;
-      if (event.key === "Escape") setSelectedKeyframes(new Set());
-      if (
-        !selectedKeyframes.size ||
-        !["Delete", "Backspace"].includes(event.key)
-      )
+      if (event.key === "Escape") {
+        setSelectedKeyframes(new Set());
+        setSelectedMotion(null);
+      }
+      if (!["Delete", "Backspace"].includes(event.key)) return;
+      if (selectedMotion) {
+        event.preventDefault();
+        onCameraMotionDelete(selectedMotion.cameraId, selectedMotion.motionId);
+        setSelectedMotion(null);
+        setSelectedKeyframes(new Set());
         return;
+      }
+      if (!selectedKeyframes.size) return;
       event.preventDefault();
       const selection = [...selectedKeyframes].map((key) => {
         const [objectId, property, time] = key.split(":");
@@ -241,7 +273,7 @@ export function StageTimeline({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [cameras, characters, onCameraKeyframesDelete, onCharacterKeyframesDelete, selectedKeyframes]);
+  }, [cameras, characters, onCameraKeyframesDelete, onCameraMotionDelete, onCharacterKeyframesDelete, selectedKeyframes, selectedMotion]);
 
   const startResize = (
     event: ReactPointerEvent<HTMLButtonElement>,
@@ -277,6 +309,40 @@ export function StageTimeline({
     resizing.current = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId))
       event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+  const startMotionDrag = (event: ReactPointerEvent<HTMLButtonElement>, camera: StageObject, motion: CameraMotion) => {
+    if (event.button !== 0) return;
+    const bounds = event.currentTarget.parentElement?.getBoundingClientRect();
+    if (!bounds) return;
+    event.preventDefault();
+    event.stopPropagation();
+    selectCameraMotion(camera, motion);
+    onCameraSelect(camera.id);
+    motionWasDragged.current = false;
+    motionDragging.current = {
+      cameraId: camera.id,
+      motionId: motion.id,
+      startX: event.clientX,
+      initialStart: motion.start,
+      pixelsPerSecond: bounds.width / duration,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const updateMotionDrag = (event: ReactPointerEvent<HTMLButtonElement>, camera: StageObject, motion: CameraMotion) => {
+    const drag = motionDragging.current;
+    if (!drag) return;
+    const distance = event.clientX - drag.startX;
+    if (Math.abs(distance) > 2) motionWasDragged.current = true;
+    const start = Math.min(
+      Math.max(0, Math.round((drag.initialStart + distance / drag.pixelsPerSecond) * frameRate) / frameRate),
+      Math.max(0, duration - motion.duration),
+    );
+    onCameraMotionMove(drag.cameraId, drag.motionId, start);
+    selectCameraMotion(camera, motion, start);
+  };
+  const stopMotionDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    motionDragging.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   };
   const trackGrid = () => (
     <div className="pointer-events-none absolute inset-0 flex border-b border-white/[0.07]">
@@ -346,7 +412,7 @@ export function StageTimeline({
         )
           selection.add(key);
       });
-    setSelectedKeyframes(selection);
+    selectKeyframes([...selection]);
     setMarquee(null);
     if (event.currentTarget.hasPointerCapture(event.pointerId))
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -403,7 +469,7 @@ export function StageTimeline({
           data-character-keyframe={key}
           aria-label={`${object.name}${label}关键帧 ${frame.time.toFixed(2)}秒`}
           title={`${frame.time.toFixed(2)} 秒`}
-          onClick={() => { setSelectedKeyframes(new Set([key])); onCharacterSelect(object.id); onTimeChange(frame.time); }}
+          onClick={() => { selectKeyframes([key]); onCharacterSelect(object.id); onTimeChange(frame.time); }}
           className={`absolute top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-sm p-1 hover:bg-white/10 ${selected ? "text-white" : "text-white/30 hover:text-white/60"}`}
           style={{ left: `${(frame.time / duration) * 100}%` }}
         >
@@ -418,7 +484,7 @@ export function StageTimeline({
     return times.map((time) => {
       const keys = CHARACTER_PROPERTIES.filter((property) => object.characterKeyframes?.[property.id]?.some((frame) => Math.abs(frame.time - time) < 0.0001)).map((property) => keyframeKey(object.id, property.id, time));
       const selected = keys.some((key) => selectedKeyframes.has(key));
-      return <button type="button" key={time} aria-label={`${object.name}关键帧 ${time.toFixed(2)}秒`} title={`${time.toFixed(2)} 秒`} onClick={() => { setSelectedKeyframes(new Set(keys)); onCharacterSelect(object.id); onTimeChange(time); }} className={`absolute top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-sm p-1 hover:bg-white/10 ${selected ? "text-white" : "text-white/30 hover:text-white/60"}`} style={{ left: `${(time / duration) * 100}%` }}><Diamond size={10} fill="currentColor" /></button>;
+      return <button type="button" key={time} aria-label={`${object.name}关键帧 ${time.toFixed(2)}秒`} title={`${time.toFixed(2)} 秒`} onClick={() => { selectKeyframes(keys); onCharacterSelect(object.id); onTimeChange(time); }} className={`absolute top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-sm p-1 hover:bg-white/10 ${selected ? "text-white" : "text-white/30 hover:text-white/60"}`} style={{ left: `${(time / duration) * 100}%` }}><Diamond size={10} fill="currentColor" /></button>;
     });
   };
 
@@ -797,24 +863,41 @@ export function StageTimeline({
                   <div key={camera.id} className="mx-2">
                     <div className="relative h-8 rounded bg-black/20">
                       {trackGrid()}
-                      {camera.cameraMotions?.map((motion) => (
-                        <button
-                          type="button"
-                          key={motion.id}
-                          title={`${motion.name} · ${motion.start.toFixed(2)}–${(motion.start + motion.duration).toFixed(2)} 秒`}
-                          onClick={() => onTimeChange(motion.start)}
-                          className="absolute inset-y-1 flex min-w-0 items-center overflow-hidden rounded-md border border-white/20 bg-[#2b2b2b]/90 px-2 text-left text-[10px] whitespace-nowrap text-white/60"
-                          style={{
-                            left: `${(motion.start / duration) * 100}%`,
-                            width: `${(motion.duration / duration) * 100}%`,
-                          }}
-                        >
-                          <span className="relative z-20 ml-3 flex min-w-0 items-center gap-1.5 bg-[#2b2b2b] py-0.5 pr-1">
-                            <Route size={11} className="shrink-0" />
-                            <span className="truncate">{motion.name} · {motion.duration.toFixed(1)} 秒</span>
-                          </span>
-                        </button>
-                      ))}
+                      {camera.cameraMotions?.map((motion) => {
+                        const selected = selectedMotion?.cameraId === camera.id && selectedMotion.motionId === motion.id;
+                        return (
+                          <button
+                            type="button"
+                            key={motion.id}
+                            aria-label={`选择${motion.name}运镜`}
+                            aria-pressed={selected}
+                            title={`${motion.name} · ${motion.start.toFixed(2)}–${(motion.start + motion.duration).toFixed(2)} 秒`}
+                            onPointerDown={(event) => startMotionDrag(event, camera, motion)}
+                            onPointerMove={(event) => updateMotionDrag(event, camera, motion)}
+                            onPointerUp={stopMotionDrag}
+                            onPointerCancel={stopMotionDrag}
+                            onClick={(event) => {
+                              if (motionWasDragged.current) {
+                                event.preventDefault();
+                                motionWasDragged.current = false;
+                                return;
+                              }
+                              selectCameraMotion(camera, motion);
+                              onTimeChange(motion.start);
+                            }}
+                            className={`absolute inset-y-1 flex min-w-0 cursor-grab items-center overflow-hidden rounded-md border px-2 text-left text-[10px] whitespace-nowrap active:cursor-grabbing ${selected ? "border-white bg-white text-black" : "border-white/20 bg-[#2b2b2b]/90 text-white/60"}`}
+                            style={{
+                              left: `${(motion.start / duration) * 100}%`,
+                              width: `${(motion.duration / duration) * 100}%`,
+                            }}
+                          >
+                            <span className={`relative z-20 ml-3 flex min-w-0 items-center gap-1.5 py-0.5 pr-1 ${selected ? "bg-white" : "bg-[#2b2b2b]"}`}>
+                              <Route size={11} className="shrink-0" />
+                              <span className="truncate">{motion.name} · {motion.duration.toFixed(1)} 秒</span>
+                            </span>
+                          </button>
+                        );
+                      })}
                       {keyframeTimes.map((time) => {
                         const selected = CAMERA_PROPERTIES.some((property) =>
                           selectedKeyframes.has(
@@ -827,7 +910,7 @@ export function StageTimeline({
                             key={time}
                             aria-label={`${camera.name}关键帧 ${time.toFixed(2)}秒`}
                             title={`${time.toFixed(2)} 秒`}
-                            onClick={() => { setSelectedKeyframes(new Set(CAMERA_PROPERTIES.filter((property) => camera.cameraKeyframes?.[property.id]?.some((frame) => Math.abs(frame.time - time) < 0.0001)).map((property) => keyframeKey(camera.id, property.id, time)))); onCameraSelect(camera.id); onTimeChange(time); }}
+                            onClick={() => { selectKeyframes(CAMERA_PROPERTIES.filter((property) => camera.cameraKeyframes?.[property.id]?.some((frame) => Math.abs(frame.time - time) < 0.0001)).map((property) => keyframeKey(camera.id, property.id, time))); onCameraSelect(camera.id); onTimeChange(time); }}
                             className={`absolute top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-sm p-1 hover:bg-white/10 ${selected ? "text-white" : "text-white/30 hover:text-white/60"}`}
                             style={{ left: `${(time / duration) * 100}%` }}
                           >
@@ -870,7 +953,7 @@ export function StageTimeline({
                                   data-camera-keyframe={key}
                                   aria-label={`${camera.name}${property.label}关键帧 ${frame.time.toFixed(2)}秒`}
                                   title={`${frame.time.toFixed(2)} 秒`}
-                                  onClick={() => { setSelectedKeyframes(new Set([key])); onCameraSelect(camera.id); onTimeChange(frame.time); }}
+                                  onClick={() => { selectKeyframes([key]); onCameraSelect(camera.id); onTimeChange(frame.time); }}
                                   className={`absolute top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-sm p-1 hover:bg-white/10 ${selected ? "text-white" : "text-white/30 hover:text-white/60"}`}
                                   style={{
                                     left: `${(frame.time / duration) * 100}%`,

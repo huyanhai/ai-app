@@ -43,7 +43,7 @@ const SizeConfig = ({ config, resolutions, changeConfig }: IConfigProps) => {
                 className={`${BUTTON_NORMAL} ${
                   config?.ratio === item ? BUTTON_ACTIVE : ""
                 }`}
-                onClick={() => changeConfig({ ratio: item })}
+                onClick={() => changeConfig({ ratio: item, ratioTouched: true })}
               />
             ))}
           </div>

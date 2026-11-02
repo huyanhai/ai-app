@@ -76,6 +76,7 @@ type StageTimelineProps = {
   onCameraPreset: (id: string) => void;
   onCameraMotionMove: (cameraId: string, motionId: string, start: number) => void;
   onCameraMotionDelete: (cameraId: string, motionId: string) => void;
+  onSelectionActiveChange: (active: boolean) => void;
   onCameraKeyframesDelete: (
     selection: { cameraId: string; property: CameraProperty; time: number }[],
   ) => void;
@@ -131,6 +132,7 @@ export function StageTimeline({
   onCameraPreset,
   onCameraMotionMove,
   onCameraMotionDelete,
+  onSelectionActiveChange,
   onCameraKeyframesDelete,
   onCharacterKeyframesDelete,
   onActionDurationChange,
@@ -274,6 +276,12 @@ export function StageTimeline({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [cameras, characters, onCameraKeyframesDelete, onCameraMotionDelete, onCharacterKeyframesDelete, selectedKeyframes, selectedMotion]);
+
+  useEffect(() => {
+    onSelectionActiveChange(Boolean(selectedKeyframes.size || selectedMotion));
+  }, [onSelectionActiveChange, selectedKeyframes, selectedMotion]);
+
+  useEffect(() => () => onSelectionActiveChange(false), [onSelectionActiveChange]);
 
   const startResize = (
     event: ReactPointerEvent<HTMLButtonElement>,

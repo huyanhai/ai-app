@@ -33,6 +33,7 @@ type SceneProps = {
   selectedId: string;
   tool: StageTool;
   preview?: boolean;
+  canvasClassName?: string;
   playing?: boolean;
   currentTime?: number;
   resetKey?: number;
@@ -740,10 +741,10 @@ function World({ settings, objects, selectedId, tool, preview = false, playing =
       {settings.showGround && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
           <planeGeometry args={[200, 200]} />
-          <meshBasicMaterial color={settings.groundColor} transparent opacity={Math.max(0.65, settings.groundOpacity / 100)} depthWrite={false} toneMapped={false} />
+          <meshStandardMaterial color={settings.groundColor} transparent opacity={Math.max(0.65, settings.groundOpacity / 100)} depthWrite={false} roughness={1} metalness={0} />
         </mesh>
       )}
-      {settings.showGrid && (
+      {settings.showGrid && !preview && (
         <Grid position={[0, 0.02, 0]} args={[10, 10]} infiniteGrid cellSize={1} cellColor="#4a4a4a" sectionSize={5} sectionColor="#707070" fadeDistance={42} fadeStrength={1.5} />
       )}
       {placing && !preview && <GroundPlacement onPlace={onPlace} />}
@@ -753,7 +754,7 @@ function World({ settings, objects, selectedId, tool, preview = false, playing =
       {!preview && showPath && pathDraft && <PathVisualization points={pathDraft.points} origin={pathDraft.origin} color={pathDraft.kind === "camera" ? "#d6a84f" : pathDraft.kind === "target" ? "#5cc8d7" : "#b2d2b7"} />}
       {!preview && showPath && objects.filter((object) => object.id === selectedId && object.cameraPath && object.id !== pathDraft?.objectId).map((object) => <PathVisualization key={`camera-path-${object.id}`} points={object.cameraPath!} origin={object.cameraPathOrigin ?? (object.cameraKeyframes?.position?.[0]?.value as StagePoint | undefined) ?? getCameraPathOrigin(object, "camera", currentTime)} color="#d6a84f" />)}
       {!preview && showPath && objects.filter((object) => object.id === selectedId && object.targetPath && object.id !== pathDraft?.objectId).map((object) => <PathVisualization key={`target-path-${object.id}`} points={object.targetPath!} origin={object.targetPathOrigin ?? (object.cameraKeyframes?.target?.[0]?.value as StagePoint | undefined) ?? getCameraPathOrigin(object, "target", currentTime)} color="#5cc8d7" />)}
-      {animatedObjects.filter((object) => preview || object.type !== "camera" || object.id === selectedId).map((object) => (
+      {animatedObjects.filter((object) => (preview && object.type !== "camera") || (!preview && (object.type !== "camera" || object.id === selectedId))).map((object) => (
         <SelectableObject key={object.id} object={object} selected={!placing && object.id === selectedId} tool={tool} preview={preview} currentTime={currentTime} pathEditing={Boolean(pathDraft)} onSelect={onSelect} onTransform={onTransform} onAddAction={onAddAction} onStartPath={onStartPath} poseMode={poseMode} selectedBone={selectedBone} onSelectBone={onSelectBone} onPoseChange={onPoseChange} />
       ))}
       {!preview && animatedObjects.filter((object) => object.type !== "camera" || object.id === selectedId).map((object) => <LabelProjection key={`label-${object.id}`} object={object} labelRefs={labelRefs} />)}
@@ -777,7 +778,7 @@ export function StageScene(props: SceneProps) {
   return (
     <div className="relative size-full overflow-hidden">
       <Canvas
-      className={props.preview ? "stage-preview-canvas" : "stage-main-canvas"}
+      className={props.canvasClassName ?? (props.preview ? "stage-preview-canvas" : "stage-main-canvas")}
       shadows
       dpr={[1, 1.5]}
       camera={{ position: props.preview ? [0, 1.6, 4] : [7, 5, 8], fov: 50, near: 0.1, far: 200 }}

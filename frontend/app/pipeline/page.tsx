@@ -13,6 +13,7 @@ import {
   MiniMap,
   ReactFlow,
   useReactFlow,
+  useUpdateNodeInternals,
   useNodesState,
   useEdgesState,
   OnSelectionChangeParams,
@@ -25,7 +26,7 @@ import {
   OnConnectStartParams,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { History, Search, Sparkles } from "lucide-react";
+import { History, Redo2, Search, Sparkles, Undo2 } from "lucide-react";
 import nodeTypes from "@/components/pipeline/nodes";
 import edgeTypes from "@/components/pipeline/edges";
 import Toolbar from "@/components/pipeline/toolbar";
@@ -49,6 +50,20 @@ import {
   TARGET_ANCHOR,
   TARGET_HANDLE,
 } from "@/components/pipeline/constants";
+import {
+  canvasHistoryApi,
+  CanvasSnapshot,
+} from "@/lib/canvas-history";
+
+const makeSnapshot = (nodes: TAllNodes[], edges: Edge[]): CanvasSnapshot => ({
+  nodes: nodes.map((node) => ({
+    ...node,
+    selected: undefined,
+    dragging: undefined,
+    measured: undefined,
+  })),
+  edges: edges.map((edge) => ({ ...edge, selected: undefined })),
+});
 
 // 连线拖拽松开后、菜单选择前的半截连线（对齐即梦：菜单弹出时连线保持显示）
 const PendingEdge = ({ menuRequest }: { menuRequest: TMenuRequest }) => {
@@ -97,6 +112,15 @@ const Flow = () => {
     },
   ]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const [past, setPast] = useState<CanvasSnapshot[]>([]);
+  const [future, setFuture] = useState<CanvasSnapshot[]>([]);
+  const [canvasLoaded, setCanvasLoaded] = useState(false);
+  const currentSnapshot = useMemo(() => makeSnapshot(nodes, edges), [nodes, edges]);
+  const latestSnapshotRef = useRef(currentSnapshot);
+  const pendingSnapshotRef = useRef<CanvasSnapshot | null>(null);
+  const historyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const restoringRef = useRef(false);
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   // hover 中的节点 id：hover/选中节点的直接上下游连线高亮为渐变流光
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
 
@@ -121,6 +145,112 @@ const Flow = () => {
 
   const { setCenter, screenToFlowPosition, getZoom, getNode } =
     useReactFlow<TAllNodes>();
+  const updateNodeInternals = useUpdateNodeInternals();
+
+  useEffect(() => {
+    let active = true;
+    canvasHistoryApi.load().then((stored) => {
+      if (!active) return;
+      if (stored) {
+        restoringRef.current = true;
+        latestSnapshotRef.current = makeSnapshot(stored.nodes, stored.edges);
+        setNodes(stored.nodes);
+        setEdges(stored.edges);
+        setPast(stored.past ?? []);
+        setFuture(stored.future ?? []);
+      }
+      setCanvasLoaded(true);
+    }).catch(() => {
+      if (active) setCanvasLoaded(true);
+    });
+    return () => { active = false; };
+  }, [setEdges, setNodes]);
+
+  useEffect(() => {
+    if (!canvasLoaded) return;
+    if (restoringRef.current) {
+      restoringRef.current = false;
+      latestSnapshotRef.current = currentSnapshot;
+      return;
+    }
+    if (JSON.stringify(latestSnapshotRef.current) === JSON.stringify(currentSnapshot)) return;
+    const previous = latestSnapshotRef.current;
+    latestSnapshotRef.current = currentSnapshot;
+    if (!pendingSnapshotRef.current) pendingSnapshotRef.current = previous;
+    if (historyTimerRef.current) clearTimeout(historyTimerRef.current);
+    historyTimerRef.current = setTimeout(() => {
+      const snapshot = pendingSnapshotRef.current;
+      pendingSnapshotRef.current = null;
+      if (!snapshot) return;
+      setPast((items) => [...items, snapshot].slice(-50));
+      setFuture([]);
+    }, 500);
+  }, [canvasLoaded, currentSnapshot]);
+
+  useEffect(() => {
+    if (!canvasLoaded) return;
+    const timer = setTimeout(() => {
+      const snapshot = { ...currentSnapshot, past, future };
+      saveQueueRef.current = saveQueueRef.current
+        .catch(() => undefined)
+        .then(() => canvasHistoryApi.save(snapshot).then(() => undefined))
+        .catch(() => undefined);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [canvasLoaded, currentSnapshot, future, past]);
+
+  const undo = useCallback(() => {
+    if (historyTimerRef.current) clearTimeout(historyTimerRef.current);
+    const pending = pendingSnapshotRef.current;
+    pendingSnapshotRef.current = null;
+    const available = pending ? [...past, pending] : past;
+    const previous = available.at(-1);
+    if (!previous) return;
+    restoringRef.current = true;
+    latestSnapshotRef.current = previous;
+    setNodes(previous.nodes);
+    setEdges(previous.edges);
+    setPast(available.slice(0, -1));
+    setFuture((items) => [...items, currentSnapshot].slice(-50));
+  }, [currentSnapshot, past, setEdges, setNodes]);
+
+  const redo = useCallback(() => {
+    const next = future.at(-1);
+    if (!next) return;
+    restoringRef.current = true;
+    latestSnapshotRef.current = next;
+    setNodes(next.nodes);
+    setEdges(next.edges);
+    setPast((items) => [...items, currentSnapshot].slice(-50));
+    setFuture(future.slice(0, -1));
+  }, [currentSnapshot, future, setEdges, setNodes]);
+
+  const restoreHistory = useCallback((index: number) => {
+    const target = past[index];
+    if (!target) return;
+    restoringRef.current = true;
+    latestSnapshotRef.current = target;
+    setNodes(target.nodes);
+    setEdges(target.edges);
+    setPast(past.slice(0, index));
+    setFuture((items) => [
+      ...items,
+      currentSnapshot,
+      ...past.slice(index + 1).reverse(),
+    ].slice(-50));
+  }, [currentSnapshot, past, setEdges, setNodes]);
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement;
+      if (target.isContentEditable || ["INPUT", "TEXTAREA"].includes(target.tagName)) return;
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "z") return;
+      event.preventDefault();
+      if (event.shiftKey) redo(); else undo();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [redo, undo]);
 
   // 选中生成类节点后，若节点 + 底部生成卡片超出可视区域，平移画布让节点垂直居中
   const selectedNodeId = currentSelectNode?.id;
@@ -193,11 +323,12 @@ const Flow = () => {
       { nodeId, handleId, handleType }: OnConnectStartParams,
     ) => {
       connectionSuccessful.current = false;
+      if (nodeId) updateNodeInternals(nodeId);
       connectingNodeId.current = nodeId;
       connectingHandleId.current = handleId;
       connectingHandleType.current = handleType;
     },
-    [],
+    [updateNodeInternals],
   );
 
   const onConnectEnd = useCallback(
@@ -265,7 +396,13 @@ const Flow = () => {
     }
     closeMenu();
     closeImageEditor(null);
-  }, [closeMenu, closeImageEditor]);
+    setEdges((items) => items.map((edge) => ({ ...edge, selected: false })));
+  }, [closeMenu, closeImageEditor, setEdges]);
+
+  const onEdgeClick = useCallback((_: ReactMouseEvent, edge: Edge) => {
+    setCurrentSelectNode(null);
+    setEdges((items) => items.map((item) => ({ ...item, selected: item.id === edge.id })));
+  }, [setCurrentSelectNode, setEdges]);
 
   // 直接拖拽节点/框选拖动时也关闭创建菜单（连带隐藏半截连线）
   const onDragStart = useCallback(() => {
@@ -333,6 +470,7 @@ const Flow = () => {
         edges={displayEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onEdgeClick={onEdgeClick}
         onConnect={onConnect}
         onConnectStart={onConnectStart}
         onConnectEnd={onConnectEnd}
@@ -346,6 +484,8 @@ const Flow = () => {
         onMove={() => window.dispatchEvent(new Event("resize"))}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
+        edgesFocusable={true}
+        deleteKeyCode={["Backspace", "Delete"]}
         panOnScroll={true}
         fitView
         fitViewOptions={{ minZoom: 1, maxZoom: 1 }}
@@ -439,6 +579,13 @@ const Flow = () => {
         >
           <History size={16} />
         </IconButton>
+        <span className="h-4 w-px bg-white/10" />
+        <IconButton label="撤销" disabled={!past.length} onClick={undo}>
+          <Undo2 size={16} />
+        </IconButton>
+        <IconButton label="重做" disabled={!future.length} onClick={redo}>
+          <Redo2 size={16} />
+        </IconButton>
       </div>
 
       {nodePanel && (
@@ -449,6 +596,8 @@ const Flow = () => {
           <CanvasNodePanel
             type={nodePanel}
             nodes={nodes}
+            past={past}
+            onRestoreHistory={restoreHistory}
             onClose={() => setNodePanel(null)}
             onLocate={(nodeId) => {
               locateNode(nodeId);

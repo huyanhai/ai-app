@@ -45,10 +45,13 @@ export enum VideoModeType {
 export type TNodeBase = {
   title?: string; // 节点标题（创建时自动编号，如 图片 1）
   labelColor?: string; // 节点右上角标签色
+  draftText?: string; // 生成卡片中尚未提交的输入内容
   config?: {
     ratio?: TRatio; // 比例
     videoMode?: VideoModeType; // 生图模式
     duration?: number; // 视频时长
+    durationTouched?: boolean; // 是否手动修改视频时长
+    ratioTouched?: boolean; // 是否手动修改画面比例
     firstFrameUrl?: string; // 首帧图片
     lastFrameUrl?: string; // 尾帧图片
     resolution?: string; // 清晰度

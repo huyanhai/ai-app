@@ -25,10 +25,14 @@ import {
 } from 'agents';
 import { ModelsService } from '../models/models.service';
 import { genAudio } from '@/common/llm/tools/gen-audio';
+import { ImageStorageService } from '../canvas/image-storage.service';
 
 @Injectable()
 export class PipelineService {
-  constructor(private readonly models: ModelsService) {}
+  constructor(
+    private readonly models: ModelsService,
+    private readonly images: ImageStorageService,
+  ) {}
 
   // 会话：使用前端模型配置中选中的文本模型流式输出
   async *chat(
@@ -108,11 +112,17 @@ export class PipelineService {
     });
     try {
       const { content } = await genImage({ ...messages, runtimeModel: model });
+      const storedContent = await Promise.all(content.map(async (item) => ({
+        ...item,
+        image: item.image.startsWith('data:image/')
+          ? await this.images.upload(item.image)
+          : item.image,
+      })));
       queue.push({
         type: SSE_EVENT.MSG_CHUNK,
         content: {
           status: ChunkStatus.SUCCESS,
-          url: content[0].image,
+          url: storedContent[0].image,
         },
       });
     } catch (error) {

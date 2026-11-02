@@ -24,7 +24,7 @@ const DurationConfig = ({ config, changeConfig }: IConfigProps) => {
               key={index}
               className={`p-2 ${BUTTON_NORMAL} ${config?.duration === item && BUTTON_ACTIVE}`}
               onClick={() => {
-                changeConfig({ duration: item });
+                changeConfig({ duration: item, durationTouched: true });
                 popperRef.current?.closePopper();
               }}
             >

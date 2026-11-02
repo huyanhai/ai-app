@@ -160,12 +160,22 @@ const MultiAngleModal = ({
 
   const orbitX = Math.sin(params.horizontal * Math.PI / 180) * 120;
   const orbitY = -Math.sin(params.vertical * Math.PI / 180) * 150;
-  const orbitLength = Math.hypot(orbitX, orbitY) || 1;
-  const coneX = -orbitY / orbitLength * 44;
-  const coneY = orbitX / orbitLength * 44;
   const cameraX = 165 + orbitX;
   const cameraY = 165 + orbitY;
   const zoomIndex = params.zoom === "近" ? 0 : params.zoom === "标准" ? 1 : 2;
+  const imageScale = zoomIndex === 0 ? 1.15 : zoomIndex === 2 ? 0.85 : 1;
+  const halfWidth = 40 * imageScale;
+  const halfHeight = 160 / 3 * imageScale;
+  const left = 165 - halfWidth;
+  const right = 165 + halfWidth;
+  const top = 165 - halfHeight;
+  const bottom = 165 + halfHeight;
+  const coneFaces = [
+    [[left, top], [right, top]],
+    [[right, top], [right, bottom]],
+    [[right, bottom], [left, bottom]],
+    [[left, bottom], [left, top]],
+  ];
 
   return createPortal(
     <div
@@ -193,14 +203,17 @@ const MultiAngleModal = ({
                 {Array.from({ length: 12 }, (_, index) => index * 30).map((angle) => <path key={`longitude-${angle}`} d={spherePath("longitude", angle, params.vertical)} />)}
                 {[-60, -30, 0, 30, 60].map((angle) => <path key={`latitude-${angle}`} d={spherePath("latitude", angle, params.vertical)} />)}
               </svg>
-              <svg className="pointer-events-none absolute inset-[-38px] z-[1] size-[330px] overflow-visible" viewBox="0 0 330 330">
-                <polygon points={`${cameraX},${cameraY} ${165 + coneX},${165 + coneY} ${165 - coneX},${165 - coneY}`} fill="rgba(255,255,255,0.18)" />
-                <line x1={cameraX} y1={cameraY} x2={165 + coneX} y2={165 + coneY} stroke="rgba(255,255,255,0.3)" strokeWidth="1" />
-                <line x1={cameraX} y1={cameraY} x2={165 - coneX} y2={165 - coneY} stroke="rgba(255,255,255,0.3)" strokeWidth="1" />
+              <svg className="pointer-events-none absolute inset-[-38px] z-[3] size-[330px] overflow-visible" viewBox="0 0 330 330">
+                {coneFaces.map((face, index) => (
+                  <g key={index}>
+                    <polygon points={`${cameraX},${cameraY} ${face[0][0]},${face[0][1]} ${face[1][0]},${face[1][1]}`} fill="rgba(255,255,255,0.18)" />
+                    {face.map(([x, y]) => <line key={`${x}-${y}`} x1={cameraX} y1={cameraY} x2={x} y2={y} stroke="rgba(255,255,255,0.3)" strokeWidth="1" />)}
+                  </g>
+                ))}
               </svg>
               <div
                 className="absolute left-1/2 top-1/2 z-[2] w-20 overflow-hidden rounded-md border border-white/30 shadow-2xl transition-transform duration-300"
-                style={{ transform: `translate(-50%, -50%) scale(${zoomIndex === 0 ? 1.15 : zoomIndex === 2 ? 0.85 : 1})` }}
+                style={{ transform: `translate(-50%, -50%) scale(${imageScale})` }}
               >
                 <img src={node.data.url} alt="原图预览" className="aspect-[3/4] w-full object-cover" />
               </div>

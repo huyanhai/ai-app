@@ -54,9 +54,17 @@ import { getCharacterValue } from "./character";
 import { bakeCharacterPose } from "./motion";
 import { createBezierPath, getCameraPathOrigin, getCameraValue, hasCameraKeyframe } from "./camera";
 import { CameraKeyframe, CameraMotion, CameraProperty, CharacterKeyframe, CharacterProperty, DEFAULT_OBJECTS, DEFAULT_SETTINGS, LightSettings, Shot, StageObject, StagePoint, StageSettings, StageTool } from "./types";
+import { getStageStorageKey } from "./reference";
+import { canvasHistoryApi } from "@/lib/canvas-history";
 
 const ENVIRONMENTS = ["影棚", "城市", "自然", "纯黑"];
 const getCharacterModelUrl = (name = "") => name.includes("女性") ? "/stage/models/xbot.fbx" : "/stage/models/ybot.fbx";
+const blobToDataUrl = (blob: Blob) => new Promise<string>((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(reader.result as string);
+  reader.onerror = () => reject(reader.error);
+  reader.readAsDataURL(blob);
+});
 const getCharacterPosition = (object: StageObject, time: number): StagePoint => {
   const action = object.actions?.findLast((item) => time >= item.start && time <= item.start + item.duration);
   if (!action || action.kind === "action" || !object.path) return object.position;
@@ -64,6 +72,17 @@ const getCharacterPosition = (object: StageObject, time: number): StagePoint => 
   if (!curve) return object.position;
   const point = curve.getPoint(Math.min(1, Math.max(0, (time - action.start) / action.duration)));
   return [point.x, point.y, point.z];
+};
+
+const getContentDuration = (objects: StageObject[], shots: Shot[]) => {
+  let end = shots.reduce((total, shot) => total + shot.duration, 0);
+  objects.forEach((object) => {
+    object.actions?.forEach((action) => { end = Math.max(end, action.start + action.duration); });
+    [...Object.values(object.characterKeyframes ?? {}), ...Object.values(object.cameraKeyframes ?? {})].forEach((frames) => {
+      frames?.forEach((frame) => { end = Math.max(end, frame.time); });
+    });
+  });
+  return end;
 };
 
 const isCameraMotionFrame = (frame: CameraKeyframe, motion: CameraMotion) =>
@@ -88,10 +107,11 @@ const TOOL_ITEMS: { id: StageTool; label: string; key: string; icon: typeof Mous
 
 export default function DirectorStage({ nodeId }: { nodeId: string }) {
   const router = useRouter();
-  const storageKey = `director-stage:${nodeId}`;
+  const storageKey = getStageStorageKey(nodeId);
   const [settings, setSettings] = useState<StageSettings>(DEFAULT_SETTINGS);
   const [objects, setObjects] = useState<StageObject[]>(DEFAULT_OBJECTS);
   const [selectedId, setSelectedId] = useState("");
+  const [timelineSelectionActive, setTimelineSelectionActive] = useState(false);
   const [tool, setTool] = useState<StageTool>("translate");
   const [mode, setMode] = useState<"static" | "dynamic">("static");
   const [dirty, setDirty] = useState(false);
@@ -144,6 +164,7 @@ export default function DirectorStage({ nodeId }: { nodeId: string }) {
   const props = objects.filter((object) => object.type === "prop" && object.name.includes(search));
   const hasCharacterActions = objects.some((object) => object.actions?.length);
   const hasCameraMovement = objects.some((object) => Object.values(object.cameraKeyframes ?? {}).some((frames) => frames?.length));
+  const contentDuration = getContentDuration(objects, shots);
   const keyframeTime = Math.round(currentTime * frameRate) / frameRate;
   const cameraPresetCamera = objects.find((object) => object.id === cameraPresetDraft?.cameraId && object.type === "camera");
   const cameraPresetResult = cameraPresetCamera && cameraPresetDraft ? createCameraPresetResult(cameraPresetCamera, cameraPresetDraft, frameRate) : null;
@@ -172,6 +193,8 @@ export default function DirectorStage({ nodeId }: { nodeId: string }) {
           setSelectedId("");
         }
         if (Array.isArray(data.shots)) setShots(data.shots);
+        if (typeof data.duration === "number") setDuration(data.duration);
+        if (typeof data.frameRate === "number") setFrameRate(data.frameRate);
       }
     } catch {
       localStorage.removeItem(storageKey);
@@ -186,17 +209,18 @@ export default function DirectorStage({ nodeId }: { nodeId: string }) {
 
   useEffect(() => {
     if (!playing) return;
+    const playbackDuration = exporting ? contentDuration : duration;
     const timer = window.setInterval(() => {
       setCurrentTime((time) => {
         const next = time + 0.05;
-        if (next < duration) return next;
+        if (next < playbackDuration) return next;
         if (loop) return 0;
         setPlaying(false);
-        return duration;
+        return playbackDuration;
       });
     }, 50);
     return () => window.clearInterval(timer);
-  }, [duration, loop, playing]);
+  }, [contentDuration, duration, exporting, loop, playing]);
 
   useEffect(() => {
     if (cameraPresetDraft?.step !== 3) return;
@@ -602,10 +626,32 @@ export default function DirectorStage({ nodeId }: { nodeId: string }) {
   };
 
   const save = () => {
+    let preview: string | undefined;
+    let captureFailed = false;
     try {
-      localStorage.setItem(storageKey, JSON.stringify({ settings, objects, shots }));
+      const canvas = document.querySelector<HTMLCanvasElement>(".stage-preview-canvas canvas") ?? document.querySelector<HTMLCanvasElement>(".stage-main-canvas canvas");
+      preview = canvas?.toDataURL("image/png");
+      captureFailed = !preview;
+    } catch {
+      captureFailed = true;
+    }
+    try {
+      const previous = JSON.parse(localStorage.getItem(storageKey) ?? "{}");
+      localStorage.setItem(storageKey, JSON.stringify({
+        ...previous,
+        settings,
+        objects,
+        shots,
+        duration,
+        frameRate,
+        preview,
+        previewVideo: dirty ? undefined : previous.previewVideo,
+        previewDuration: dirty ? undefined : previous.previewDuration,
+        previewExportedAt: dirty ? undefined : previous.previewExportedAt,
+        savedAt: new Date().toISOString(),
+      }));
       setDirty(false);
-      setToast("场景已保存到本地");
+      setToast(captureFailed ? "场景已保存，但镜头截图失败，本次仅保存场景数据" : "场景和镜头参考图已保存到本地");
     } catch {
       setToast("本地空间不足，请减少镜头素材后重试");
     }
@@ -685,34 +731,85 @@ export default function DirectorStage({ nodeId }: { nodeId: string }) {
     setDirty(true);
   };
 
-  const exportVideo = () => {
-    const canvas = document.querySelector<HTMLCanvasElement>(".stage-main-canvas canvas");
-    if (!canvas || typeof MediaRecorder === "undefined") {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement;
+      if (["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable) return;
+      if (!["Delete", "Backspace"].includes(event.key) || timelineSelectionActive || !selectedObject || objects.length === 1) return;
+      event.preventDefault();
+      deleteObject();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [objects.length, selectedObject, timelineSelectionActive]);
+
+  const exportVideo = async () => {
+    if (exporting) return;
+    if (!contentDuration) {
+      setToast("请先在时间轴添加动作或关键帧");
+      return;
+    }
+    if (typeof MediaRecorder === "undefined") {
       setToast("当前浏览器不支持视频导出");
       return;
     }
-    setMode("dynamic");
-    setCurrentTime(0);
-    setPlaying(true);
-    setExporting(true);
-    const stream = canvas.captureStream(frameRate);
-    const recorder = new MediaRecorder(stream, { mimeType: "video/webm" });
-    const chunks: Blob[] = [];
-    recorder.ondataavailable = (event) => chunks.push(event.data);
-    recorder.onstop = () => {
-      const url = URL.createObjectURL(new Blob(chunks, { type: "video/webm" }));
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `导演台-${nodeId}.webm`;
-      link.click();
-      URL.revokeObjectURL(url);
-      stream.getTracks().forEach((track) => track.stop());
+    const previousLoop = loop;
+    let stream: MediaStream | undefined;
+    let recorder: MediaRecorder | undefined;
+    try {
       setPlaying(false);
+      setMode("dynamic");
+      setLoop(false);
+      setCurrentTime(0);
+      setExporting(true);
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      await new Promise((resolve) => window.setTimeout(resolve, 150));
+      const canvas = document.querySelector<HTMLCanvasElement>(".stage-export-canvas canvas");
+      if (!canvas?.captureStream) throw new Error("无法创建预演录制画布");
+      const mimeType = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"].find((type) => MediaRecorder.isTypeSupported(type));
+      if (!mimeType) throw new Error("当前浏览器不支持 WebM 录制");
+      stream = canvas.captureStream(frameRate);
+      recorder = new MediaRecorder(stream, { mimeType });
+      const chunks: Blob[] = [];
+      const stopped = new Promise<Blob>((resolve, reject) => {
+        recorder!.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data); };
+        recorder!.onstop = () => resolve(new Blob(chunks, { type: "video/webm" }));
+        recorder!.onerror = () => reject(new Error("预演录制失败"));
+      });
+      recorder.start(250);
+      setPlaying(true);
+      await new Promise((resolve) => window.setTimeout(resolve, contentDuration * 1000 + 150));
+      setPlaying(false);
+      recorder.stop();
+      const blob = await stopped;
+      if (!blob.size) throw new Error("录制的预演视频为空");
+      stream.getTracks().forEach((track) => track.stop());
+      const previewVideo = await canvasHistoryApi.uploadAsset(await blobToDataUrl(blob));
+      const previous = JSON.parse(localStorage.getItem(storageKey) ?? "{}");
+      const exportedAt = new Date().toISOString();
+      localStorage.setItem(storageKey, JSON.stringify({
+        ...previous,
+        settings,
+        objects,
+        shots,
+        duration,
+        frameRate,
+        previewVideo,
+        previewDuration: contentDuration,
+        previewExportedAt: exportedAt,
+        savedAt: exportedAt,
+      }));
+      setDirty(false);
+      setToast("几何预演已导出，返回画布后可在视频节点使用");
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : String(error));
+    } finally {
+      if (recorder?.state === "recording") recorder.stop();
+      stream?.getTracks().forEach((track) => track.stop());
+      setPlaying(false);
+      setLoop(previousLoop);
       setExporting(false);
-      setToast("视频已导出");
-    };
-    recorder.start();
-    window.setTimeout(() => recorder.stop(), Math.min(duration, 20) * 1000);
+    }
   };
 
   const switchMode = (overwriteScene: boolean) => {
@@ -839,7 +936,7 @@ export default function DirectorStage({ nodeId }: { nodeId: string }) {
           {(["static", "dynamic"] as const).map((item) => <button key={item} type="button" role="tab" aria-selected={mode === item} onClick={() => changeMode(item)} className={`rounded-md px-4 py-1.5 text-xs ${mode === item ? "bg-white/10 text-white" : "text-white/35 hover:text-white/70"}`}>{item === "static" ? "静态预演" : "动态预演"}</button>)}
         </div>
         <div className="ml-auto flex items-center gap-1">
-          {mode === "dynamic" && <button type="button" disabled={exporting} onClick={exportVideo} className="mr-1 flex h-8 items-center gap-1.5 rounded-md px-3 text-xs text-white/60 hover:bg-white/8 hover:text-white disabled:opacity-40"><Download size={14} />{exporting ? "导出中" : "导出视频"}</button>}
+          {mode === "dynamic" && <button type="button" disabled={exporting} onClick={exportVideo} className="mr-1 flex h-8 items-center gap-1.5 rounded-md px-3 text-xs text-white/60 hover:bg-white/8 hover:text-white disabled:opacity-40"><Download size={14} />{exporting ? "导出中" : "导出预演"}</button>}
           <IconButton label="拍摄" onClick={captureShot}><Camera size={16} /></IconButton>
           <IconButton label="镜头素材" active={shotsOpen} onClick={() => { setShotsOpen((open) => !open); setAssetsOpen(false); }}><Film size={16} /></IconButton>
           <IconButton label="返回画布" onClick={() => router.push("/pipeline")}><X size={17} /></IconButton>
@@ -937,6 +1034,7 @@ export default function DirectorStage({ nodeId }: { nodeId: string }) {
           onCameraPreset={openCameraPresets}
           onCameraMotionMove={moveCameraMotion}
           onCameraMotionDelete={deleteCameraMotion}
+          onSelectionActiveChange={setTimelineSelectionActive}
           onCameraKeyframesDelete={deleteCameraKeyframes}
           onCharacterKeyframesDelete={deleteCharacterKeyframes}
           onActionDurationChange={resizeAction}
@@ -951,6 +1049,12 @@ export default function DirectorStage({ nodeId }: { nodeId: string }) {
 
       {switchOpen && <StageModal title="将静态预演场景应用于动态预演？" onClose={() => { setSwitchOpen(false); setOverwrite(false); }}><p className="text-xs leading-6 text-white/45">复制静态预演中的内容，保留演出时间轴，不复制角色姿势。时间轴中的角色须仍在静态预演中。</p><label className="my-5 flex cursor-pointer items-center gap-2 text-xs text-white/65"><input type="checkbox" checked={overwrite} onChange={(event) => setOverwrite(event.target.checked)} className="accent-white" />确认覆盖动态预演场景</label><div className="flex justify-end gap-2"><button type="button" className="rounded-md px-3 py-2 text-xs text-white/55 hover:bg-white/8" onClick={() => switchMode(false)}>不同步，直接切换</button><button type="button" disabled={!overwrite} className="rounded-md bg-white px-3 py-2 text-xs text-black disabled:opacity-25" onClick={() => switchMode(true)}>覆盖并切换</button></div></StageModal>}
       {shortcutsOpen && <StageModal title="快捷键" onClose={() => setShortcutsOpen(false)}><div className="space-y-1">{[...TOOL_ITEMS.map((item) => [item.label, item.key]), ["落到地面", "G"], ["播放 / 暂停", "Space"]].map(([label, key]) => <div key={label} className="flex items-center justify-between border-b border-white/5 py-3 text-xs text-white/55"><span>{label}</span><kbd className="rounded border border-white/10 bg-black/20 px-2 py-1 text-white/75">{key}</kbd></div>)}</div></StageModal>}
+      {exporting && <div role="dialog" aria-label="正在导出几何预演" className="fixed inset-0 z-[80] flex flex-col items-center justify-center gap-4 bg-black/85">
+        <div className="aspect-video w-[min(80vw,1280px)] overflow-hidden rounded-xl border border-white/15 bg-black shadow-2xl">
+          <StageScene canvasClassName="stage-export-canvas" settings={settings} objects={objects} selectedId={selectedId} tool={tool} preview playing={playing} currentTime={currentTime} />
+        </div>
+        <div role="status" className="text-xs text-white/65">正在录制 {contentDuration.toFixed(2)} 秒几何预演，请保持当前页面打开…</div>
+      </div>}
       {toast && <div role="status" className="absolute bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-lg border border-white/10 bg-[#2b2b2b] px-4 py-2.5 text-xs text-white/75 shadow-xl">{toast}</div>}
     </main>
   );

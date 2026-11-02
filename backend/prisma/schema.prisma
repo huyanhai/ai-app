@@ -46,3 +46,24 @@ model AgentMessage {
 
   @@index([sessionId, createdAt, id])
 }
+
+model CanvasState {
+  id        String   @id
+  nodes     String
+  edges     String
+  past      String   @default("[]")
+  future    String   @default("[]")
+  updatedAt DateTime @updatedAt
+}
+
+model GenerationRecord {
+  id        String   @id @default(cuid())
+  nodeId    String
+  nodeType  String
+  title     String
+  model     String?
+  url       String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}

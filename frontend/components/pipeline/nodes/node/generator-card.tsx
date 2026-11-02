@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNodes, useReactFlow } from "@xyflow/react";
 import {
   ArrowUp,
@@ -9,12 +10,15 @@ import {
   LoaderCircle,
   Maximize2,
   Palette,
+  Play,
   Shapes,
   Sparkles,
   Video,
   Plus,
+  X,
 } from "lucide-react";
 import { nanoid } from "nanoid";
+import superjson from "superjson";
 import Editor from "../../editor";
 import OptionPopper from "../../option-popper";
 import SizeConfig from "../../chat-input/config/size-config";
@@ -126,18 +130,23 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
   const fileRef = useRef<HTMLInputElement>(null);
   const [pillsCollapsed, setPillsCollapsed] = useState(false);
   const [toolboxOpen, setToolboxOpen] = useState<TToolboxId | null>(null);
-  const [editorText, setEditorText] = useState("");
+  const [editorText, setEditorText] = useState(data.draftText ?? "");
   const [referenceMenuPosition, setReferenceMenuPosition] = useState<{
     left: number;
     top: number;
   } | null>(null);
   const models = useModelStore((s) => s.models);
   const defaults = useModelStore((s) => s.defaults);
-  const { editorRef, submit, disabled, setIsEmpty, imageNodes } = useGenerate(
+  const { editorRef, submit, disabled, setIsEmpty, imageNodes, videoNodes } = useGenerate(
     id,
     type,
     data,
   );
+  const [previewReference, setPreviewReference] = useState<{
+    kind: "image" | "video";
+    title: string;
+    url: string;
+  } | null>(null);
 
   // 进入画布时从后端 SQLite 加载模型配置
   useEffect(() => {
@@ -388,29 +397,59 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
         <div className="flex items-start justify-between">
           {!isFirstAndLastFrame && (
             <div className="flex min-w-0 flex-wrap items-center gap-2">
-              {imagePreset && imageNodes.map((image) => (
-                <div key={image.id} className="size-12 shrink-0 overflow-hidden rounded-xl border border-white/5">
-                  <img
-                    src={image.data.url}
-                    alt={image.data.title || "参考图片"}
-                    className="size-full object-cover"
-                  />
-                </div>
-              ))}
+              {type === NodeType.VideoNode && videoNodes.map((video, index) => {
+                const title = video.data.title || `视频 ${index + 1}`;
+                return video.data.url ? (
+                  <button
+                    key={video.id}
+                    type="button"
+                    title={`预览${title}`}
+                    onClick={() => setPreviewReference({ kind: "video", title, url: video.data.url })}
+                    className="group relative size-12 shrink-0 cursor-pointer overflow-hidden rounded-xl border border-white/10 bg-black"
+                  >
+                    <video
+                      src={video.data.url}
+                      preload="metadata"
+                      muted
+                      playsInline
+                      className="pointer-events-none size-full object-cover"
+                    />
+                    <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20 transition-colors group-hover:bg-black/10">
+                      <Play size={16} fill="currentColor" className="text-white drop-shadow" />
+                    </span>
+                    <span className="pointer-events-none absolute inset-x-0 bottom-0 truncate bg-black/65 px-1 py-0.5 text-[9px] leading-3 text-white/90">
+                      {title}
+                    </span>
+                  </button>
+                ) : null;
+              })}
+              {imageNodes.map((image, index) => {
+                const title = image.data.title || `图片 ${index + 1}`;
+                return image.data.url ? (
+                  <button
+                    key={image.id}
+                    type="button"
+                    title={`预览${title}`}
+                    onClick={() => setPreviewReference({ kind: "image", title, url: image.data.url })}
+                    className="group relative size-12 shrink-0 cursor-pointer overflow-hidden rounded-xl border border-white/10 bg-black"
+                  >
+                    <img
+                      src={image.data.url}
+                      alt={title}
+                      className="size-full object-cover transition-transform group-hover:scale-105"
+                    />
+                    <span className="pointer-events-none absolute inset-x-0 bottom-0 truncate bg-black/65 px-1 py-0.5 text-left text-[9px] leading-3 text-white/90">
+                      {title}
+                    </span>
+                  </button>
+                ) : null;
+              })}
               <button
                 aria-label="添加参考"
                 onClick={() => fileRef.current?.click()}
                 className="size-12 shrink-0 overflow-hidden rounded-xl bg-white/5 border border-white/5 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
               >
-                {!imagePreset && imageNodes[0]?.data.url ? (
-                  <img
-                    src={imageNodes[0].data.url}
-                    alt={imageNodes[0].data.title || "参考图片"}
-                    className="size-full object-cover"
-                  />
-                ) : (
-                  <Plus size={18} />
-                )}
+                <Plus size={18} />
               </button>
             </div>
           )}
@@ -463,10 +502,13 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
                 ref={editorRef}
                 onSubmit={canSubmit ? submit : () => {}}
                 images={imageNodes}
-                initialState=""
+                initialState={superjson.stringify(data.draftText ?? "")}
                 noImageMention
                 onTextChange={(value) => {
                   setEditorText(value);
+                  setNodes((nodes) => nodes.map((node) =>
+                    node.id === id ? { ...node, data: { ...node.data, draftText: value } } : node,
+                  ) as TAllNodes[]);
                   const triggerIndex = value.lastIndexOf("@");
                   if (value.endsWith("@")) {
                     window.setTimeout(openReferenceMenu, 0);
@@ -486,6 +528,47 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
           </div>
         </div>
       </div>
+
+      {previewReference && typeof document !== "undefined" && createPortal(
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`预览${previewReference.title}`}
+          className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/75 p-8 backdrop-blur-sm"
+          onClick={() => setPreviewReference(null)}
+        >
+          <button
+            type="button"
+            aria-label="关闭预览"
+            onClick={() => setPreviewReference(null)}
+            className="absolute right-5 top-5 flex size-9 cursor-pointer items-center justify-center rounded-full bg-white/10 text-white/70 transition-colors hover:bg-white/20 hover:text-white"
+          >
+            <X size={18} />
+          </button>
+          <div
+            className="flex max-h-full max-w-[90vw] flex-col items-center gap-3"
+            onClick={(event) => event.stopPropagation()}
+          >
+            {previewReference.kind === "video" ? (
+              <video
+                src={previewReference.url}
+                autoPlay
+                controls
+                playsInline
+                className="max-h-[80vh] max-w-[90vw] rounded-xl"
+              />
+            ) : (
+              <img
+                src={previewReference.url}
+                alt={previewReference.title}
+                className="max-h-[80vh] max-w-[90vw] rounded-xl object-contain"
+              />
+            )}
+            <span className="text-sm text-white/80">{previewReference.title}</span>
+          </div>
+        </div>,
+        document.body,
+      )}
 
       {/* 底部配置条 */}
       <div className="mt-2 flex items-center justify-between">

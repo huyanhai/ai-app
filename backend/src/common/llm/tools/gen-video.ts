@@ -47,8 +47,13 @@ export async function genVideo({
   textList,
   runtimeModel,
 }: StreamDto & { runtimeModel: RuntimeModel }) {
+  const hasVideoReference = message.some((item: ContentBlock) => item.type === 'video_url');
+  if (hasVideoReference && (runtimeModel.provider !== 'dashscope' || !runtimeModel.modelId.startsWith('wan3.0-video'))) {
+    throw new Error('当前模型不支持原生视频参考，请选择 wan3.0-video 或 wan3.0-video-prime');
+  }
   let prompt = '';
   let index = 0;
+  let videoIndex = 0;
   const media: IVideoMedia[] = [];
   message.forEach((item: ContentBlock) => {
     if (item.type === 'text') {
@@ -61,6 +66,14 @@ export async function genVideo({
       media.push({
         type: 'reference_image',
         url: item.image_url as string,
+      });
+    }
+
+    if (item.type === 'video_url') {
+      prompt += `[视频${videoIndex++}]`;
+      media.push({
+        type: 'reference_video',
+        url: item.video_url as string,
       });
     }
   });

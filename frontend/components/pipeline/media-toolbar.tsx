@@ -16,6 +16,23 @@ import { sseFetch } from "@/lib/sse";
 import { getImageModel, isModelReady } from "@/store/model-store";
 import { ChunkStatus, type IMediaData } from "backend/src/common/utils/ai-stream-utils";
 
+const multiAnglePrompt = (params: MultiAngleParams) => {
+  const horizontal = ((params.horizontal % 360) + 360) % 360;
+  const horizontalInstruction = horizontal === 0
+    ? "位于主体正前方"
+    : horizontal >= 270
+      ? `从正前方向主体左侧环绕 ${Math.round(360 - horizontal)}°，从主体左前方拍摄`
+      : horizontal <= 90
+        ? `从正前方向主体右侧环绕 ${Math.round(horizontal)}°，从主体右前方拍摄`
+        : `绕主体水平旋转 ${Math.round(horizontal)}°，呈现原图未展示的侧面或背面`;
+  const verticalInstruction = params.vertical > 0
+    ? `摄像机高于主体，向下俯拍 ${Math.round(params.vertical)}°，清楚呈现俯视透视${params.vertical >= 45 ? "、头顶和上方环境" : ""}`
+    : params.vertical < 0
+      ? `摄像机低于主体，向上仰拍 ${Math.round(Math.abs(params.vertical))}°，清楚呈现仰视透视`
+      : "摄像机与主体保持平视";
+  return `对参考图执行明显且可辨认的摄像机机位变换，不要仅做美化、轻微位移或相似构图。目标机位：${horizontalInstruction}；${verticalInstruction}；景别为${params.zoom}。视角变化是第一优先级：必须根据新机位重新呈现人物面部朝向、五官可见范围、身体透视、物体遮挡关系和背景透视，结果必须一眼就能看出与参考图机位不同，禁止沿用参考图的拍摄角度。参考图仅用于保持同一主体的身份、五官特征、发型、服装、色彩、场景内容和写实风格，不要为了保持原始构图而削弱目标角度。`;
+};
+
 const MediaToolbar = ({ node }: { node: TAllNodes }) => {
   const { zoomTo, setNodes, setEdges } = useReactFlow<TAllNodes>();
   const presetPopperRef = useRef<IPopperRef>(null);
@@ -127,7 +144,7 @@ const MediaToolbar = ({ node }: { node: TAllNodes }) => {
         ? { ...item, data: { ...item.data, ...data } }
         : item) as TAllNodes[]);
     };
-    const prompt = `基于参考图生成同一主体的新视角图片，严格保持主体身份、外观、服装、色彩和整体风格一致。摄像机方位：${params.direction}；水平角度：${params.horizontal}度；垂直角度：${params.vertical}度；景别：${params.zoom}。只改变摄像机视角和对应构图，保持画面自然、主体完整，不要改变主体特征。`;
+    const prompt = multiAnglePrompt(params);
     void sseFetch({
       url: "/pipeline/image",
       body: JSON.stringify({

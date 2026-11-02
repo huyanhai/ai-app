@@ -99,7 +99,7 @@ const Editor = (
             const root = $getRoot();
             root.clear();
             const paragraph = $createParagraphNode();
-            paragraph.append($createTextNode(parsed || initialState));
+            paragraph.append($createTextNode(typeof parsed === "string" ? parsed : initialState));
             root.append(paragraph);
           });
         } else {

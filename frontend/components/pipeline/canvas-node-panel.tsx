@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AudioLines,
   Box,
+  History,
   Image,
   ListVideo,
   ScanFace,
@@ -12,10 +13,10 @@ import {
   Video,
   X,
 } from "lucide-react";
-import { ChunkStatus } from "backend/src/common/utils/ai-stream-utils";
 import { NODE_TYPE_LABEL } from "./constants";
 import { NodeType, TAllNodes } from "./types";
 import { IconButton } from "@/components/ui/icon-button";
+import { canvasHistoryApi, CanvasSnapshot, GenerationRecord } from "@/lib/canvas-history";
 
 type PanelType = "search" | "history";
 type Category = "all" | NodeType.ImageNode | NodeType.VideoNode | NodeType.AudioNode | NodeType.TextNode;
@@ -49,30 +50,36 @@ const CanvasNodePanel = ({
   nodes,
   onClose,
   onLocate,
+  past,
+  onRestoreHistory,
 }: {
   type: PanelType;
   nodes: TAllNodes[];
   onClose: () => void;
   onLocate: (nodeId: string) => void;
+  past: CanvasSnapshot[];
+  onRestoreHistory: (index: number) => void;
 }) => {
   const [category, setCategory] = useState<Category>("all");
   const [query, setQuery] = useState("");
+  const [historyView, setHistoryView] = useState<"generations" | "operations">("generations");
+  const [generations, setGenerations] = useState<GenerationRecord[]>([]);
   const isSearch = type === "search";
   const categories = isSearch ? CATEGORIES : CATEGORIES.slice(0, 4);
 
   const sourceNodes = useMemo(() => {
     const reversed = [...nodes].reverse();
     if (isSearch) return reversed;
-    return reversed.filter(
-      (node) =>
-        [NodeType.ImageNode, NodeType.VideoNode, NodeType.AudioNode].includes(
-          node.type as NodeType,
-        ) &&
-        "status" in node.data &&
-        node.data.status === ChunkStatus.SUCCESS &&
-        Boolean("url" in node.data && node.data.url),
-    );
+    return [];
   }, [isSearch, nodes]);
+
+  useEffect(() => {
+    if (isSearch) return;
+    const load = () => void canvasHistoryApi.generations().then(setGenerations).catch(() => undefined);
+    load();
+    window.addEventListener("canvas-generation-recorded", load);
+    return () => window.removeEventListener("canvas-generation-recorded", load);
+  }, [isSearch]);
 
   const visibleNodes = sourceNodes.filter((node) => {
     if (category !== "all" && node.type !== category) return false;
@@ -83,6 +90,13 @@ const CanvasNodePanel = ({
       .filter(Boolean)
       .some((value) => value!.toLowerCase().includes(keyword));
   });
+  const visibleGenerations = generations.filter((record) => {
+    if (category !== "all" && record.nodeType !== category) return false;
+    if (!query.trim()) return true;
+    const keyword = query.trim().toLowerCase();
+    return [record.title, record.model].filter(Boolean).some((value) => value!.toLowerCase().includes(keyword));
+  });
+  const empty = historyView === "operations" ? !past.length : !visibleGenerations.length;
 
   return (
     <section
@@ -104,7 +118,7 @@ const CanvasNodePanel = ({
             />
           </label>
         ) : (
-          <h2 className="text-base font-medium">生成历史</h2>
+          <h2 className="text-base font-medium">历史记录</h2>
         )}
         <IconButton
           label="关闭"
@@ -115,12 +129,22 @@ const CanvasNodePanel = ({
         </IconButton>
       </div>
 
-      <div className="mt-3 flex gap-5 border-b border-white/5 px-4">
+      {!isSearch && (
+        <div className="mt-3 flex gap-2 px-4">
+          <button onClick={() => setHistoryView("generations")} className={`rounded-lg px-3 py-1.5 text-xs ${historyView === "generations" ? "bg-white/10 text-white" : "text-white/40"}`}>生成记录</button>
+          <button onClick={() => setHistoryView("operations")} className={`rounded-lg px-3 py-1.5 text-xs ${historyView === "operations" ? "bg-white/10 text-white" : "text-white/40"}`}>操作记录</button>
+        </div>
+      )}
+
+      {(isSearch || historyView === "generations") && <div className="mt-3 flex gap-5 border-b border-white/5 px-4">
         {categories.map((item) => {
-          const count =
-            item.value === "all"
+          const count = isSearch
+            ? item.value === "all"
               ? sourceNodes.length
-              : sourceNodes.filter((node) => node.type === item.value).length;
+              : sourceNodes.filter((node) => node.type === item.value).length
+            : item.value === "all"
+              ? generations.length
+              : generations.filter((record) => record.nodeType === item.value).length;
           return (
             <button
               key={item.value}
@@ -137,12 +161,12 @@ const CanvasNodePanel = ({
             </button>
           );
         })}
-      </div>
+      </div>}
 
       <div className="min-h-40 flex-1 overflow-y-auto p-3">
-        {visibleNodes.length === 0 ? (
+        {(isSearch ? !visibleNodes.length : empty) ? (
           <div className="flex h-40 items-center justify-center text-sm text-white/30">
-            {isSearch ? "没有匹配的节点" : "暂无生成记录"}
+            {isSearch ? "没有匹配的节点" : historyView === "operations" ? "暂无操作记录" : "暂无生成记录"}
           </div>
         ) : isSearch ? (
           <div className="space-y-1">
@@ -170,29 +194,44 @@ const CanvasNodePanel = ({
               );
             })}
           </div>
+        ) : historyView === "operations" ? (
+          <div className="space-y-1">
+            {past.map((snapshot, index) => ({ snapshot, index })).reverse().map(({ snapshot, index }) => (
+              <button key={index} onClick={() => onRestoreHistory(index)} className="flex w-full items-center gap-3 rounded-xl p-3 text-left hover:bg-white/5">
+                <History size={18} className="text-white/40" />
+                <span className="flex-1 text-sm text-white/75">操作步骤 {index + 1}</span>
+                <span className="text-xs text-white/30">{snapshot.nodes.length} 个节点 · {snapshot.edges.length} 条连线</span>
+              </button>
+            ))}
+          </div>
         ) : (
           <div className="space-y-5">
-            {visibleNodes.map((node) => {
-              const nodeType = node.type as NodeType;
-              const url = "url" in node.data && node.data.url ? node.data.url : "";
+            {visibleGenerations.map((record) => {
+              const nodeType = record.nodeType;
               return (
                 <button
-                  key={node.id}
-                  onClick={() => onLocate(node.id)}
+                  key={record.id}
+                  onClick={() => {
+                    if (!nodes.some((node) => node.id === record.nodeId)) {
+                      window.alert("原节点已删除，无法定位到画布");
+                      return;
+                    }
+                    onLocate(record.nodeId);
+                  }}
                   className="block w-full cursor-pointer text-left"
                 >
                   <span className="mb-2 flex items-center justify-between gap-3 text-xs">
                     <span className="flex items-center gap-1.5 text-white/55">
-                      {node.data.config?.model || NODE_TYPE_LABEL[nodeType]}
+                      {record.model || NODE_TYPE_LABEL[nodeType]}
                       {NODE_ICONS[nodeType]}
                     </span>
-                    <span className="text-white/30">{nodeTitle(node)}</span>
+                    <span className="text-white/30">{record.title}</span>
                   </span>
                   <span className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-xl bg-[#102b3a] text-sky-400 transition-opacity hover:opacity-80">
                     {nodeType === NodeType.ImageNode ? (
-                      <img src={url} alt={nodeTitle(node)} className="h-full w-full object-cover" />
+                      <img src={record.url} alt={record.title} className="h-full w-full object-cover" />
                     ) : nodeType === NodeType.VideoNode ? (
-                      <video src={url} preload="metadata" className="h-full w-full object-cover" />
+                      <video src={record.url} preload="metadata" className="h-full w-full object-cover" />
                     ) : (
                       <AudioLines size={38} />
                     )}

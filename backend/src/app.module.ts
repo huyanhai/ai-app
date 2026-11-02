@@ -6,6 +6,7 @@ import { ZodValidationPipe } from 'nestjs-zod';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { ModelsModule } from './modules/models/models.module';
 import { AgentSessionsModule } from './modules/agent-sessions/agent-sessions.module';
+import { CanvasModule } from './modules/canvas/canvas.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { AgentSessionsModule } from './modules/agent-sessions/agent-sessions.mod
     PipelineModule,
     AiModule,
     AgentSessionsModule,
+    CanvasModule,
   ],
   providers: [
     {

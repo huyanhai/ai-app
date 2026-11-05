@@ -67,7 +67,7 @@ const Controls = () => {
       hint: "请先选择至少一个画布元素",
       dividerAfter: true,
     },
-    { label: "缩放至50%", onClick: () => zoomTo(0.5) },
+    { label: "缩放至10%", onClick: () => zoomTo(0.1) },
     { label: "缩放至100%", shortcut: "⌘ 1", onClick: () => zoomTo(1) },
     { label: "缩放至200%", onClick: () => zoomTo(2) },
   ];

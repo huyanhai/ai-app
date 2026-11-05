@@ -31,6 +31,7 @@ export enum NodeType {
   TimelineNode = "timelineNode",
   SubjectNode = "subjectNode",
   StageNode = "stageNode",
+  ShotTableNode = "shotTableNode",
 }
 
 export enum VideoModeType {
@@ -60,6 +61,23 @@ export type TNodeBase = {
     scene?: TextScene; // 文本节点生成场景
     toolbox?: TNodeToolbox; // 导演工具箱选择
     edit?: boolean; // 基于当前图片进行智能改图
+  };
+  production?: {
+    kind?: string;
+    prompt?: string;
+    stale?: boolean;
+    sourceHash?: string;
+    taskId?: string;
+    lastFrameUrl?: string;
+    continuityError?: string;
+    continuity?: {
+      previousVideoId?: string;
+      prompt: string;
+    };
+    outgoingContinuity?: {
+      nextVideoId?: string;
+      prompt: string;
+    };
   };
 };
 
@@ -119,6 +137,29 @@ export type TNodeSubjectData = {
 // 导演台（外部）节点数据
 export type TNodeStageData = TNodeBase;
 
+export type TNodeShotTableData = {
+  shots: {
+    id: string;
+    sceneId: string;
+    sceneTitle: string;
+    title: string;
+    description: string;
+    movement: string;
+    duration: number;
+    visualPrompt?: string;
+    motionPrompt?: string;
+    transitionFromPrevious?: {
+      mode: "continuous" | "cut";
+      rationale: string;
+      bridge: string;
+      previousOutro: string;
+      currentIntro: string;
+      cameraPath: string;
+      consistency: string;
+    };
+  }[];
+} & TNodeBase;
+
 // 文本生成节点
 export type TNodeText = Node<TNodeTextData>;
 
@@ -137,12 +178,15 @@ export type TNodeSubject = Node<TNodeSubjectData>;
 // 导演台节点
 export type TNodeStage = Node<TNodeStageData>;
 
+export type TNodeShotTable = Node<TNodeShotTableData>;
+
 export type TAllNodes =
   | TNodeText
   | TNodeImage
   | TNodeAudio
   | TNodeTimeline
   | TNodeSubject
-  | TNodeStage;
+  | TNodeStage
+  | TNodeShotTable;
 
 export type TSendMessageContent = HumanMessage["content"][0];

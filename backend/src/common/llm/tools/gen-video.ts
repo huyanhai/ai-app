@@ -108,7 +108,7 @@ export async function genVideo({
         parameters: {
           resolution: config?.resolution || '720P',
           duration: config?.duration || 5,
-          prompt_extend: true,
+          prompt_extend: config?.promptExtend ?? true,
           watermark: false,
           ratio: config?.ratio || '16:9',
         },

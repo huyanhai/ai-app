@@ -21,7 +21,7 @@ const ToolboxModal = ({
   open: boolean;
   title: string;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm?: () => void;
   confirmDisabled?: boolean;
   width?: number;
   // 各区域样式覆盖（按需对齐不同弹窗的设计稿）
@@ -85,7 +85,7 @@ const ToolboxModal = ({
 
             {children}
 
-            <div
+            {onConfirm && <div
               className={cn(
                 "flex justify-end px-6 pb-5 pt-2",
                 classNames?.footer,
@@ -104,7 +104,7 @@ const ToolboxModal = ({
               >
                 确认
               </button>
-            </div>
+            </div>}
           </motion.div>
         </motion.div>
       )}

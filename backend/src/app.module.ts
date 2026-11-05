@@ -7,6 +7,7 @@ import { PrismaModule } from './common/prisma/prisma.module';
 import { ModelsModule } from './modules/models/models.module';
 import { AgentSessionsModule } from './modules/agent-sessions/agent-sessions.module';
 import { CanvasModule } from './modules/canvas/canvas.module';
+import { ProductionModule } from './modules/production/production.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { CanvasModule } from './modules/canvas/canvas.module';
     AiModule,
     AgentSessionsModule,
     CanvasModule,
+    ProductionModule,
   ],
   providers: [
     {

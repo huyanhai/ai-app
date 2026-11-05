@@ -9,6 +9,7 @@ import {
   ListVideo,
   ScanFace,
   Search,
+  Table2,
   Type,
   Video,
   X,
@@ -17,6 +18,7 @@ import { NODE_TYPE_LABEL } from "./constants";
 import { NodeType, TAllNodes } from "./types";
 import { IconButton } from "@/components/ui/icon-button";
 import { canvasHistoryApi, CanvasSnapshot, GenerationRecord } from "@/lib/canvas-history";
+import { useCanvasId } from "./canvas-workspace-context";
 
 type PanelType = "search" | "history";
 type Category = "all" | NodeType.ImageNode | NodeType.VideoNode | NodeType.AudioNode | NodeType.TextNode;
@@ -37,6 +39,7 @@ const NODE_ICONS: Record<NodeType, React.ReactNode> = {
   [NodeType.TimelineNode]: <ListVideo size={22} />,
   [NodeType.SubjectNode]: <ScanFace size={22} />,
   [NodeType.StageNode]: <Box size={22} />,
+  [NodeType.ShotTableNode]: <Table2 size={22} />,
 };
 
 const nodeTitle = (node: TAllNodes) => {
@@ -51,6 +54,8 @@ const CanvasNodePanel = ({
   onClose,
   onLocate,
   past,
+  current,
+  future,
   onRestoreHistory,
 }: {
   type: PanelType;
@@ -58,8 +63,11 @@ const CanvasNodePanel = ({
   onClose: () => void;
   onLocate: (nodeId: string) => void;
   past: CanvasSnapshot[];
+  current: CanvasSnapshot;
+  future: CanvasSnapshot[];
   onRestoreHistory: (index: number) => void;
 }) => {
+  const canvasId = useCanvasId();
   const [category, setCategory] = useState<Category>("all");
   const [query, setQuery] = useState("");
   const [historyView, setHistoryView] = useState<"generations" | "operations">("generations");
@@ -75,11 +83,11 @@ const CanvasNodePanel = ({
 
   useEffect(() => {
     if (isSearch) return;
-    const load = () => void canvasHistoryApi.generations().then(setGenerations).catch(() => undefined);
+    const load = () => void canvasHistoryApi.generations(canvasId).then(setGenerations).catch(() => undefined);
     load();
     window.addEventListener("canvas-generation-recorded", load);
     return () => window.removeEventListener("canvas-generation-recorded", load);
-  }, [isSearch]);
+  }, [canvasId, isSearch]);
 
   const visibleNodes = sourceNodes.filter((node) => {
     if (category !== "all" && node.type !== category) return false;
@@ -96,7 +104,9 @@ const CanvasNodePanel = ({
     const keyword = query.trim().toLowerCase();
     return [record.title, record.model].filter(Boolean).some((value) => value!.toLowerCase().includes(keyword));
   });
-  const empty = historyView === "operations" ? !past.length : !visibleGenerations.length;
+  const operations = [...past, current, ...[...future].reverse()];
+  const currentOperation = past.length;
+  const empty = historyView === "operations" ? false : !visibleGenerations.length;
 
   return (
     <section
@@ -196,10 +206,10 @@ const CanvasNodePanel = ({
           </div>
         ) : historyView === "operations" ? (
           <div className="space-y-1">
-            {past.map((snapshot, index) => ({ snapshot, index })).reverse().map(({ snapshot, index }) => (
-              <button key={index} onClick={() => onRestoreHistory(index)} className="flex w-full items-center gap-3 rounded-xl p-3 text-left hover:bg-white/5">
+            {operations.map((snapshot, index) => ({ snapshot, index })).reverse().map(({ snapshot, index }) => (
+              <button key={index} disabled={index === currentOperation} onClick={() => onRestoreHistory(index)} className={`flex w-full items-center gap-3 rounded-xl p-3 text-left ${index === currentOperation ? "bg-white/10 text-white" : "hover:bg-white/5"}`}>
                 <History size={18} className="text-white/40" />
-                <span className="flex-1 text-sm text-white/75">操作步骤 {index + 1}</span>
+                <span className="flex-1 text-sm text-white/75">{index === currentOperation ? "当前状态" : `操作步骤 ${index + 1}`}</span>
                 <span className="text-xs text-white/30">{snapshot.nodes.length} 个节点 · {snapshot.edges.length} 条连线</span>
               </button>
             ))}

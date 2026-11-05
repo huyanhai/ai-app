@@ -5,6 +5,7 @@ import AudioNode from "./node/audio";
 import TimelineNode from "./node/timeline";
 import SubjectNode from "./node/subject";
 import StageNode from "./node/stage";
+import ShotTableNode from "./node/shot-table";
 
 export default {
   textNode: TextNode,
@@ -14,4 +15,5 @@ export default {
   timelineNode: TimelineNode,
   subjectNode: SubjectNode,
   stageNode: StageNode,
+  shotTableNode: ShotTableNode,
 };

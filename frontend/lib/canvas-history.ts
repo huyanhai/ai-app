@@ -23,6 +23,16 @@ export type GenerationRecord = {
   createdAt: string;
 };
 
+export type CanvasSummary = {
+  id: string;
+  title: string;
+  previewUrl?: string;
+  previewType?: "image" | "video";
+  nodeCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
   const response = await fetch(`${API_BASE}/canvas${path}`, {
     ...init,
@@ -80,20 +90,25 @@ const externalizeAssets = async <T>(value: T): Promise<T> => {
 };
 
 export const canvasHistoryApi = {
+  list: () => request<CanvasSummary[]>(""),
+  create: () => request<CanvasSummary>("", {
+    method: "POST",
+    body: JSON.stringify({ title: "未命名画布" }),
+  }),
   uploadAsset: (dataUrl: string) => uploadAsset(dataUrl),
   ensureMp4,
-  load: () => request<StoredCanvas | null>(""),
-  save: async (snapshot: StoredCanvas) => {
+  load: (canvasId: string) => request<StoredCanvas | null>(`/${canvasId}`),
+  save: async (canvasId: string, snapshot: StoredCanvas) => {
     const externalized = await externalizeAssets(snapshot);
-    return request<{ success: boolean }>("", {
+    return request<{ success: boolean }>(`/${canvasId}`, {
       method: "PUT",
       body: JSON.stringify(externalized),
     });
   },
-  generations: () => request<GenerationRecord[]>("/generations"),
-  recordGeneration: async (record: Omit<GenerationRecord, "id" | "createdAt">) => {
+  generations: (canvasId: string) => request<GenerationRecord[]>(`/${canvasId}/generations`),
+  recordGeneration: async (canvasId: string, record: Omit<GenerationRecord, "id" | "createdAt">) => {
     const externalized = await externalizeAssets(record);
-    return request<GenerationRecord>("/generations", {
+    return request<GenerationRecord>(`/${canvasId}/generations`, {
       method: "POST",
       body: JSON.stringify(externalized),
     }).then((created) => {

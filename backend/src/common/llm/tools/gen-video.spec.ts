@@ -37,6 +37,24 @@ describe('genVideo video references', () => {
     expect(body.input.prompt).toContain('[视频0]');
     expect(body.input.prompt).toContain('[图片0]');
     expect(body.parameters.duration).toBe(15);
+    expect(body.parameters.prompt_extend).toBe(true);
+  });
+
+  it('can disable prompt rewriting for reviewed continuity prompts', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({ output: { task_id: 'task-id' } }),
+    } as unknown as Response);
+    await genVideo({
+      message: [{ type: 'text', text: '保持首帧构图' }],
+      config: { ratio: '16:9', firstFrameUrl: 'https://example.com/last.png', promptExtend: false },
+      runtimeModel,
+    });
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+    expect(body.parameters.prompt_extend).toBe(false);
+    expect(body.input.media).toEqual([
+      { type: 'first_frame', url: 'https://example.com/last.png' },
+    ]);
   });
 
   it('rejects models without native video reference support', async () => {

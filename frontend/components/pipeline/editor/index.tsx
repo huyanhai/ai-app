@@ -55,7 +55,8 @@ export interface IEditorRef {
   getEditor: () => Promise<TSendMessageContent[]>;
   clear: () => void;
   insertText: (text: string) => void;
-  insertToken: (token: EditorToken) => void;
+  focusEnd: () => void;
+  insertToken: (token: EditorToken, placement?: "start" | "end") => void;
   removeToken: (id: string) => void;
   syncTokens: (tokens: EditorToken[]) => void;
   getContent: () => { text: string; tokens: EditorToken[] };
@@ -164,10 +165,18 @@ const Editor = (
       });
       editorRef.current?.focus();
     },
-    insertToken: (token) => {
+    focusEnd: () => {
       editorRef.current?.update(() => {
         $getRoot().selectEnd();
-        const textNodes = $getRoot().getAllTextNodes();
+      });
+      editorRef.current?.focus();
+    },
+    insertToken: (token, placement = "end") => {
+      editorRef.current?.update(() => {
+        const root = $getRoot();
+        if (placement === "start") root.selectStart();
+        else root.selectEnd();
+        const textNodes = root.getAllTextNodes();
         const lastTextNode = textNodes.at(-1);
         const lastText = lastTextNode?.getTextContent() ?? "";
         const triggerPattern = token.kind === "subject" ? /@[^\s@]*$/ : /\/[^\s/]*$/;
@@ -238,7 +247,7 @@ const Editor = (
     <LexicalComposer initialConfig={initialConfig}>
       <PlainTextPlugin
         contentEditable={
-          <ContentEditable onBlur={onBlur} className="max-h-30 w-full flex-1 overflow-y-auto border-0 bg-transparent text-sm leading-5 text-white/90 caret-white outline-none [&_p]:m-0 [&_p]:flex [&_p]:min-h-5 [&_p]:flex-wrap [&_p]:items-center [&_p:empty]:block [&_p:has(>br:only-child)]:block [&_p:has(>br:only-child)]:leading-5" />
+          <ContentEditable onBlur={onBlur} className="max-h-30 w-full flex-1 overflow-y-auto border-0 bg-transparent text-sm leading-5 text-white/90 caret-white outline-none [&_p]:m-0 [&_p]:min-h-5 [&_p]:whitespace-pre-wrap [&_[data-lexical-text='true']]:align-middle" />
         }
         placeholder={
           <div className="pointer-events-none absolute left-0 top-0 text-sm leading-5 text-white/40">

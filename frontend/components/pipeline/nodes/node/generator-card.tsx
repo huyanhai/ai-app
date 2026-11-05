@@ -1,18 +1,17 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useNodes, useReactFlow } from "@xyflow/react";
+import { useReactFlow, useStore } from "@xyflow/react";
 import {
   ArrowUp,
   AtSign,
   Camera,
   ChevronDown,
-  LoaderCircle,
   Maximize2,
   Palette,
   Play,
   Shapes,
-  Sparkles,
+  Square,
   Video,
   Plus,
   X,
@@ -28,7 +27,6 @@ import Frame from "../../chat-input/frame";
 import { useGenerate } from "../../hooks/use-generate";
 import {
   NODE_PROMPT_PLACEHOLDER,
-  NODE_PRICE,
   SOURCE_RIGHT_ANCHOR,
   TARGET_LEFT_ANCHOR,
   TEXT_SCENES,
@@ -68,6 +66,17 @@ export const GENERATOR_TYPES: NodeType[] = [
 ];
 
 type TToolboxId = "camera" | "movement" | "palette" | "style";
+
+const areReferencesEqual = (previous: SubjectReference[], current: SubjectReference[]) =>
+  previous.length === current.length &&
+  previous.every((reference, index) => {
+    const next = current[index];
+    return reference.id === next.id &&
+      reference.kind === next.kind &&
+      reference.name === next.name &&
+      reference.description === next.description &&
+      reference.url === next.url;
+  });
 
 // 即梦风格顶部导演工具 pill（相机 / 配色 / 风格 / 运镜），嵌在卡片顶部整行铺满
 const ToolPills = ({
@@ -116,7 +125,7 @@ const ToolPills = ({
 };
 
 // 即梦风格生成表单：跟随选中节点浮在其下方（+ 参考 / 提示词 / 底部配置条 / 发送按钮）
-const GeneratorCard = ({ node }: { node: TAllNodes }) => {
+const GeneratorCard = ({ node, active }: { node: TAllNodes; active: boolean }) => {
   const id = node.id;
   const type = node.type as NodeType;
   const data = node.data;
@@ -126,18 +135,17 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
   const ImagePresetIcon = imagePreset?.icon;
 
   const { setNodes, setEdges, getNode } = useReactFlow<TAllNodes>();
-  const nodes = useNodes<TAllNodes>();
   const fileRef = useRef<HTMLInputElement>(null);
   const [pillsCollapsed, setPillsCollapsed] = useState(false);
   const [toolboxOpen, setToolboxOpen] = useState<TToolboxId | null>(null);
-  const [editorText, setEditorText] = useState(data.draftText ?? "");
+  const [editorText, setEditorText] = useState(data.draftText || data.production?.prompt || "");
   const [referenceMenuPosition, setReferenceMenuPosition] = useState<{
     left: number;
     top: number;
   } | null>(null);
   const models = useModelStore((s) => s.models);
   const defaults = useModelStore((s) => s.defaults);
-  const { editorRef, submit, disabled, setIsEmpty, imageNodes, videoNodes } = useGenerate(
+  const { editorRef, submit, stop, disabled, setIsEmpty, imageNodes, videoNodes } = useGenerate(
     id,
     type,
     data,
@@ -147,6 +155,13 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
     title: string;
     url: string;
   } | null>(null);
+
+  useEffect(() => {
+    if (active) return;
+    setToolboxOpen(null);
+    setReferenceMenuPosition(null);
+    setPreviewReference(null);
+  }, [active]);
 
   // 进入画布时从后端 SQLite 加载模型配置
   useEffect(() => {
@@ -242,36 +257,39 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
   const isGenerating = "status" in data && data.status === ChunkStatus.PROCESSING;
   const canSubmit = !disabled && !isGenerating;
 
-  const references = nodes.flatMap<SubjectReference>((node) => {
-    if (
-      (type === NodeType.ImageNode || type === NodeType.VideoNode) &&
-      node.id === id
-    ) {
-      return [];
-    }
-    const kinds: Partial<Record<NodeType, ReferenceKind>> = {
-      [NodeType.SubjectNode]: "subject",
-      [NodeType.ImageNode]: "image",
-      [NodeType.VideoNode]: "video",
-      [NodeType.AudioNode]: "audio",
-      [NodeType.TextNode]: "text",
-    };
-    const kind = kinds[node.type as NodeType];
-    if (!kind) return [];
-    const referenceData = node.data as TNodeBase & {
-      name?: string;
-      description?: string;
-      text?: string;
-      url?: string;
-    };
-    return [{
-      id: node.id,
-      kind,
-      name: (kind === "subject" ? referenceData.name : referenceData.title) || node.id,
-      description: kind === "text" ? referenceData.text : referenceData.description,
-      url: referenceData.url,
-    }];
-  });
+  const references = useStore(
+    (state) => Array.from(state.nodeLookup.values()).flatMap<SubjectReference>((node) => {
+      if (
+        (type === NodeType.ImageNode || type === NodeType.VideoNode) &&
+        node.id === id
+      ) {
+        return [];
+      }
+      const kinds: Partial<Record<NodeType, ReferenceKind>> = {
+        [NodeType.SubjectNode]: "subject",
+        [NodeType.ImageNode]: "image",
+        [NodeType.VideoNode]: "video",
+        [NodeType.AudioNode]: "audio",
+        [NodeType.TextNode]: "text",
+      };
+      const kind = kinds[node.type as NodeType];
+      if (!kind) return [];
+      const referenceData = node.data as TNodeBase & {
+        name?: string;
+        description?: string;
+        text?: string;
+        url?: string;
+      };
+      return [{
+        id: node.id,
+        kind,
+        name: (kind === "subject" ? referenceData.name : referenceData.title) || node.id,
+        description: kind === "text" ? referenceData.text : referenceData.description,
+        url: referenceData.url,
+      }];
+    }),
+    areReferencesEqual,
+  );
 
   const openReferenceMenu = () => {
     const caret = editorRef.current?.getCaretRect();
@@ -498,11 +516,11 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
             )}
             <div className="relative min-w-0 flex-1">
               <Editor
-                key={id}
+                key={`${id}:${data.production?.prompt ?? ""}`}
                 ref={editorRef}
                 onSubmit={canSubmit ? submit : () => {}}
                 images={imageNodes}
-                initialState={superjson.stringify(data.draftText ?? "")}
+                initialState={superjson.stringify(data.draftText || data.production?.prompt || "")}
                 noImageMention
                 onTextChange={(value) => {
                   setEditorText(value);
@@ -664,28 +682,18 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
           )}
         </div>
         <div className="flex items-center gap-2">
-          {NODE_PRICE[type] && (
-            <span className="flex items-center gap-1 text-xs text-white/40">
-              <Sparkles size={11} />
-              {NODE_PRICE[type]}
-            </span>
-          )}
           <button
-            aria-label="生成"
+            aria-label={isGenerating ? "停止生成" : "生成"}
             aria-busy={isGenerating}
-            onClick={submit}
-            disabled={!canSubmit}
+            onClick={isGenerating ? stop : submit}
+            disabled={!isGenerating && !canSubmit}
             className={`flex size-8 items-center justify-center rounded-full transition ${
-              canSubmit
+              canSubmit || isGenerating
                 ? "bg-white text-black hover:bg-white/90 cursor-pointer"
                 : "bg-white/10 text-white/30 cursor-not-allowed"
             }`}
           >
-            {isGenerating ? (
-              <LoaderCircle size={16} className="animate-spin" />
-            ) : (
-              <ArrowUp size={16} />
-            )}
+            {isGenerating ? <Square size={13} fill="currentColor" /> : <ArrowUp size={16} />}
           </button>
         </div>
       </div>
@@ -716,4 +724,9 @@ const GeneratorCard = ({ node }: { node: TAllNodes }) => {
   );
 };
 
-export default GeneratorCard;
+export default memo(GeneratorCard, (previous, next) =>
+  previous.node.id === next.node.id &&
+  previous.node.type === next.node.type &&
+  previous.node.data === next.node.data &&
+  previous.active === next.active
+);

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Put } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put } from '@nestjs/common';
 import { CanvasService, CanvasSnapshot, GenerationInput } from './canvas.service';
 import { ImageStorageService } from './image-storage.service';
 
@@ -15,22 +15,32 @@ export class CanvasController {
   }
 
   @Get()
-  get() {
-    return this.canvas.get();
+  list() {
+    return this.canvas.list();
   }
 
-  @Put()
-  save(@Body() body: CanvasSnapshot) {
-    return this.canvas.save(body);
+  @Post()
+  create(@Body() body: { title?: string }) {
+    return this.canvas.create(body.title);
   }
 
-  @Get('generations')
-  generations() {
-    return this.canvas.generations();
+  @Get(':id')
+  get(@Param('id') id: string) {
+    return this.canvas.get(id);
   }
 
-  @Post('generations')
-  createGeneration(@Body() body: GenerationInput) {
-    return this.canvas.createGeneration(body);
+  @Put(':id')
+  save(@Param('id') id: string, @Body() body: CanvasSnapshot) {
+    return this.canvas.save(id, body);
+  }
+
+  @Get(':id/generations')
+  generations(@Param('id') id: string) {
+    return this.canvas.generations(id);
+  }
+
+  @Post(':id/generations')
+  createGeneration(@Param('id') id: string, @Body() body: GenerationInput) {
+    return this.canvas.createGeneration(id, body);
   }
 }

@@ -56,6 +56,7 @@ import { createBezierPath, getCameraPathOrigin, getCameraValue, hasCameraKeyfram
 import { CameraKeyframe, CameraMotion, CameraProperty, CharacterKeyframe, CharacterProperty, DEFAULT_OBJECTS, DEFAULT_SETTINGS, LightSettings, Shot, StageObject, StagePoint, StageSettings, StageTool } from "./types";
 import { getStageStorageKey } from "./reference";
 import { canvasHistoryApi } from "@/lib/canvas-history";
+import { useCanvasId } from "@/components/pipeline/canvas-workspace-context";
 
 const ENVIRONMENTS = ["影棚", "城市", "自然", "纯黑"];
 const getCharacterModelUrl = (name = "") => name.includes("女性") ? "/stage/models/xbot.fbx" : "/stage/models/ybot.fbx";
@@ -107,6 +108,7 @@ const TOOL_ITEMS: { id: StageTool; label: string; key: string; icon: typeof Mous
 
 export default function DirectorStage({ nodeId }: { nodeId: string }) {
   const router = useRouter();
+  const canvasId = useCanvasId();
   const storageKey = getStageStorageKey(nodeId);
   const [settings, setSettings] = useState<StageSettings>(DEFAULT_SETTINGS);
   const [objects, setObjects] = useState<StageObject[]>(DEFAULT_OBJECTS);
@@ -939,7 +941,7 @@ export default function DirectorStage({ nodeId }: { nodeId: string }) {
           {mode === "dynamic" && <button type="button" disabled={exporting} onClick={exportVideo} className="mr-1 flex h-8 items-center gap-1.5 rounded-md px-3 text-xs text-white/60 hover:bg-white/8 hover:text-white disabled:opacity-40"><Download size={14} />{exporting ? "导出中" : "导出预演"}</button>}
           <IconButton label="拍摄" onClick={captureShot}><Camera size={16} /></IconButton>
           <IconButton label="镜头素材" active={shotsOpen} onClick={() => { setShotsOpen((open) => !open); setAssetsOpen(false); }}><Film size={16} /></IconButton>
-          <IconButton label="返回画布" onClick={() => router.push("/pipeline")}><X size={17} /></IconButton>
+          <IconButton label="返回画布" onClick={() => router.push(`/pipeline/${canvasId}`)}><X size={17} /></IconButton>
         </div>
       </header>
 

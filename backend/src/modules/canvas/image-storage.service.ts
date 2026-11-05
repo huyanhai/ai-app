@@ -12,6 +12,31 @@ const DATA_URL = /^data:(image\/(?:png|jpe?g|webp|gif)|video\/(?:webm|mp4|quickt
 
 @Injectable()
 export class ImageStorageService {
+  async extractLastFrame(videoUrl: string) {
+    if (!ffmpegPath) throw new Error('FFmpeg is not configured');
+    const directory = await mkdtemp(join(tmpdir(), 'canvas-frame-'));
+    const output = join(directory, 'last-frame.jpg');
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const child = spawn(ffmpegPath, [
+          '-nostdin', '-hide_banner', '-loglevel', 'error',
+          '-sseof', '-0.1', '-i', videoUrl,
+          '-frames:v', '1', '-q:v', '2', output,
+        ]);
+        let error = '';
+        child.stderr?.on('data', (chunk) => { error += chunk.toString(); });
+        child.on('error', reject);
+        child.on('close', (code) => code === 0
+          ? resolve()
+          : reject(new Error(error.trim() || `FFmpeg exited with code ${code}`)));
+      });
+      const frame = await readFile(output);
+      return await this.upload(`data:image/jpeg;base64,${frame.toString('base64')}`);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  }
+
   async upload(dataUrl: string) {
     const match = DATA_URL.exec(dataUrl);
     if (!match) throw new BadRequestException('Invalid media data URL');

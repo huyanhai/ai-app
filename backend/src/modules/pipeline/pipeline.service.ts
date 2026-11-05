@@ -152,9 +152,25 @@ export class PipelineService {
         const { output } = await queryVideoTask(taskInfo.task_id, model);
         console.log('查询任务状态', output);
         if (output?.task_status === 'SUCCEEDED') {
+          let lastFrameUrl: string | undefined;
+          let lastFrameError: string | undefined;
+          if (messages.config?.extractLastFrame) {
+            try {
+              lastFrameUrl = await this.images.extractLastFrame(
+                output.video_url,
+              );
+            } catch (error) {
+              lastFrameError = error instanceof Error ? error.message : String(error);
+            }
+          }
           yield {
             type: SSE_EVENT.MSG_CHUNK,
-            content: { status: ChunkStatus.SUCCESS, url: output.video_url },
+            content: {
+              status: ChunkStatus.SUCCESS,
+              url: output.video_url,
+              lastFrameUrl,
+              lastFrameError,
+            },
           };
           break;
         }

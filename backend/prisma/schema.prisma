@@ -48,11 +48,13 @@ model AgentMessage {
 }
 
 model CanvasState {
-  id        String   @id
+  id        String   @id @default(cuid())
+  title     String   @default("未命名画布")
   nodes     String
   edges     String
   past      String   @default("[]")
   future    String   @default("[]")
+  createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
@@ -63,7 +65,25 @@ model GenerationRecord {
   title     String
   model     String?
   url       String
+  canvasId  String   @default("default")
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+  @@index([canvasId, createdAt])
+}
+
+model ProductionProject {
+  id        String   @id
+  idea      String
+  modelId   String?
+  status    String   @default("draft")
+  plan      String
+  requirements String?
+  nodes     String
+  edges     String
+  error     String?
+  mediaMode String?
+  events    String   @default("[]")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

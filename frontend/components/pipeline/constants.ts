@@ -18,6 +18,7 @@ export const NODE_TYPE_LABEL: Record<NodeType, string> = {
   [NodeType.TimelineNode]: "时间线",
   [NodeType.SubjectNode]: "主体",
   [NodeType.StageNode]: "导演台",
+  [NodeType.ShotTableNode]: "分镜表",
 };
 
 // 生成类节点提示词占位文案（对齐即梦）
@@ -73,4 +74,5 @@ export const NODE_DEFAULT_DATA: Record<NodeType, TAllNodes["data"]> = {
   [NodeType.TimelineNode]: {},
   [NodeType.SubjectNode]: { name: "主体 1" },
   [NodeType.StageNode]: {},
+  [NodeType.ShotTableNode]: { shots: [] },
 };

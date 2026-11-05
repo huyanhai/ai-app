@@ -2,20 +2,19 @@
 
 import { useRef, type ReactNode } from "react";
 import {
-  $getNodeByKey,
   DecoratorNode,
   type LexicalEditor,
   type LexicalNode,
   type NodeKey,
   type SerializedLexicalNode,
 } from "lexical";
-import { AtSign, AudioLines, FileText, Image, MapPin, Shuffle, Type, Video, X } from "lucide-react";
+import { AtSign, AudioLines, FileText, Image, MapPin, Palette, Shuffle, Type, Video } from "lucide-react";
 import type { ReferenceKind } from "@/components/chat/types";
 import type { TImageEditMarker } from "../../types";
 
 export interface EditorToken {
   id: string;
-  kind: "skill" | "attachment" | "subject";
+  kind: "skill" | "style" | "attachment" | "subject";
   label: string;
   description?: string;
   url?: string;
@@ -31,15 +30,11 @@ interface SerializedInlineTokenNode extends SerializedLexicalNode {
 
 function InlineToken({
   token,
-  editorRef,
-  nodeKey,
 }: {
   token: EditorToken;
-  editorRef: React.RefObject<LexicalEditor | null>;
-  nodeKey: NodeKey;
 }) {
   const referenceIcons = { subject: AtSign, image: Image, video: Video, audio: AudioLines, text: Type };
-  const Icon = token.kind === "skill" ? Shuffle : token.kind === "subject" ? referenceIcons[token.referenceKind ?? "subject"] : FileText;
+  const Icon = token.kind === "skill" ? Shuffle : token.kind === "style" ? Palette : token.kind === "subject" ? referenceIcons[token.referenceKind ?? "subject"] : FileText;
   const isImage = token.url && (token.referenceKind === "image" || (token.kind === "attachment" && token.mimeType?.startsWith("image/")));
 
   if (token.markerIndex && token.marker && token.url) {
@@ -78,15 +73,6 @@ function InlineToken({
     <span contentEditable={false} className="mx-0.5 inline-flex max-w-48 items-center gap-1.5 rounded-md bg-white/[0.06] px-1.5 py-0.5 align-middle text-xs text-white/75">
       {isImage ? <img src={token.url} alt="" className="h-5 w-5 rounded object-cover" /> : <Icon size={13} className="shrink-0" />}
       <span className="truncate">{token.label}</span>
-      <button
-        type="button"
-        aria-label={`移除 ${token.label}`}
-        className="shrink-0 cursor-pointer text-white/40 hover:text-white"
-        onMouseDown={(event) => event.preventDefault()}
-        onClick={() => editorRef.current?.update(() => $getNodeByKey(nodeKey)?.remove())}
-      >
-        <X size={11} />
-      </button>
     </span>
   );
 }
@@ -134,7 +120,7 @@ export class InlineTokenNode extends DecoratorNode<ReactNode> {
   }
 
   decorate() {
-    return <InlineToken token={this.__token} editorRef={this.__editorRef} nodeKey={this.__key} />;
+    return <InlineToken token={this.__token} />;
   }
 
   getToken() {

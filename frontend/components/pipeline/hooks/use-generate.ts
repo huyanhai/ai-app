@@ -20,6 +20,7 @@ import { getImagePreset } from "../nodes/node/image/presets";
 import { SOURCE_HANDLE, TARGET_HANDLE } from "../constants";
 import { canvasHistoryApi } from "@/lib/canvas-history";
 import { readStageReference } from "@/components/stage/reference";
+import { useCanvasId } from "@/components/pipeline/canvas-workspace-context";
 
 // 文本节点走会话接口（见 chat），不在此表中
 const SUBMIT_URL: Partial<Record<NodeType, string>> = {
@@ -34,10 +35,13 @@ export const useGenerate = (
   nodeType: NodeType | undefined,
   nodeData: TAllNodes["data"] | undefined,
 ) => {
+  const canvasId = useCanvasId();
   const editorRef = useRef<IEditorRef>(null);
   // 同一节点再次发送时中止上一次未结束的会话
   const abortRef = useRef<AbortController | null>(null);
-  const [isEmpty, setIsEmpty] = useState(true);
+  const [isEmpty, setIsEmpty] = useState(
+    !(nodeData?.draftText || nodeData?.production?.prompt)?.trim(),
+  );
   const imageEditorMode = usePipelineStore((state) =>
     state.imageEditor?.nodeId === nodeId && nodeType === NodeType.ImageNode
       ? state.imageEditor.mode
@@ -46,7 +50,7 @@ export const useGenerate = (
   const isImageEditing = imageEditorMode === "edit";
   const isOutpainting = imageEditorMode === "outpaint";
   const isUpscaling = imageEditorMode === "upscale";
-  const { getNode, setNodes } = useReactFlow<TAllNodes>();
+  const { getNode, getEdges, setNodes } = useReactFlow<TAllNodes>();
 
   // 左侧上游节点是当前节点的参考素材，右侧子节点不参与当前节点生成。
   const incomingConnections = useNodeConnections({
@@ -57,13 +61,22 @@ export const useGenerate = (
     id: nodeId,
     handleType: "source",
   });
+  const continuityEdges = getEdges().filter((edge) => edge.data?.kind === "continuity");
+  const previousContinuityEdge = continuityEdges.find((edge) => edge.target === nodeId);
+  const previousContinuityNode = previousContinuityEdge
+    ? getNode(previousContinuityEdge.source)
+    : undefined;
+  const hasOutgoingContinuity = continuityEdges.some((edge) => edge.source === nodeId);
+  const continuityConnectionKeys = new Set(continuityEdges.map((edge) => `${edge.source}:${edge.target}`));
 
   const { textNodes, imageNodes, videoNodes, stageNodes } = useMemo(() => {
     const textNodes: TNodeText[] = [];
     const imageNodes: TNodeImage[] = [];
     const videoNodes: TNodeImage[] = [];
     const stageNodes: TNodeStage[] = [];
-    const referenceIds = incomingConnections.map((connection) => connection.source);
+    const referenceIds = incomingConnections
+      .filter((connection) => !continuityConnectionKeys.has(`${connection.source}:${connection.target}`))
+      .map((connection) => connection.source);
     outgoingConnections.forEach((connection) => {
       if (connection.sourceHandle === TARGET_HANDLE && connection.targetHandle === SOURCE_HANDLE) {
         referenceIds.push(connection.target);
@@ -85,7 +98,7 @@ export const useGenerate = (
       }
     });
     return { textNodes, imageNodes, videoNodes, stageNodes };
-  }, [incomingConnections, outgoingConnections, getNode]);
+  }, [incomingConnections, outgoingConnections, getNode, continuityEdges]);
 
   const disabled = useMemo(() => {
     const hasStageReference = nodeType === NodeType.VideoNode && stageNodes.length > 0;
@@ -205,6 +218,21 @@ export const useGenerate = (
     }
 
     const editorMessages = await editorRef.current?.getEditor();
+    if (nodeType === NodeType.VideoNode && previousContinuityEdge) {
+      const previousFrame = previousContinuityNode?.data.production?.lastFrameUrl;
+      const previousReady = previousContinuityNode &&
+        "status" in previousContinuityNode.data &&
+        previousContinuityNode.data.status === ChunkStatus.SUCCESS &&
+        "url" in previousContinuityNode.data &&
+        previousContinuityNode.data.url;
+      if (!previousReady || !previousFrame) {
+        updateNodeData(nodeId, {
+          status: ChunkStatus.FAILED,
+          error: previousContinuityNode?.data.production?.continuityError || "请先成功生成上一镜并等待尾帧就绪，或断开续接连线后独立生成",
+        });
+        return;
+      }
+    }
     if (stageReferences.length) {
       if (stageReferences.length > 1 || textNodes.length || imageNodes.length || videoNodes.length || editorMessages?.length) {
         updateNodeData(nodeId, {
@@ -222,7 +250,7 @@ export const useGenerate = (
         error: undefined,
         config: { ...nodeData?.config, ratio: "16:9", duration: reference.duration ?? nodeData?.config?.duration },
       });
-      void canvasHistoryApi.recordGeneration({
+      void canvasHistoryApi.recordGeneration(canvasId, {
         nodeId,
         nodeType,
         title: nodeData?.title || nodeId,
@@ -238,8 +266,6 @@ export const useGenerate = (
       });
       return;
     }
-    editorRef.current?.clear();
-    updateNodeData(nodeId, { draftText: "" });
     const imagePreset = nodeData && "preset" in nodeData
       ? getImagePreset(nodeData.preset)
       : undefined;
@@ -253,9 +279,11 @@ export const useGenerate = (
       nodeData && "upscaleDetail" in nodeData ? nodeData.upscaleDetail ?? 50 : 50;
     const upscaleResolution =
       nodeData && "upscaleResolution" in nodeData ? nodeData.upscaleResolution ?? "4K" : "4K";
-    const referenceMessages = imageNodes
-      .filter((image) => image.data.url)
-      .map((image) => ({ type: "image_url" as const, image_url: image.data.url }));
+    const referenceMessages = nodeType === NodeType.VideoNode && previousContinuityEdge
+      ? []
+      : imageNodes
+        .filter((image) => image.data.url)
+        .map((image) => ({ type: "image_url" as const, image_url: image.data.url }));
     let videoReferenceMessages: { type: "video_url"; video_url: string }[] = [];
     if (nodeType === NodeType.VideoNode) {
       try {
@@ -335,7 +363,9 @@ export const useGenerate = (
       return;
     }
 
+    abortRef.current?.abort();
     const abortController = new AbortController();
+    abortRef.current = abortController;
     const toolbox = nodeData?.config?.toolbox;
     const toolboxPrompt = [
       toolbox?.camera?.camera && `相机：${toolbox.camera.camera}`,
@@ -353,6 +383,8 @@ export const useGenerate = (
       ...videoReferenceMessages,
       ...(messages ?? []),
       ...(videoReferencePrompt ? [{ type: "text" as const, text: videoReferencePrompt }] : []),
+      ...(previousContinuityEdge && nodeData?.production?.continuity?.prompt ? [{ type: "text" as const, text: nodeData.production.continuity.prompt }] : []),
+      ...(hasOutgoingContinuity && nodeData?.production?.outgoingContinuity?.prompt ? [{ type: "text" as const, text: nodeData.production.outgoingContinuity.prompt }] : []),
       ...(toolboxPrompt ? [{ type: "text" as const, text: toolboxPrompt }] : []),
     ];
     const requestDuration = videoNodes.length && !nodeData?.config?.durationTouched
@@ -364,6 +396,13 @@ export const useGenerate = (
     updateNodeData(nodeId, {
       status: ChunkStatus.PROCESSING,
       error: undefined,
+      ...(hasOutgoingContinuity && nodeData?.production ? {
+        production: {
+          ...nodeData.production,
+          lastFrameUrl: undefined,
+          continuityError: undefined,
+        },
+      } : {}),
       ...(videoNodes.length ? { config: { ...nodeData?.config, duration: requestDuration, ratio: requestRatio } } : {}),
     });
     let generationRecorded = false;
@@ -373,6 +412,14 @@ export const useGenerate = (
         message: requestMessages,
         config: {
           ...nodeData?.config,
+          firstFrameUrl: previousContinuityEdge
+            ? previousContinuityNode?.data.production?.lastFrameUrl
+            : nodeData?.config?.firstFrameUrl,
+          lastFrameUrl: previousContinuityEdge
+            ? undefined
+            : nodeData?.config?.lastFrameUrl,
+          extractLastFrame: hasOutgoingContinuity,
+          promptExtend: !(previousContinuityEdge || hasOutgoingContinuity),
           duration: requestDuration,
           ratio: isOutpainting && nodeData && "outpaintRatio" in nodeData && nodeData.outpaintRatio !== "original"
             ? nodeData.outpaintRatio
@@ -402,12 +449,22 @@ export const useGenerate = (
       }),
       abortController,
       cb: (data) => {
+        if (abortController.signal.aborted) return;
         if (data.type === "msg_chunk") {
-          const { url, status } = data.content as IMediaData;
+          const { url, status, lastFrameUrl, lastFrameError } = data.content as IMediaData;
           updateNodeData(nodeId, { url, status });
           if (status === ChunkStatus.SUCCESS && url && !generationRecorded && nodeType) {
+            if (nodeData?.production) {
+              updateNodeData(nodeId, {
+                production: {
+                  ...nodeData.production,
+                  lastFrameUrl,
+                  continuityError: lastFrameError,
+                },
+              });
+            }
             generationRecorded = true;
-            void canvasHistoryApi.recordGeneration({
+            void canvasHistoryApi.recordGeneration(canvasId, {
               nodeId,
               nodeType,
               title: nodeData?.title || nodeId,
@@ -426,10 +483,23 @@ export const useGenerate = (
     }).catch((error) => {
       updateNodeData(nodeId, {
         status: ChunkStatus.FAILED,
-        error: error instanceof Error ? error.message : String(error),
+        error: abortController.signal.aborted
+          ? "已停止生成"
+          : error instanceof Error ? error.message : String(error),
       });
+    }).finally(() => {
+      if (abortRef.current === abortController) abortRef.current = null;
     });
-  }, [nodeType, nodeData, textNodes, imageNodes, videoNodes, stageNodes, nodeId, updateNodeData, chat, isImageEditing, isOutpainting, isUpscaling]);
+  }, [canvasId, nodeType, nodeData, textNodes, imageNodes, videoNodes, stageNodes, nodeId, updateNodeData, chat, isImageEditing, isOutpainting, isUpscaling, previousContinuityEdge, previousContinuityNode, hasOutgoingContinuity]);
 
-  return { editorRef, submit, disabled, setIsEmpty, imageNodes, videoNodes };
+  const stop = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    updateNodeData(nodeId, {
+      status: ChunkStatus.FAILED,
+      error: "已停止生成",
+    });
+  }, [nodeId, updateNodeData]);
+
+  return { editorRef, submit, stop, disabled, setIsEmpty, imageNodes, videoNodes };
 };

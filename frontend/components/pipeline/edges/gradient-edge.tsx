@@ -30,6 +30,10 @@ const GradientEdge = ({
 
   const active = !!data?.active;
   const gradientId = `edge-gradient-${id}`;
+  const flowGradientId = `${gradientId}-flow`;
+  const deltaX = targetX - sourceX;
+  const deltaY = targetY - sourceY;
+  const flowLength = 0.28;
 
   return (
     <>
@@ -43,6 +47,16 @@ const GradientEdge = ({
           strokeWidth: selected ? 2.5 : style?.strokeWidth,
         }}
       />
+      {data?.kind === "continuity" && (
+        <EdgeLabelRenderer>
+          <span
+            className="nodrag nopan pointer-events-none absolute rounded-full border border-cyan-300/15 bg-[#1b1b1e] px-2 py-0.5 text-[10px] whitespace-nowrap text-cyan-100/60"
+            style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY - 12}px)` }}
+          >
+            尾帧续接
+          </span>
+        </EdgeLabelRenderer>
+      )}
       {selected && (
         <path
           d={path}
@@ -86,9 +100,26 @@ const GradientEdge = ({
               <stop offset="0%" stopColor="#33a3ff" />
               <stop offset="100%" stopColor="#3df2c6" />
             </linearGradient>
-            <filter id={`${gradientId}-soft`} x="-20%" y="-100%" width="140%" height="300%">
-              <feGaussianBlur stdDeviation="1.2" />
-            </filter>
+            <linearGradient
+              id={flowGradientId}
+              gradientUnits="userSpaceOnUse"
+              x1={sourceX}
+              y1={sourceY}
+              x2={sourceX + deltaX * flowLength}
+              y2={sourceY + deltaY * flowLength}
+            >
+              <stop offset="0%" stopColor="white" stopOpacity={0} />
+              <stop offset="50%" stopColor="white" stopOpacity={0.85} />
+              <stop offset="100%" stopColor="white" stopOpacity={0} />
+              <animateTransform
+                attributeName="gradientTransform"
+                type="translate"
+                from={`${-deltaX * flowLength} ${-deltaY * flowLength}`}
+                to={`${deltaX} ${deltaY}`}
+                dur="2.4s"
+                repeatCount="indefinite"
+              />
+            </linearGradient>
           </defs>
           {/* 渐变底色 */}
           <path
@@ -98,26 +129,15 @@ const GradientEdge = ({
             strokeWidth={1.5}
             className="pointer-events-none"
           />
-          {/* 流光：pathLength 归一化后让亮点沿路径循环流动 */}
+          {/* 流光：透明渐变光带沿路径移动，两端自然淡出 */}
           <path
             d={path}
             fill="none"
-            stroke="rgba(255,255,255,0.85)"
+            stroke={`url(#${flowGradientId})`}
             strokeWidth={1.5}
             strokeLinecap="round"
-            pathLength={100}
-            strokeDasharray="28 72"
             className="pointer-events-none"
-            filter={`url(#${gradientId}-soft)`}
-          >
-            <animate
-              attributeName="stroke-dashoffset"
-              from="0"
-              to="-100"
-              dur="2.4s"
-              repeatCount="indefinite"
-            />
-          </path>
+          />
         </>
       )}
     </>

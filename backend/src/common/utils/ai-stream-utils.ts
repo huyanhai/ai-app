@@ -13,6 +13,8 @@ export enum ChunkStatus {
 export interface IMediaData {
   url: string;
   status: ChunkStatus;
+  lastFrameUrl?: string;
+  lastFrameError?: string;
 }
 
 export interface IStoryData {

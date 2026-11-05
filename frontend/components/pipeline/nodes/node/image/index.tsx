@@ -1,6 +1,6 @@
 "use client";
 import { memo, useMemo, useRef, useState } from "react";
-import { NodeProps, useReactFlow, useViewport } from "@xyflow/react";
+import { NodeProps, useReactFlow, useStore } from "@xyflow/react";
 import { Image, MapPin, Minus } from "lucide-react";
 import { motion } from "motion/react";
 import { nanoid } from "nanoid";
@@ -22,7 +22,7 @@ const MARKER_CURSOR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2
 // 即梦风格图片内容卡片：空态居中图标，生成后展示图片
 const ImageNode = ({ id, data, selected }: NodeProps<TNodeImage>) => {
   const { setNodes } = useReactFlow<TAllNodes>();
-  const { zoom } = useViewport();
+  const zoom = useStore((state) => state.transform[2]);
   const editorMode = usePipelineStore((state) => state.imageEditor?.nodeId === id ? state.imageEditor.mode : null);
   const editing = editorMode === "edit";
   const outpainting = editorMode === "outpaint";

@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsObject,
   IsNumber,
+  IsBoolean,
 } from 'class-validator';
 import { ContentBlock } from 'langchain';
 
@@ -34,6 +35,14 @@ export class ConfigDto {
   @IsString()
   @IsOptional()
   lastFrameUrl?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  extractLastFrame?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  promptExtend?: boolean;
 
   @IsNumber()
   @IsOptional()

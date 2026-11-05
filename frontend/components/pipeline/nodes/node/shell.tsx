@@ -182,6 +182,14 @@ const NodeShell = ({
   const menuOpen = usePipelineStore((s) => s.menuRequest?.nodeId === id);
   const { getNode } = useReactFlow<TAllNodes>();
   const nodeData = getNode(id)?.data;
+  const continuityPreviousId = nodeData?.production?.continuity?.previousVideoId;
+  const continuityPrevious = continuityPreviousId ? getNode(continuityPreviousId) : undefined;
+  const continuityWaiting = continuityPreviousId && (
+    !continuityPrevious ||
+    !("status" in continuityPrevious.data) ||
+    continuityPrevious.data.status !== ChunkStatus.SUCCESS ||
+    !continuityPrevious.data.production?.lastFrameUrl
+  );
   const processing =
     [NodeType.ImageNode, NodeType.VideoNode, NodeType.AudioNode].includes(type) &&
     nodeData && "status" in nodeData && nodeData.status === ChunkStatus.PROCESSING;
@@ -191,6 +199,16 @@ const NodeShell = ({
 
   return (
     <div className="group/node relative">
+      {nodeData?.production?.stale && !("status" in nodeData && nodeData.status) && (
+        <span className="absolute -top-2 right-3 z-10 rounded-full bg-amber-400/15 px-2 py-0.5 text-[10px] text-amber-200">
+          待更新
+        </span>
+      )}
+      {continuityPreviousId && (
+        <span className={`absolute -top-2 left-3 z-10 rounded-full px-2 py-0.5 text-[10px] ${continuityWaiting ? "bg-amber-400/15 text-amber-200" : "bg-cyan-400/15 text-cyan-200"}`}>
+          {continuityWaiting ? "等待上一镜" : "尾帧续接"}
+        </span>
+      )}
       {/* 标题栏 */}
       {chromeVisible && <div className="absolute -top-6 left-0 right-0 flex items-center gap-1 text-white/60 select-none">
         {icon}

@@ -12,6 +12,19 @@ const PRESET_SIZES: Record<string, string> = {
   '9:16': '864x1536',
 };
 
+const outputSize = (config?: StreamDto['config']) => {
+  const base = PRESET_SIZES[config?.ratio ?? ''] || '1024x1024';
+  const longSide = config?.resolution === '2K'
+    ? 2048
+    : config?.resolution === '4K'
+      ? 4096
+      : undefined;
+  if (!longSide) return base;
+  const [width, height] = base.split('x').map(Number);
+  const scale = longSide / Math.max(width, height);
+  return `${Math.round(width * scale)}x${Math.round(height * scale)}`;
+};
+
 export async function genImage({
   message,
   config,
@@ -26,7 +39,7 @@ export async function genImage({
       text += `${item.text}\n`;
     }
     if (item.type === 'image_url') {
-      text += `[图片${index++}]`;
+      text += `[图片${++index}]`;
       messages.push({
         image: item.image_url,
       });
@@ -54,13 +67,21 @@ export async function genImage({
       form.append('model', runtimeModel.modelId);
       form.append('prompt', text.trim());
       form.append('n', String(config?.count || 1));
-      if (config?.preset) {
-        form.append('size', PRESET_SIZES[config.ratio] || '1024x1024');
-      } else if (config?.outpaint) {
+      let size: string;
+      if (config?.outpaint) {
         const [width, height] = (config.ratio || '1:1').split(':').map(Number);
         const ratio = width / height;
-        form.append('size', ratio > 1 ? '1536x1024' : ratio < 1 ? '1024x1536' : '1024x1024');
+        size = ratio > 1 ? '1536x1024' : ratio < 1 ? '1024x1536' : '1024x1024';
+      } else {
+        size = outputSize(config);
       }
+      form.append('size', size);
+      console.log('image request', {
+        endpoint: 'edits',
+        model: runtimeModel.modelId,
+        size,
+        count: config?.count || 1,
+      });
       for (const [index, sourceImage] of sourceImages.entries()) {
         const imageResponse = await fetch(sourceImage);
         if (!imageResponse.ok) {
@@ -74,6 +95,13 @@ export async function genImage({
         body: form,
       });
     } else {
+      const size = outputSize(config);
+      console.log('image request', {
+        endpoint: 'generations',
+        model: runtimeModel.modelId,
+        size,
+        count: config?.count || 1,
+      });
       response = await fetch(`${runtimeModel.baseURL}/images/generations`, {
         headers: {
           'Content-Type': 'application/json',
@@ -84,6 +112,7 @@ export async function genImage({
           model: runtimeModel.modelId,
           prompt: text.trim(),
           n: config?.count || 1,
+          size,
         }),
       });
     }

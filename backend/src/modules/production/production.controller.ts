@@ -5,6 +5,7 @@ import {
   Header,
   Param,
   Post,
+  Query,
   Res,
 } from '@nestjs/common';
 import { Response } from 'express';
@@ -53,9 +54,22 @@ export class ProductionController {
     return this.productions.create(body);
   }
 
+  @Get()
+  latest(@Query('canvasId') canvasId?: string) {
+    return this.productions.latest(canvasId);
+  }
+
   @Get(':id')
   get(@Param('id') id: string) {
     return this.productions.get(id);
+  }
+
+  @Post(':id/claim-legacy')
+  claimLegacy(
+    @Param('id') id: string,
+    @Body() body: { canvasId: string; nodeIds: string[] },
+  ) {
+    return this.productions.claimLegacy(id, body.canvasId, body.nodeIds);
   }
 
   @Post(':id/confirm')
@@ -89,6 +103,11 @@ export class ProductionController {
   @Post(':id/revise-stage')
   reviseStage(@Param('id') id: string, @Body() body: ReviseStageDto) {
     return this.productions.reviseStage(id, body);
+  }
+
+  @Post(':id/review-story')
+  reviewStory(@Param('id') id: string) {
+    return this.productions.reviewCurrentStory(id);
   }
 
   @Post(':id/revise-stage/stream')

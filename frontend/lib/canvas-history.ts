@@ -1,4 +1,4 @@
-import { Edge } from "@xyflow/react";
+import { Edge, Viewport } from "@xyflow/react";
 import { NodeType, TAllNodes } from "@/components/pipeline/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
@@ -11,6 +11,7 @@ export type CanvasSnapshot = {
 export type StoredCanvas = CanvasSnapshot & {
   past: CanvasSnapshot[];
   future: CanvasSnapshot[];
+  viewport?: Viewport;
 };
 
 export type GenerationRecord = {
@@ -95,6 +96,12 @@ export const canvasHistoryApi = {
     method: "POST",
     body: JSON.stringify({ title: "未命名画布" }),
   }),
+  rename: (id: string, title: string) => request<CanvasSummary>(`/${id}/title`, {
+    method: "PUT",
+    body: JSON.stringify({ title }),
+  }),
+  duplicate: (id: string) => request<CanvasSummary>(`/${id}/duplicate`, { method: "POST" }),
+  delete: (id: string) => request<{ success: boolean }>(`/${id}`, { method: "DELETE" }),
   uploadAsset: (dataUrl: string) => uploadAsset(dataUrl),
   ensureMp4,
   load: (canvasId: string) => request<StoredCanvas | null>(`/${canvasId}`),
@@ -105,6 +112,11 @@ export const canvasHistoryApi = {
       body: JSON.stringify(externalized),
     });
   },
+  saveViewport: (canvasId: string, viewport: Viewport) => request<{ success: boolean }>(`/${canvasId}/viewport`, {
+    method: "PATCH",
+    body: JSON.stringify(viewport),
+    keepalive: true,
+  }),
   generations: (canvasId: string) => request<GenerationRecord[]>(`/${canvasId}/generations`),
   recordGeneration: async (canvasId: string, record: Omit<GenerationRecord, "id" | "createdAt">) => {
     const externalized = await externalizeAssets(record);

@@ -1,9 +1,18 @@
 import { IsArray, IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { FileUploadDto } from '@/modules/ai/dto/stream.dto';
 
 export class CreateProductionDto {
   @IsString()
+  @IsOptional()
+  canvasId?: string;
+
+  @IsString()
   @IsNotEmpty()
   idea: string;
+
+  @IsString()
+  @IsOptional()
+  ideaState?: string;
 
   @IsString()
   @IsOptional()
@@ -12,6 +21,10 @@ export class CreateProductionDto {
   @IsString()
   @IsOptional()
   style?: string;
+
+  @IsArray()
+  @IsOptional()
+  files?: FileUploadDto[];
 }
 
 export class ConfirmProductionDto {
@@ -41,6 +54,7 @@ export class ReviseStageDto extends ConfirmProductionDto {
   @IsString()
   stage:
     | 'requirements'
+    | 'story'
     | 'script'
     | 'characters'
     | 'storyboard'
@@ -50,6 +64,10 @@ export class ReviseStageDto extends ConfirmProductionDto {
   @IsString()
   @IsNotEmpty()
   feedback: string;
+
+  @IsArray()
+  @IsOptional()
+  files?: FileUploadDto[];
 }
 
 export class RetryProductionNodeDto {

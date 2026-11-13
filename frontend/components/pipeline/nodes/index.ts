@@ -6,6 +6,7 @@ import TimelineNode from "./node/timeline";
 import SubjectNode from "./node/subject";
 import StageNode from "./node/stage";
 import ShotTableNode from "./node/shot-table";
+import ToolboxNode from "./node/toolbox";
 
 export default {
   textNode: TextNode,
@@ -14,6 +15,10 @@ export default {
   audioNode: AudioNode,
   timelineNode: TimelineNode,
   subjectNode: SubjectNode,
+  cameraNode: ToolboxNode,
+  paletteNode: ToolboxNode,
+  styleNode: ToolboxNode,
+  movementNode: ToolboxNode,
   stageNode: StageNode,
   shotTableNode: ShotTableNode,
 };

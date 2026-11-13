@@ -28,6 +28,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { IconButton } from "@/components/ui/icon-button";
+import { Slider } from "@/components/ui/slider";
 import { NumberField } from "./controls";
 import { CameraMotion, CameraProperty, CharacterAction, CharacterProperty, Shot, StageObject } from "./types";
 
@@ -565,15 +566,16 @@ export function StageTimeline({
         >
           <Minus size={13} />
         </IconButton>
-        <input
+        <Slider
           aria-label="时间轴缩放"
-          type="range"
-          min="0.5"
-          max="3"
-          step="0.25"
+          min={0.5}
+          max={3}
+          step={0.25}
           value={zoom}
-          onChange={(event) => onZoomChange(Number(event.target.value))}
-          className="w-20 accent-white"
+          showValue={false}
+          showLimits={false}
+          onValueChange={onZoomChange}
+          className="w-20"
         />
         <IconButton
           label="时间轴缩放 +"

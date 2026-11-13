@@ -1,5 +1,6 @@
 import { createChatModel } from '@/common/llm';
 import { genImage } from '@/common/llm/tools/gen-image';
+import { genSceneReferenceImage } from '@/common/llm/tools/gen-scene-reference';
 import { ChunkStatus, StreamEvent } from '@/common/utils/ai-stream-utils';
 import { AsyncQueue } from '@/common/utils/async-queue';
 import { SSE_EVENT, SSE_ROLE } from '@/common/utils/stream-constants';
@@ -10,6 +11,7 @@ import { StreamDto } from './dto/stream.dto';
 import { ChatDto } from './dto/chat.dto';
 import { textScenePrompt } from '@/common/llm/prompts/text-scene';
 import { genVideo, queryVideoTask } from '@/common/llm/tools/gen-video';
+import { videoErrorMessage } from '@/common/llm/video-providers/http';
 import {
   decomposeVisualDescription,
   designStoryboard,
@@ -101,41 +103,47 @@ export class PipelineService {
 
   async *image(messages: StreamDto) {
     const model = await this.models.runtime(messages.modelId, 'image');
-    const queue = new AsyncQueue<StreamEvent>();
-    queue.push({ type: SSE_EVENT.MSG_START, role: SSE_ROLE.ASSISTANT });
-    queue.push({
+    yield { type: SSE_EVENT.MSG_START, role: SSE_ROLE.ASSISTANT } as StreamEvent;
+    yield {
       type: SSE_EVENT.MSG_CHUNK,
       content: {
         status: ChunkStatus.PROCESSING,
         url: null,
       },
-    });
+    } as StreamEvent;
     try {
-      const { content } = await genImage({ ...messages, runtimeModel: model });
+      const { content } = messages.assetKind === 'sceneReference'
+        ? await genSceneReferenceImage({
+            ...messages,
+            runtimeModel: model,
+            message: messages.message.filter((item) => item.type === 'text'),
+            textList: [],
+            config: { ...messages.config, edit: false },
+          }, await this.models.visionRuntime())
+        : await genImage({ ...messages, runtimeModel: model });
       const storedContent = await Promise.all(content.map(async (item) => ({
         ...item,
         image: item.image.startsWith('data:image/')
           ? await this.images.upload(item.image)
           : item.image,
       })));
-      queue.push({
+      yield {
         type: SSE_EVENT.MSG_CHUNK,
         content: {
           status: ChunkStatus.SUCCESS,
           url: storedContent[0].image,
+          urls: storedContent.map((item) => item.image),
         },
-      });
+      } as StreamEvent;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      queue.push({
+      yield {
         type: SSE_EVENT.MSG_CHUNK,
         content: { status: ChunkStatus.FAILED, url: null },
-      });
-      queue.push({ type: SSE_EVENT.MSG_ERROR, error: message });
+      } as StreamEvent;
+      yield { type: SSE_EVENT.MSG_ERROR, error: message } as StreamEvent;
     }
-    queue.push({ type: SSE_EVENT.MSG_END });
-
-    yield* queue.generator();
+    yield { type: SSE_EVENT.MSG_END } as StreamEvent;
   }
 
   async *video(messages: StreamDto) {
@@ -179,7 +187,8 @@ export class PipelineService {
         }
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      console.error('视频生成请求失败', error);
+      const message = videoErrorMessage(error);
       yield {
         type: SSE_EVENT.MSG_CHUNK,
         content: { status: ChunkStatus.FAILED, url: null },

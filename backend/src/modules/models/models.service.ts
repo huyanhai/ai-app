@@ -166,7 +166,9 @@ export class ModelsService {
 
   async runtime(id: string | undefined, category: string) {
     const model = id
-      ? await this.prisma.modelConfig.findFirst({ where: { id, category } })
+      ? await this.prisma.modelConfig.findFirst({
+          where: { category, OR: [{ id }, { name: id }] },
+        })
       : await this.prisma.modelConfig.findFirst({
           where: { category, enabled: true },
           orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
@@ -180,5 +182,21 @@ export class ModelsService {
       );
     }
     return model;
+  }
+
+  async visionRuntime() {
+    const models = await this.prisma.modelConfig.findMany({
+      where: { category: 'text', enabled: true },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+    });
+    const model = models.find((item) => {
+      try {
+        return JSON.parse(item.params).supportVision === true;
+      } catch {
+        return false;
+      }
+    });
+    if (!model) throw new BadRequestException('请先配置支持看图的文本模型，用于场景参考图验收');
+    return this.runtime(model.id, 'text');
   }
 }

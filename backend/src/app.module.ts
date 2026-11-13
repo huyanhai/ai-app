@@ -8,6 +8,7 @@ import { ModelsModule } from './modules/models/models.module';
 import { AgentSessionsModule } from './modules/agent-sessions/agent-sessions.module';
 import { CanvasModule } from './modules/canvas/canvas.module';
 import { ProductionModule } from './modules/production/production.module';
+import { GenerationModule } from './modules/generation/generation.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { ProductionModule } from './modules/production/production.module';
     AgentSessionsModule,
     CanvasModule,
     ProductionModule,
+    GenerationModule,
   ],
   providers: [
     {

@@ -28,6 +28,7 @@ export type AgentFileInput = {
 
 export type SendAgentMessage = {
   text: string;
+  contentState?: string;
   modelId: string;
   files?: AgentFileInput[];
   skillIds?: string[];
@@ -40,6 +41,7 @@ type AgentSessionDetail = AgentSessionSummary & {
     id: number;
     role: "user" | "assistant";
     content: string;
+    contentState?: string;
     attachments?: MessageType["attachments"];
     subjects?: SubjectReference[];
     mode?: "agent" | "chat";
@@ -59,7 +61,8 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
   return (body ? JSON.parse(body) : undefined) as T;
 };
 
-export function useAgentChat() {
+export function useAgentChat(canvasId = "default") {
+  const activeSessionKey = `active-agent-session-id:${canvasId}`;
   const [sessions, setSessions] = useState<AgentSessionSummary[]>([]);
   const [skills, setSkills] = useState<AgentSkill[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -76,6 +79,7 @@ export function useAgentChat() {
 
   const selectSession = useCallback(
     async (id: string) => {
+      window.localStorage.setItem(activeSessionKey, id);
       selectCurrentSession(id);
       setMessages([]);
       setError("");
@@ -89,6 +93,7 @@ export function useAgentChat() {
             id: String(message.id),
             role: message.role,
             content: message.content,
+            contentState: message.contentState,
             attachments: message.attachments,
             subjects: message.subjects,
             mode: message.mode,
@@ -98,14 +103,14 @@ export function useAgentChat() {
         setError((cause as Error).message);
       }
     },
-    [selectCurrentSession],
+    [activeSessionKey, selectCurrentSession],
   );
 
   const loadSessions = useCallback(async () => {
-    const list = await request<AgentSessionSummary[]>("/agent/sessions");
+    const list = await request<AgentSessionSummary[]>(`/agent/sessions?canvasId=${encodeURIComponent(canvasId)}`);
     setSessions(list);
     return list;
-  }, []);
+  }, [canvasId]);
 
   const loadSkills = useCallback(async () => {
     const list = await request<AgentSkill[]>("/agent/skills");
@@ -115,25 +120,47 @@ export function useAgentChat() {
   useEffect(() => {
     const initialize = async () => {
       try {
-        const [list] = await Promise.all([loadSessions(), loadSkills()]);
-        if (list[0]) await selectSession(list[0].id);
+        let [list] = await Promise.all([loadSessions(), loadSkills()]);
+        const storedId = window.localStorage.getItem(activeSessionKey);
+        if (canvasId !== "default" && storedId && !list.some((session) => session.id === storedId)) {
+          const legacy = await request<AgentSessionSummary[]>("/agent/sessions?canvasId=default");
+          if (legacy.some((session) => session.id === storedId)) {
+            await request("/agent/sessions/claim-legacy", {
+              method: "POST",
+              body: JSON.stringify({ canvasId }),
+            });
+            list = await loadSessions();
+          }
+        }
+        const initialId = list.some((session) => session.id === storedId)
+          ? storedId
+          : canvasId === "default"
+            ? list[0]?.id
+            : null;
+        if (initialId) await selectSession(initialId);
+        else {
+          selectCurrentSession(null);
+          setMessages([]);
+        }
       } catch (cause) {
         setError((cause as Error).message);
       }
     };
     void initialize();
-  }, [loadSessions, loadSkills, selectSession]);
+  }, [activeSessionKey, canvasId, loadSessions, loadSkills, selectCurrentSession, selectSession]);
 
   const createSession = useCallback(async () => {
     const session = await request<AgentSessionSummary>("/agent/sessions", {
       method: "POST",
+      body: JSON.stringify({ canvasId }),
     });
     setSessions((current) => [session, ...current]);
+    window.localStorage.setItem(activeSessionKey, session.id);
     selectCurrentSession(session.id);
     setMessages([]);
     setError("");
     return session;
-  }, [selectCurrentSession]);
+  }, [activeSessionKey, canvasId, selectCurrentSession]);
 
   const renameSession = useCallback(async (id: string, title: string) => {
     const session = await request<AgentSessionSummary>(`/agent/sessions/${id}`, {
@@ -164,6 +191,7 @@ export function useAgentChat() {
   const send = useCallback(
     async ({
       text,
+      contentState,
       modelId,
       files = [],
       skillIds = [],
@@ -189,6 +217,7 @@ export function useAgentChat() {
             id: crypto.randomUUID(),
             role: "user",
             content: message,
+            contentState,
             attachments: files.map((file) => ({
               name: file.name,
               type: file.type,
@@ -213,6 +242,7 @@ export function useAgentChat() {
           abortController,
           body: JSON.stringify({
             message,
+            contentState,
             modelId,
             files: files.map((file) => ({
               name: file.name,

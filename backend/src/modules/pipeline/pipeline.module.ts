@@ -8,5 +8,6 @@ import { CanvasModule } from '../canvas/canvas.module';
   imports: [ModelsModule, CanvasModule],
   controllers: [PipelineController],
   providers: [PipelineService],
+  exports: [PipelineService],
 })
 export class PipelineModule {}

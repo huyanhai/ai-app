@@ -48,7 +48,7 @@ export const MODEL_CATEGORY_LABEL: Record<ModelCategory, string> = {
   [ModelCategory.Audio]: "音频",
 };
 
-// 服务商预设，选中后自动填充接口地址
+// 服务商选项
 export const MODEL_PROVIDERS: {
   value: string;
   label: string;
@@ -59,7 +59,7 @@ export const MODEL_PROVIDERS: {
     value: "openai",
     label: "OpenAI",
     baseURL: "https://api.openai.com/v1",
-    categories: Object.values(ModelCategory),
+    categories: [ModelCategory.Text, ModelCategory.Image, ModelCategory.Audio],
   },
   {
     value: "anthropic",
@@ -71,7 +71,7 @@ export const MODEL_PROVIDERS: {
     value: "google",
     label: "Google Gemini",
     baseURL: "https://generativelanguage.googleapis.com/v1beta/openai",
-    categories: Object.values(ModelCategory),
+    categories: [ModelCategory.Text, ModelCategory.Image, ModelCategory.Audio],
   },
   {
     value: "deepseek",
@@ -92,10 +92,40 @@ export const MODEL_PROVIDERS: {
     categories: Object.values(ModelCategory),
   },
   {
+    value: "seedance",
+    label: "Seedance",
+    baseURL: "https://api.91token.com/doubao/api/v3",
+    categories: [ModelCategory.Video],
+  },
+  {
+    value: "grok-video",
+    label: "Grok Video",
+    baseURL: "https://api.91token.com/v1",
+    categories: [ModelCategory.Video],
+  },
+  {
+    value: "general-video",
+    label: "通用视频",
+    baseURL: "https://api.91token.com/v1",
+    categories: [ModelCategory.Video],
+  },
+  {
+    value: "vidu",
+    label: "Vidu",
+    baseURL: "https://api.91token.com/v1/ent/v2",
+    categories: [ModelCategory.Video],
+  },
+  {
+    value: "wan3",
+    label: "Wan3",
+    baseURL: "https://api.91token.com/ali/api/v1",
+    categories: [ModelCategory.Video],
+  },
+  {
     value: "siliconflow",
     label: "硅基流动",
     baseURL: "https://api.siliconflow.cn/v1",
-    categories: Object.values(ModelCategory),
+    categories: [ModelCategory.Text, ModelCategory.Image, ModelCategory.Audio],
   },
   {
     value: "elevenlabs",
@@ -107,16 +137,22 @@ export const MODEL_PROVIDERS: {
     value: "custom",
     label: "自定义",
     baseURL: "",
-    categories: Object.values(ModelCategory),
+    categories: [ModelCategory.Text, ModelCategory.Image, ModelCategory.Audio],
   },
 ];
 
-export const getProvider = (value: string) =>
-  MODEL_PROVIDERS.find((item) => item.value === value);
+export const normalizeProvider = (value: string, category?: ModelCategory) =>
+  category === ModelCategory.Video &&
+  ["openai", "google", "siliconflow", "custom"].includes(value)
+    ? "general-video"
+    : value;
+
+export const getProvider = (value: string, category?: ModelCategory) =>
+  MODEL_PROVIDERS.find((item) => item.value === normalizeProvider(value, category));
 
 // 可选项（与画布生成卡片的配置保持一致）
 export const IMAGE_RESOLUTIONS = ["1K", "2K", "4K"];
-export const VIDEO_RESOLUTIONS = ["480P", "720P", "1080P"];
+export const VIDEO_RESOLUTIONS = ["480P", "720P", "768P", "1080P", "2K"];
 export const MODEL_RATIOS = [
   "1:1",
   "9:16",
@@ -129,7 +165,7 @@ export const MODEL_RATIOS = [
   "5:4",
   "21:9",
 ];
-export const VIDEO_DURATIONS = [4, 5, 10, 15];
+export const VIDEO_DURATIONS = Array.from({ length: 12 }, (_, index) => index + 4);
 export const VIDEO_MODES: { value: VideoModeType; label: string }[] = [
   { value: VideoModeType.TextToVideo, label: "文生视频" },
   { value: VideoModeType.ImageToVideo, label: "图生视频" },

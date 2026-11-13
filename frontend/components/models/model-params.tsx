@@ -41,6 +41,7 @@ export const TextParams = ({
   <>
     <Field label="温度" hint="越高输出越发散，越低越稳定">
       <Slider
+        label="温度"
         value={params.temperature}
         min={0}
         max={2}

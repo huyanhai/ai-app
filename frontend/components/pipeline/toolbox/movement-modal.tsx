@@ -15,6 +15,7 @@ const MovementModal = ({
   onConfirm: (name: string) => void;
 }) => {
   const [selected, setSelected] = useState<string | null>(null);
+  const [previewed, setPreviewed] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) setSelected(value ?? null);
@@ -34,8 +35,11 @@ const MovementModal = ({
         {MOVEMENTS.map((movement) => (
           <button
             key={movement.name}
+            aria-label={movement.name}
             aria-pressed={selected === movement.name}
             onClick={() => setSelected(movement.name)}
+            onMouseEnter={() => setPreviewed(movement.name)}
+            onMouseLeave={() => setPreviewed(null)}
             className="flex flex-col text-left cursor-pointer"
           >
             <div
@@ -45,12 +49,24 @@ const MovementModal = ({
                   : "border-transparent"
               }`}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={movement.image}
-                alt={movement.name}
-                className="aspect-square w-full object-cover"
-              />
+              {previewed === movement.name ? (
+                <video
+                  src={movement.video}
+                  poster={movement.image}
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  className="pointer-events-none aspect-square w-full object-cover"
+                />
+              ) : (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={movement.image}
+                  alt=""
+                  className="aspect-square w-full object-cover"
+                />
+              )}
             </div>
             <div
               className={`py-2 text-center text-sm transition-colors ${

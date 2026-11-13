@@ -1,5 +1,5 @@
 "use client";
-import { memo, useState } from "react";
+import { memo, MouseEvent as ReactMouseEvent, useRef, useState } from "react";
 import { BaseEdge, EdgeLabelRenderer, EdgeProps, getBezierPath, useReactFlow } from "@xyflow/react";
 import { Scissors } from "lucide-react";
 
@@ -17,7 +17,8 @@ const GradientEdge = ({
   style,
   selected,
 }: EdgeProps) => {
-  const [hovered, setHovered] = useState(false);
+  const pathRef = useRef<SVGPathElement>(null);
+  const [scissorsPoint, setScissorsPoint] = useState<{ x: number; y: number } | null>(null);
   const { setEdges } = useReactFlow();
   const [path, labelX, labelY] = getBezierPath({
     sourceX,
@@ -34,6 +35,51 @@ const GradientEdge = ({
   const deltaX = targetX - sourceX;
   const deltaY = targetY - sourceY;
   const flowLength = 0.28;
+
+  const followPointer = (event: ReactMouseEvent<SVGElement | HTMLButtonElement>) => {
+    const pathElement = pathRef.current;
+    const svg = pathElement?.ownerSVGElement;
+    const matrix = svg?.getScreenCTM();
+    if (!pathElement || !svg || !matrix) return;
+
+    const pointer = svg.createSVGPoint();
+    pointer.x = event.clientX;
+    pointer.y = event.clientY;
+    const { x, y } = pointer.matrixTransform(matrix.inverse());
+    const totalLength = pathElement.getTotalLength();
+    const samples = 32;
+    let nearestLength = 0;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+
+    for (let index = 0; index <= samples; index += 1) {
+      const length = (index / samples) * totalLength;
+      const point = pathElement.getPointAtLength(length);
+      const distance = (point.x - x) ** 2 + (point.y - y) ** 2;
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestLength = length;
+      }
+    }
+
+    let step = totalLength / samples;
+    for (let iteration = 0; iteration < 6; iteration += 1) {
+      for (const length of [nearestLength - step, nearestLength + step]) {
+        const clampedLength = Math.max(0, Math.min(totalLength, length));
+        const point = pathElement.getPointAtLength(clampedLength);
+        const distance = (point.x - x) ** 2 + (point.y - y) ** 2;
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearestLength = clampedLength;
+        }
+      }
+      step /= 2;
+    }
+
+    const point = pathElement.getPointAtLength(nearestLength);
+    setScissorsPoint({ x: point.x, y: point.y });
+  };
+
+  const currentPoint = scissorsPoint ?? { x: labelX, y: labelY };
 
   return (
     <>
@@ -59,24 +105,28 @@ const GradientEdge = ({
       )}
       {selected && (
         <path
+          ref={pathRef}
           d={path}
           fill="none"
           stroke="transparent"
           strokeWidth={24}
           className="pointer-events-auto"
-          onMouseEnter={() => setHovered(true)}
-          onMouseLeave={() => setHovered(false)}
+          onMouseMove={followPointer}
+          onMouseLeave={() => setScissorsPoint(null)}
         />
       )}
-      {selected && hovered && (
+      {selected && (
         <EdgeLabelRenderer>
           <button
             aria-label="断开连线"
             title="断开连线"
             className="nodrag nopan pointer-events-auto absolute flex size-7 items-center justify-center rounded-lg border border-white/10 bg-[#26262a] text-white/80 shadow-xl hover:bg-white/10 hover:text-white"
-            style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
-            onMouseEnter={() => setHovered(true)}
-            onMouseLeave={() => setHovered(false)}
+            style={{
+              transform: `translate(-50%, -50%) translate(${currentPoint.x}px, ${currentPoint.y}px)`,
+              transition: scissorsPoint ? "transform 60ms ease-out" : "transform 160ms ease-out",
+            }}
+            onMouseMove={followPointer}
+            onMouseLeave={() => setScissorsPoint(null)}
             onClick={(event) => {
               event.stopPropagation();
               setEdges((edges) => edges.filter((edge) => edge.id !== id));

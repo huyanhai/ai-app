@@ -6,24 +6,34 @@ import { useCanvasId } from "../canvas-workspace-context";
 
 export type ProductionProject = {
   id: string;
+  canvasId: string;
   idea: string;
+  ideaState?: string;
   status: string;
   mediaMode?: "auto" | "manual";
   error?: string;
   requirements?: { status: "ready" | "questions"; brief: string; questions: string[] } | null;
+  history: { id: string; stage: string; data: unknown; feedback?: string; createdAt: string }[];
   events: { id: string; stage: string; message: string; createdAt: string }[];
   plan: {
     title: string;
     synopsis: string;
     story: string;
-    characters: { id: string; name: string; description: string }[];
-    scenes: { id: string; title: string; script: string; location: string; shots?: { id: string; title: string; description: string; movement: string; visualPrompt?: string; motionPrompt?: string; duration: number }[] }[];
+    adaptationNote?: string;
+    sourceBasis?: string[];
+    creativeAdditions?: string[];
+    storyArc?: { goal: string; obstacle: string; action: string; result: string; change: string };
+    storyReview?: { issues: { severity: "blocking" | "suggestion"; category: string; evidence: string; problem: string; suggestion: string }[] };
+    characters?: { id: string; name: string; description: string }[];
+    props?: { id: string; name: string; description: string; textContent?: string }[];
+    scenes?: { id: string; title: string; script: string; location: string; shots?: { id: string; title: string; description: string; movement: string; propIds?: string[]; visualPrompt?: string; motionPrompt?: string; duration: number }[] }[];
   };
   nodes: TAllNodes[];
   edges: Edge[];
 };
 
 export type ProductionStreamPreview = { stage: string; data?: unknown };
+export type ProductionFileInput = { name: string; content: string; type: string; url: string };
 
 type ProductionHookOptions = {
   getGraph: () => { nodes: TAllNodes[]; edges: Edge[] };
@@ -31,6 +41,8 @@ type ProductionHookOptions = {
 };
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
+const SHOT_TABLE_ID = "production-shot-table";
+const isShotTableEdge = (edge: Edge) => edge.source === SHOT_TABLE_ID || edge.target === SHOT_TABLE_ID;
 
 const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
   const response = await fetch(`${API_BASE}/productions${path}`, {
@@ -99,24 +111,27 @@ export const useProduction = ({ getGraph, applyGraph }: ProductionHookOptions) =
   const abortRef = useRef<AbortController | null>(null);
   const resumedStageRef = useRef("");
 
-  const applyProject = useCallback((next: ProductionProject, replace = false, syncCanvas = true) => {
+  const applyProject = useCallback((next: ProductionProject, syncCanvas = true) => {
     setProject(next);
     window.localStorage.setItem(activeProjectKey, next.id);
     if (!syncCanvas) return;
-    if (replace) {
-      applyGraph(next.nodes, next.edges, true);
-      return;
-    }
     const current = getGraph();
     const remoteNodes = new Map(next.nodes.map((node) => [node.id, node]));
-    const mergedNodes = current.nodes.map((node) => {
-      const remote = remoteNodes.get(node.id);
-      if (!remote) return node;
+    const managedNodeIds = new Set([
+      ...remoteNodes.keys(),
+      ...current.nodes.filter((node) => node.data.production).map((node) => node.id),
+    ]);
+    const mergedNodes = current.nodes
+      .filter((node) => !node.data.production || remoteNodes.has(node.id))
+      .map((node) => {
+        const remote = remoteNodes.get(node.id);
+        if (!remote) return node;
+        const draftText = node.data.draftText ?? remote.data.draftText;
+        const draftState = node.data.draftState ?? remote.data.draftState;
       if (
         node.data.production &&
         "url" in node.data &&
         node.data.url &&
-        node.data.status === ChunkStatus.SUCCESS &&
         "url" in remote.data &&
         !remote.data.url
       ) {
@@ -124,37 +139,67 @@ export const useProduction = ({ getGraph, applyGraph }: ProductionHookOptions) =
           ...node,
           data: {
             ...remote.data,
+            draftText,
+            draftState,
             url: node.data.url,
             status: ChunkStatus.SUCCESS,
             error: undefined,
           },
         };
       }
-      return { ...node, data: remote.data };
-    });
+        return { ...node, data: { ...remote.data, draftText, draftState } };
+      });
     const currentNodeIds = new Set(current.nodes.map((node) => node.id));
-    const currentEdgeIds = new Set(current.edges.map((edge) => edge.id));
+    const mergedNodeIds = new Set([
+      ...mergedNodes.map((node) => node.id),
+      ...remoteNodes.keys(),
+    ]);
+    const currentEdges = current.edges.filter((edge) =>
+      !isShotTableEdge(edge) &&
+      mergedNodeIds.has(edge.source) &&
+      mergedNodeIds.has(edge.target) &&
+      !(managedNodeIds.has(edge.source) && managedNodeIds.has(edge.target)),
+    );
+    const currentEdgeIds = new Set(currentEdges.map((edge) => edge.id));
     applyGraph([
       ...mergedNodes,
       ...next.nodes.filter((node) => !currentNodeIds.has(node.id)),
     ], [
-      ...current.edges,
-      ...next.edges.filter((edge) => !currentEdgeIds.has(edge.id)),
+      ...currentEdges,
+      ...next.edges.filter((edge) => !currentEdgeIds.has(edge.id) && !isShotTableEdge(edge)),
     ], false);
   }, [activeProjectKey, applyGraph, getGraph]);
 
   useEffect(() => {
     if (restoredRef.current) return;
     restoredRef.current = true;
-    const projectId = window.localStorage.getItem(activeProjectKey) ??
-      (canvasId === "default" ? window.localStorage.getItem("active-production-id") : null);
-    if (!projectId) return;
-    void request<ProductionProject>(`/${projectId}`)
-      .then((next) => applyProject(next, false, false))
-      .catch(() => window.localStorage.removeItem(activeProjectKey));
-  }, [activeProjectKey, applyProject, canvasId]);
+    const restore = async () => {
+      const storedId = window.localStorage.getItem(activeProjectKey);
+      const legacyId = window.localStorage.getItem("active-production-id");
+      try {
+        let next: ProductionProject | null = null;
+        if (storedId || (canvasId === "default" && legacyId)) {
+          next = await request<ProductionProject>(`/${storedId || legacyId}`);
+        } else if (legacyId && canvasId !== "default") {
+          const productionNodeIds = getGraph().nodes
+            .filter((node) => node.data.production)
+            .map((node) => node.id);
+          next = await request<ProductionProject | null>(`/${legacyId}/claim-legacy`, {
+            method: "POST",
+            body: JSON.stringify({ canvasId, nodeIds: productionNodeIds }),
+          });
+        } else {
+          next = await request<ProductionProject | null>(`?canvasId=${encodeURIComponent(canvasId)}`);
+        }
+        if (next) applyProject(next);
+      } catch {
+        if (storedId) window.localStorage.removeItem(activeProjectKey);
+      }
+    };
+    void restore();
+  }, [activeProjectKey, applyProject, canvasId, getGraph]);
 
-  const plan = useCallback(async (idea: string, modelId: string, style?: string) => {
+  const plan = useCallback(async (idea: string, modelId: string, style?: string, files: ProductionFileInput[] = [], ideaState?: string) => {
     const controller = new AbortController();
     abortRef.current?.abort();
     abortRef.current = controller;
@@ -164,7 +209,14 @@ export const useProduction = ({ getGraph, applyGraph }: ProductionHookOptions) =
     try {
       const next = await streamRequest("/plan/stream", {
         method: "POST",
-        body: JSON.stringify({ idea, modelId, style }),
+        body: JSON.stringify({
+          idea,
+          ideaState,
+          modelId,
+          style,
+          canvasId,
+          files: files.map(({ name, content, type }) => ({ name, content, type })),
+        }),
         signal: controller.signal,
       }, setStreamPreview);
       applyProject(next);
@@ -176,7 +228,7 @@ export const useProduction = ({ getGraph, applyGraph }: ProductionHookOptions) =
       setIsPlanning(false);
       setStreamPreview(null);
     }
-  }, [applyProject]);
+  }, [applyProject, canvasId]);
 
   const confirmStage = useCallback(async (mediaMode?: "auto" | "manual", continuity = false) => {
     if (!project) return;
@@ -205,7 +257,7 @@ export const useProduction = ({ getGraph, applyGraph }: ProductionHookOptions) =
 
   useEffect(() => {
     if (!project || isPlanning || isAdvancing) return;
-    const resumable = ["script_pending", "characters_pending", "storyboard_pending", "image_prompts_pending", "video_prompts_pending"];
+    const resumable = ["story_pending", "script_pending", "characters_pending", "storyboard_pending", "image_prompts_pending", "video_prompts_pending"];
     if (!resumable.includes(project.status)) return;
     const resumeKey = `${project.id}:${project.status}`;
     if (resumedStageRef.current === resumeKey) return;
@@ -213,7 +265,7 @@ export const useProduction = ({ getGraph, applyGraph }: ProductionHookOptions) =
     void confirmStage();
   }, [confirmStage, isAdvancing, isPlanning, project]);
 
-  const reviseStage = useCallback(async (stage: "requirements" | "script" | "characters" | "storyboard" | "imagePrompts" | "videoPrompts", feedback: string) => {
+  const reviseStage = useCallback(async (stage: "requirements" | "story" | "script" | "characters" | "storyboard" | "imagePrompts" | "videoPrompts", feedback: string, files: ProductionFileInput[] = []) => {
     if (!project) return;
     const controller = new AbortController();
     abortRef.current?.abort();
@@ -236,10 +288,15 @@ export const useProduction = ({ getGraph, applyGraph }: ProductionHookOptions) =
     try {
       const next = await streamRequest(`/${project.id}/revise-stage/stream`, {
         method: "POST",
-        body: JSON.stringify({ ...getGraph(), stage, feedback }),
+        body: JSON.stringify({
+          ...getGraph(),
+          stage,
+          feedback,
+          files: files.map(({ name, content, type }) => ({ name, content, type })),
+        }),
         signal: controller.signal,
       }, setStreamPreview);
-      applyProject(next, true);
+      applyProject(next);
     } catch (cause) {
       if (controller.signal.aborted) setError("已停止生成");
       else setError(cause instanceof Error ? cause.message : String(cause));

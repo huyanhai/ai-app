@@ -28,6 +28,7 @@ export interface MessageType {
   id: string;
   role: "user" | "assistant";
   content: string;
+  contentState?: string;
   toolCalls?: ToolCallType[];
   attachments?: AttachmentType[];
   subjects?: SubjectReference[];

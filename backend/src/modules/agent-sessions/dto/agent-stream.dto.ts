@@ -27,6 +27,10 @@ export class AgentSubjectDto {
 }
 
 export class AgentStreamDto extends streamDto {
+  @IsString()
+  @IsOptional()
+  contentState?: string;
+
   @IsArray()
   @IsOptional()
   skillIds?: string[];

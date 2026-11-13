@@ -2,6 +2,7 @@
 import { ReactNode, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Slider as SliderControl } from "@/components/ui/slider";
 
 export const INPUT =
   "h-9 w-full rounded-lg bg-white/5 border border-white/10 px-3 text-sm text-white placeholder:text-white/30 outline-none transition-colors focus:border-[#33a3ff]/60 focus:bg-white/[0.07]";
@@ -223,30 +224,27 @@ export const NumberInput = ({
 
 // 滑块 + 数值
 export const Slider = ({
+  label = "参数值",
   value,
   onChange,
   min,
   max,
   step,
 }: {
+  label?: string;
   value: number;
   onChange: (v: number) => void;
   min: number;
   max: number;
   step: number;
 }) => (
-  <div className="flex h-9 items-center gap-3">
-    <input
-      type="range"
-      value={value}
-      min={min}
-      max={max}
-      step={step}
-      onChange={(e) => onChange(e.target.valueAsNumber)}
-      className="h-1 flex-1 cursor-pointer accent-[#33a3ff]"
-    />
-    <span className="w-8 text-right font-mono text-xs text-white/70">
-      {value.toFixed(1)}
-    </span>
-  </div>
+  <SliderControl
+    aria-label={label}
+    value={value}
+    min={min}
+    max={max}
+    step={step}
+    formatValue={(item) => item.toFixed(1)}
+    onValueChange={onChange}
+  />
 );

@@ -12,6 +12,9 @@ export const createChatModel = (
     temperature?: number;
     maxTokens?: number;
     streaming?: boolean;
+    timeout?: number;
+    maxRetries?: number;
+    modelKwargs?: Record<string, unknown>;
   } = {},
 ) =>
   new ChatOpenAI({
@@ -20,5 +23,8 @@ export const createChatModel = (
     temperature: options.temperature,
     maxTokens: options.maxTokens,
     streaming: options.streaming,
+    timeout: options.timeout,
+    maxRetries: options.maxRetries,
+    modelKwargs: options.modelKwargs,
     configuration: { baseURL: model.baseURL },
   });

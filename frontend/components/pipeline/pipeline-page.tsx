@@ -16,6 +16,7 @@ import {
   useUpdateNodeInternals,
   useNodesState,
   useEdgesState,
+  useStore,
   OnSelectionChangeParams,
   Edge,
   NodeToolbar,
@@ -24,8 +25,10 @@ import {
   addEdge,
   Connection,
   OnConnectStartParams,
+  Viewport,
 } from "@xyflow/react";
 import Link from "next/link";
+import { nanoid } from "nanoid";
 import "@xyflow/react/dist/style.css";
 import { History, Home, Redo2, Search, Sparkles, Undo2 } from "lucide-react";
 import { shallow } from "zustand/shallow";
@@ -37,6 +40,7 @@ import AssetModal from "@/components/pipeline/asset-modal";
 import AIChatPanel from "@/components/pipeline/ai-chat-panel";
 import CanvasNodePanel from "@/components/pipeline/canvas-node-panel";
 import EmptyCanvasBackground from "@/components/pipeline/empty-canvas-background";
+import { getNodeAlignment } from "@/components/pipeline/node-alignment";
 import { IconButton } from "@/components/ui/icon-button";
 import TextToolbar from "@/components/pipeline/text-toolbar";
 import MediaToolbar from "@/components/pipeline/media-toolbar";
@@ -48,12 +52,17 @@ import { TMenuRequest, usePipelineStore } from "@/store/pipeline-store";
 import { NodeType, TAllNodes, TNodeBase } from "@/components/pipeline/types";
 import type { ReferenceKind, SubjectReference } from "@/components/chat/types";
 import {
+  NODE_DEFAULT_DATA,
+  NODE_TYPE_LABEL,
   SOURCE_ANCHOR,
   SOURCE_HANDLE,
   TARGET_ANCHOR,
   TARGET_HANDLE,
 } from "@/components/pipeline/constants";
 import { canvasHistoryApi, CanvasSnapshot } from "@/lib/canvas-history";
+import type { CanvasSummary } from "@/lib/canvas-history";
+import { subjectLibrary } from "@/lib/subject-library";
+import CanvasContextMenu, { CanvasContextAction, CanvasContextState } from "./canvas-context-menu";
 import { useCanvasId } from "@/components/pipeline/canvas-workspace-context";
 
 const makeSnapshot = (nodes: TAllNodes[], edges: Edge[]): CanvasSnapshot => ({
@@ -64,6 +73,13 @@ const makeSnapshot = (nodes: TAllNodes[], edges: Edge[]): CanvasSnapshot => ({
     measured: undefined,
   })),
   edges: edges.map((edge) => ({ ...edge, selected: undefined })),
+});
+
+const withoutShotTableEdges = (snapshot: CanvasSnapshot): CanvasSnapshot => ({
+  ...snapshot,
+  edges: snapshot.edges.filter((edge) =>
+    edge.source !== "production-shot-table" && edge.target !== "production-shot-table"
+  ),
 });
 
 const areSnapshotsEqual = (previous: CanvasSnapshot, current: CanvasSnapshot) =>
@@ -99,16 +115,42 @@ const PendingEdge = ({ menuRequest }: { menuRequest: TMenuRequest }) => {
   );
 };
 
+const AlignmentGuides = ({ guides }: { guides: { x: number | null; y: number | null } }) => {
+  const [translateX, translateY, zoom] = useStore((state) => state.transform);
+  if (guides.x === null && guides.y === null) return null;
+  return (
+    <div className="pointer-events-none absolute inset-0 z-30" aria-hidden="true">
+      {guides.x !== null && (
+        <div
+          className="absolute inset-y-0 left-0 border-l border-dashed border-sky-400/80"
+          style={{ transform: `translateX(${guides.x * zoom + translateX}px)` }}
+        />
+      )}
+      {guides.y !== null && (
+        <div
+          className="absolute inset-x-0 top-0 border-t border-dashed border-sky-400/80"
+          style={{ transform: `translateY(${guides.y * zoom + translateY}px)` }}
+        />
+      )}
+    </div>
+  );
+};
+
 const Flow = () => {
   const canvasId = useCanvasId();
   const [aiChatOpen, setAIChatOpen] = useState(false);
   const [aiChatWidth, setAIChatWidth] = useState(600);
   const [nodePanel, setNodePanel] = useState<"search" | "history" | null>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState<TAllNodes>([]);
+  const [alignmentGuides, setAlignmentGuides] = useState<{ x: number | null; y: number | null }>({ x: null, y: null });
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [past, setPast] = useState<CanvasSnapshot[]>([]);
   const [future, setFuture] = useState<CanvasSnapshot[]>([]);
+  const [contextMenu, setContextMenu] = useState<CanvasContextState | null>(null);
+  const [canvases, setCanvases] = useState<CanvasSummary[]>([]);
+  const [clipboardNode, setClipboardNode] = useState<TAllNodes | null>(null);
   const [canvasLoaded, setCanvasLoaded] = useState(false);
+  const [hasStoredViewport, setHasStoredViewport] = useState(false);
   const currentSnapshot = useMemo(
     () => makeSnapshot(nodes, edges),
     [nodes, edges],
@@ -119,6 +161,7 @@ const Flow = () => {
   const historyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const restoringRef = useRef(false);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const latestViewportRef = useRef<Viewport | null>(null);
   // hover 中的节点 id：hover/选中节点的直接上下游连线高亮为渐变流光
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
 
@@ -127,7 +170,6 @@ const Flow = () => {
   const connectingHandleType = useRef<string | null>(null);
   const connectionSuccessful = useRef(false);
   const lastConnectEnd = useRef<number>(0);
-  const lastAutoCenter = useRef<{ id: string; time: number } | null>(null);
 
   const setCurrentSelectNode = usePipelineStore(
     (state) => state.setCurrentSelectNode,
@@ -157,7 +199,7 @@ const Flow = () => {
   const showMiniMap = usePipelineStore((state) => state.showMiniMap);
   const showEdges = usePipelineStore((state) => state.showEdges);
 
-  const { setCenter, screenToFlowPosition, getZoom, getNode } =
+  const { setCenter, setViewport, screenToFlowPosition, getZoom, getNode } =
     useReactFlow<TAllNodes>();
   const updateNodeInternals = useUpdateNodeInternals();
 
@@ -187,17 +229,25 @@ const Flow = () => {
 
   useEffect(() => {
     let active = true;
+    latestViewportRef.current = null;
+    setHasStoredViewport(false);
     canvasHistoryApi
       .load(canvasId)
       .then((stored) => {
         if (!active) return;
         if (stored) {
+          const current = withoutShotTableEdges(stored);
           restoringRef.current = true;
-          latestSnapshotRef.current = makeSnapshot(stored.nodes, stored.edges);
-          setNodes(stored.nodes);
-          setEdges(stored.edges);
-          setPast(stored.past ?? []);
-          setFuture(stored.future ?? []);
+          latestSnapshotRef.current = makeSnapshot(current.nodes, current.edges);
+          setNodes(current.nodes);
+          setEdges(current.edges);
+          setPast((stored.past ?? []).map(withoutShotTableEdges));
+          setFuture((stored.future ?? []).map(withoutShotTableEdges));
+          if (stored.viewport) {
+            latestViewportRef.current = stored.viewport;
+            setHasStoredViewport(true);
+            void setViewport(stored.viewport);
+          }
         }
         setCanvasLoaded(true);
       })
@@ -207,7 +257,7 @@ const Flow = () => {
     return () => {
       active = false;
     };
-  }, [canvasId, setEdges, setNodes]);
+  }, [canvasId, setEdges, setNodes, setViewport]);
 
   useEffect(() => {
     if (!canvasLoaded) return;
@@ -250,6 +300,16 @@ const Flow = () => {
     }, 600);
     return () => clearTimeout(timer);
   }, [canvasId, canvasLoaded, currentSnapshot, future, past]);
+
+  useEffect(() => {
+    if (!canvasLoaded) return;
+    const syncViewport = () => {
+      const viewport = latestViewportRef.current;
+      if (viewport) void canvasHistoryApi.saveViewport(canvasId, viewport);
+    };
+    window.addEventListener("pagehide", syncViewport);
+    return () => window.removeEventListener("pagehide", syncViewport);
+  }, [canvasId, canvasLoaded]);
 
   const undo = useCallback(() => {
     if (historyTimerRef.current) clearTimeout(historyTimerRef.current);
@@ -310,38 +370,21 @@ const Flow = () => {
     return () => window.removeEventListener("keydown", handler);
   }, [redo, undo]);
 
-  // 选中生成类节点后，若节点 + 底部生成卡片超出可视区域，平移画布让节点垂直居中
-  const selectedNodeId = currentSelectNode?.id;
-  useEffect(() => {
-    if (
-      !selectedNodeId ||
-      !GENERATOR_TYPES.includes(currentSelectNode?.type as NodeType)
-    ) {
-      return;
-    }
-    const now = performance.now();
-    if (
-      lastAutoCenter.current?.id === selectedNodeId &&
-      now - lastAutoCenter.current.time < 500
-    ) {
-      return;
-    }
-    // 等 NodeToolbar 渲染完再测量
-    const frame = requestAnimationFrame(() => {
+  const centerGeneratorNode = useCallback((nodeId: string) => {
+    const frame = requestAnimationFrame(() => requestAnimationFrame(() => {
       const nodeEl = document.querySelector<HTMLElement>(
-        `.react-flow__node[data-id="${selectedNodeId}"]`,
+        `.react-flow__node[data-id="${nodeId}"]`,
       );
-      const node = getNode(selectedNodeId);
+      const node = getNode(nodeId);
       if (!nodeEl || !node) return;
       const toolbarEl = document.querySelector<HTMLElement>(
-        `.react-flow__node-toolbar[data-id="${selectedNodeId}"]`,
+        `.react-flow__node-toolbar[data-id="${nodeId}"]`,
       );
       const bottom = Math.max(
         nodeEl.getBoundingClientRect().bottom,
         toolbarEl?.getBoundingClientRect().bottom ?? 0,
       );
       if (bottom > window.innerHeight - 16) {
-        lastAutoCenter.current = { id: selectedNodeId, time: performance.now() };
         const zoom = getZoom();
         // 保持水平方向不变，仅垂直居中
         const { x } = screenToFlowPosition({
@@ -354,10 +397,9 @@ const Flow = () => {
           duration: 300,
         });
       }
-    });
+    }));
     return () => cancelAnimationFrame(frame);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedNodeId]);
+  }, [getNode, getZoom, screenToFlowPosition, setCenter]);
 
   const onConnect = useCallback(
     (params: Connection) => {
@@ -431,7 +473,7 @@ const Flow = () => {
     [setCurrentSelectNode],
   );
 
-  // 右键显示菜单
+  // 空白处右键仅显示画布操作，新建节点菜单仍由双击打开
   const onPaneContextMenu = useCallback(
     (event: ReactMouseEvent | MouseEvent) => {
       event.preventDefault();
@@ -446,13 +488,23 @@ const Flow = () => {
         "clientY" in event
           ? event.clientY
           : (event as any).touches?.[0]?.clientY;
-      openMenu({ position: { x: clientX, y: clientY } });
+      closeMenu();
+      setContextMenu({ kind: "pane", x: clientX, y: clientY });
     },
-    [openMenu],
+    [closeMenu],
   );
+
+  const onNodeContextMenu = useCallback((event: ReactMouseEvent, node: TAllNodes) => {
+    event.preventDefault();
+    closeMenu();
+    setNodes((items) => items.map((item) => ({ ...item, selected: item.id === node.id })));
+    setCurrentSelectNode(node);
+    setContextMenu({ kind: "node", nodeId: node.id, x: event.clientX, y: event.clientY });
+  }, [closeMenu, setCurrentSelectNode, setNodes]);
 
   // 点击空白处
   const onPaneClick = useCallback(() => {
+    setContextMenu(null);
     if (Date.now() - lastConnectEnd.current < 100) {
       return;
     }
@@ -466,9 +518,10 @@ const Flow = () => {
   }, [closeMenu, closeImageEditor, setEdges]);
 
   const onCanvasDoubleClick = useCallback((event: ReactMouseEvent) => {
-    if (nodes.length > 0 || !(event.target as HTMLElement).closest(".react-flow__pane")) return;
+    if (!(event.target as HTMLElement).classList.contains("react-flow__pane")) return;
+    setContextMenu(null);
     openMenu({ position: { x: event.clientX, y: event.clientY } });
-  }, [nodes.length, openMenu]);
+  }, [openMenu]);
 
   const onEdgeClick = useCallback(
     (_: ReactMouseEvent, edge: Edge) => {
@@ -484,6 +537,33 @@ const Flow = () => {
   const onDragStart = useCallback(() => {
     closeMenu();
   }, [closeMenu]);
+
+  const onNodeDrag = useCallback((_: ReactMouseEvent, draggedNode: TAllNodes) => {
+    const alignment = getNodeAlignment(draggedNode, nodes, 8 / getZoom());
+    setAlignmentGuides({ x: alignment.x, y: alignment.y });
+    if (alignment.deltaX === 0 && alignment.deltaY === 0) return;
+    setNodes((currentNodes) => currentNodes.map((node) => node.id === draggedNode.id ? {
+      ...node,
+      position: {
+        x: node.position.x + alignment.deltaX,
+        y: node.position.y + alignment.deltaY,
+      },
+    } : node));
+  }, [getZoom, nodes, setNodes]);
+
+  const onNodeDragStop = useCallback((_: ReactMouseEvent, draggedNode: TAllNodes) => {
+    const alignment = getNodeAlignment(draggedNode, nodes, 8 / getZoom());
+    if (alignment.deltaX !== 0 || alignment.deltaY !== 0) {
+      setNodes((currentNodes) => currentNodes.map((node) => node.id === draggedNode.id ? {
+        ...node,
+        position: {
+          x: draggedNode.position.x + alignment.deltaX,
+          y: draggedNode.position.y + alignment.deltaY,
+        },
+      } : node));
+    }
+    setAlignmentGuides({ x: null, y: null });
+  }, [getZoom, nodes, setNodes]);
 
   // hover/选中节点的直接上下游连线激活渐变流光高亮
   const displayEdges = useMemo(() => {
@@ -554,9 +634,164 @@ const Flow = () => {
     if (target) locateNode(target.id);
   };
 
+  const contextNode = contextMenu?.nodeId ? nodes.find((node) => node.id === contextMenu.nodeId) : undefined;
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("pipeline-node-clipboard");
+      if (stored) setClipboardNode(JSON.parse(stored) as TAllNodes);
+    } catch {
+      localStorage.removeItem("pipeline-node-clipboard");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    void canvasHistoryApi.list().then((items) => setCanvases(items.filter((item) => item.id !== canvasId))).catch(() => setCanvases([]));
+  }, [canvasId, contextMenu]);
+
+  const copyNode = useCallback((node: TAllNodes) => {
+    const copy = makeSnapshot([node], []).nodes[0];
+    setClipboardNode(copy);
+    localStorage.setItem("pipeline-node-clipboard", JSON.stringify(copy));
+  }, []);
+
+  const pasteNode = useCallback((position?: { x: number; y: number }) => {
+    if (!clipboardNode) return;
+    const copy = structuredClone(clipboardNode);
+    copy.id = nanoid();
+    copy.position = position ?? { x: clipboardNode.position.x + 40, y: clipboardNode.position.y + 40 };
+    copy.selected = true;
+    setNodes((items) => [...items.map((node) => ({ ...node, selected: false })), copy]);
+    setCurrentSelectNode(copy);
+  }, [clipboardNode, setCurrentSelectNode, setNodes]);
+
+  const duplicateNode = useCallback((node: TAllNodes) => {
+    copyNode(node);
+    const copy = structuredClone(node);
+    copy.id = nanoid();
+    copy.position = { x: node.position.x + 40, y: node.position.y + 40 };
+    copy.data = { ...copy.data, title: `${copy.data.title || "节点"} 副本` };
+    copy.selected = true;
+    setNodes((items) => [...items.map((item) => ({ ...item, selected: false })), copy]);
+    setCurrentSelectNode(copy);
+  }, [copyNode, setCurrentSelectNode, setNodes]);
+
+  const deleteNode = useCallback((node: TAllNodes) => {
+    setNodes((items) => items.filter((item) => item.id !== node.id));
+    setEdges((items) => items.filter((edge) => edge.source !== node.id && edge.target !== node.id));
+    setCurrentSelectNode(null);
+  }, [setCurrentSelectNode, setEdges, setNodes]);
+
+  const copyImage = useCallback(async (node: TAllNodes) => {
+    if (node.type !== NodeType.ImageNode || !("url" in node.data) || typeof node.data.url !== "string" || !node.data.url) return;
+    const response = await fetch(node.data.url);
+    const source = await response.blob();
+    const bitmap = await createImageBitmap(source);
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
+    const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error("图片复制失败")), "image/png"));
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+  }, []);
+
+  const downloadNode = useCallback(async (node: TAllNodes) => {
+    if (!("url" in node.data) || typeof node.data.url !== "string" || !node.data.url) return;
+    const response = await fetch(node.data.url);
+    const url = URL.createObjectURL(await response.blob());
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = node.data.title || node.id;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }, []);
+
+  const handleContextAction = useCallback(async (action: CanvasContextAction) => {
+    const node = contextNode;
+    const position = contextMenu?.kind === "pane" ? screenToFlowPosition({ x: contextMenu.x, y: contextMenu.y }) : undefined;
+    setContextMenu(null);
+    if (action === "undo") return undo();
+    if (action === "redo") return redo();
+    if (action === "paste") return pasteNode(position);
+    if (!node) return;
+    if (action === "copy") copyNode(node);
+    if (action === "duplicate") duplicateNode(node);
+    if (action === "delete") deleteNode(node);
+    if (action === "copyImage") await copyImage(node).catch(() => undefined);
+    if (action === "download") await downloadNode(node).catch(() => undefined);
+    if (action === "cover" && node.type === NodeType.ImageNode) {
+      setNodes((items) => items.map((item) => ({ ...item, data: { ...item.data, canvasCover: item.id === node.id ? true : undefined } })) as TAllNodes[]);
+    }
+    if (action === "saveSubject" && node.type === NodeType.ImageNode && "url" in node.data && typeof node.data.url === "string" && node.data.url) {
+      subjectLibrary.add({
+        id: nanoid(),
+        name: node.data.title || "未命名主体",
+        description: node.data.draftText,
+        url: node.data.url,
+      });
+    }
+  }, [contextMenu, contextNode, copyImage, copyNode, deleteNode, downloadNode, duplicateNode, pasteNode, redo, screenToFlowPosition, setNodes, undo]);
+
+  const createNodeFromContext = useCallback((type: NodeType) => {
+    if (!contextMenu) return;
+    const position = screenToFlowPosition({ x: contextMenu.x, y: contextMenu.y });
+    const count = nodes.filter((node) => node.type === type).length;
+    const node = {
+      id: nanoid(),
+      type,
+      position,
+      data: { ...structuredClone(NODE_DEFAULT_DATA[type]), title: `${NODE_TYPE_LABEL[type]} ${count + 1}` },
+      selected: true,
+    } as TAllNodes;
+    setNodes((items) => [...items.map((item) => ({ ...item, selected: false })), node]);
+    setCurrentSelectNode(node);
+    setContextMenu(null);
+  }, [contextMenu, nodes, screenToFlowPosition, setCurrentSelectNode, setNodes]);
+
+  const saveNodeToCanvas = useCallback(async (targetCanvasId: string) => {
+    if (!contextNode) return;
+    const stored = await canvasHistoryApi.load(targetCanvasId);
+    const copy = structuredClone(contextNode);
+    copy.id = nanoid();
+    copy.position = { x: contextNode.position.x + 40, y: contextNode.position.y + 40 };
+    copy.selected = false;
+    await canvasHistoryApi.save(targetCanvasId, {
+      nodes: [...(stored?.nodes ?? []), copy],
+      edges: stored?.edges ?? [],
+      past: stored?.past ?? [],
+      future: stored?.future ?? [],
+    });
+    setContextMenu(null);
+  }, [contextNode]);
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement;
+      if (target.isContentEditable || ["INPUT", "TEXTAREA"].includes(target.tagName) || !(event.metaKey || event.ctrlKey)) return;
+      const node = currentSelectNode ? getNode(currentSelectNode.id) : undefined;
+      const key = event.key.toLowerCase();
+      if (key === "c" && node) {
+        event.preventDefault();
+        if (event.shiftKey) void copyImage(node).catch(() => undefined);
+        else copyNode(node);
+      }
+      if (key === "d" && node) {
+        event.preventDefault();
+        duplicateNode(node);
+      }
+      if (key === "v" && clipboardNode) {
+        event.preventDefault();
+        pasteNode();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [clipboardNode, copyImage, copyNode, currentSelectNode, duplicateNode, getNode, pasteNode]);
+
   return (
     <div className="w-full h-full relative bg-[#0a0a0a]">
-      <Link href="/home" className="absolute left-4 top-4 z-40 flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-[#1c1c1e]/95 px-3 text-xs text-white/65 shadow-2xl transition-colors hover:bg-white/10 hover:text-white">
+      <Link href="/home" className="absolute left-4 top-4 z-40 flex p-1 h-9 items-center gap-2 rounded-xl border border-white/10 bg-[#1c1c1e]/95 px-3 text-xs text-white/65 shadow-2xl transition-colors hover:bg-white/10 hover:text-white">
         <Home size={15} />
         首页
       </Link>
@@ -567,19 +802,26 @@ const Flow = () => {
         edges={displayEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onNodeClick={(_, node) => {
+          if (GENERATOR_TYPES.includes(node.type as NodeType)) centerGeneratorNode(node.id);
+        }}
         onEdgeClick={onEdgeClick}
         onConnect={onConnect}
         onConnectStart={onConnectStart}
         onConnectEnd={onConnectEnd}
         onSelectionChange={onSelectionChange}
         onPaneContextMenu={onPaneContextMenu}
+        onNodeContextMenu={onNodeContextMenu}
         onPaneClick={onPaneClick}
         onDoubleClick={onCanvasDoubleClick}
         onNodeDragStart={onDragStart}
+        onNodeDrag={onNodeDrag}
+        onNodeDragStop={onNodeDragStop}
         onSelectionDragStart={onDragStart}
         onNodeMouseEnter={(_, node) => setHoveredNodeId(node.id)}
         onNodeMouseLeave={() => setHoveredNodeId(null)}
         onMove={() => window.dispatchEvent(new Event("resize"))}
+        onMoveEnd={(_, viewport) => { latestViewportRef.current = viewport; }}
         minZoom={0.1}
         connectionRadius={60}
         nodeTypes={nodeTypes}
@@ -588,7 +830,7 @@ const Flow = () => {
         deleteKeyCode={["Backspace", "Delete"]}
         panOnScroll={true}
         zoomOnDoubleClick={false}
-        fitView
+        fitView={!hasStoredViewport}
         fitViewOptions={{ minZoom: 1, maxZoom: 1 }}
         defaultEdgeOptions={{
           type: "gradient",
@@ -603,6 +845,7 @@ const Flow = () => {
             color="rgba(255,255,255,0.12)"
           />
         )}
+        <AlignmentGuides guides={alignmentGuides} />
         {showMiniMap && (
           <MiniMap
             pannable
@@ -650,12 +893,25 @@ const Flow = () => {
 
       {nodes.length === 0 && <EmptyCanvasBackground />}
 
+      {contextMenu && <CanvasContextMenu
+        context={contextMenu}
+        node={contextNode}
+        canvases={canvases}
+        canPaste={clipboardNode !== null}
+        canUndo={past.length > 0}
+        canRedo={future.length > 0}
+        onAction={(action) => void handleContextAction(action)}
+        onCreateNode={createNodeFromContext}
+        onSaveToCanvas={(targetCanvasId) => void saveNodeToCanvas(targetCanvasId)}
+        onClose={() => setContextMenu(null)}
+      />}
+
       <Toolbar />
       <Controls />
       <AssetModal />
 
       <div
-        className="absolute top-4 z-40 flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-[#1c1c1e]/95 px-3 shadow-2xl"
+        className="absolute top-4 z-40 flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-[#1c1c1e]/95 p-1 shadow-2xl"
         style={{ right: aiChatOpen ? aiChatWidth + 30 : 16 }}
       >
         {labelColors.map((color) => (

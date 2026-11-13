@@ -37,6 +37,7 @@ interface INodeShellProps {
   icon?: ReactNode;
   children: ReactNode;
   chromeVisible?: boolean;
+  connectable?: boolean;
 }
 
 const LABEL_COLORS = ["#22d3ee", "#6366f1", "#a855f7", "#f97316", "#eab308"];
@@ -177,6 +178,7 @@ const NodeShell = ({
   icon,
   children,
   chromeVisible = true,
+  connectable = true,
 }: INodeShellProps) => {
   // 创建菜单打开期间，作为连线起点的节点保持 + 手柄可见
   const menuOpen = usePipelineStore((s) => s.menuRequest?.nodeId === id);
@@ -218,7 +220,7 @@ const NodeShell = ({
         <LabelColorPicker id={id} />
       </div>}
 
-      {chromeVisible && <>
+      {chromeVisible && connectable && <>
         <MagneticHandle id={TARGET_HANDLE} type={TARGET_HANDLE} side="left" selected={handlesVisible} />
         <MagneticHandle id={SOURCE_HANDLE} type={SOURCE_HANDLE} side="right" selected={handlesVisible} />
         <Handle id={SOURCE_ANCHOR} type="source" position={Position.Right} isConnectable={false} className="opacity-0! pointer-events-none! w-px! h-6! min-w-0! min-h-0! border-0! bg-transparent!" style={{ right: 0, top: "50%", transform: "translateY(-50%)" }} />

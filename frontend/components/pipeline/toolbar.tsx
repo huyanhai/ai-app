@@ -61,10 +61,10 @@ const TOOLS: ITool[] = [
 ];
 
 const TOOLBOX_ITEMS = [
-  { icon: <Camera size={14} />, label: "相机" },
-  { icon: <Paintbrush size={14} />, label: "配色" },
-  { icon: <Shapes size={14} />, label: "风格" },
-  { icon: <Video size={14} />, label: "运镜" },
+  { type: NodeType.CameraNode, icon: <Camera size={14} />, label: "相机" },
+  { type: NodeType.PaletteNode, icon: <Paintbrush size={14} />, label: "配色" },
+  { type: NodeType.StyleNode, icon: <Shapes size={14} />, label: "风格" },
+  { type: NodeType.MovementNode, icon: <Video size={14} />, label: "运镜" },
 ];
 
 // 标签列：index 8 前插入分隔行（对齐图标列的分隔线位置）
@@ -253,7 +253,10 @@ const Toolbar = () => {
             {TOOLBOX_ITEMS.map((item) => (
               <button
                 key={item.label}
-                onClick={() => setToolboxOpen(false)}
+                onClick={() => {
+                  setToolboxOpen(false);
+                  addNodeAtCenter(item.type);
+                }}
                 className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-xs text-white/70 hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
               >
                 {item.icon}

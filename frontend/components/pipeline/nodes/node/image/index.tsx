@@ -1,7 +1,7 @@
 "use client";
 import { memo, useMemo, useRef, useState } from "react";
 import { NodeProps, useReactFlow, useStore } from "@xyflow/react";
-import { Image, MapPin, Minus } from "lucide-react";
+import { Image, MapPin, Minus, Upload } from "lucide-react";
 import { motion } from "motion/react";
 import { nanoid } from "nanoid";
 import NodeShell from "../shell";
@@ -28,6 +28,7 @@ const ImageNode = ({ id, data, selected }: NodeProps<TNodeImage>) => {
   const outpainting = editorMode === "outpaint";
   const cutouting = editorMode === "cutout";
   const startRef = useRef<{ x: number; y: number } | null>(null);
+  const uploadRef = useRef<HTMLInputElement>(null);
   const imageRef = useRef<HTMLDivElement>(null);
   const resizeRef = useRef<{
     id: string;
@@ -58,6 +59,23 @@ const ImageNode = ({ id, data, selected }: NodeProps<TNodeImage>) => {
     return [IMAGE_HEIGHT, IMAGE_HEIGHT];
   }, [data.config]);
   const markers = data.editMarkers ?? [];
+
+  const handleUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result !== "string") return;
+      const url = reader.result;
+      setNodes((nodes) => nodes.map((node) =>
+        node.id === id && node.type === NodeType.ImageNode
+          ? { ...node, data: { ...node.data, url, status: ChunkStatus.SUCCESS, error: undefined } }
+          : node,
+      ) as TAllNodes[]);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const pointFromEvent = (event: React.PointerEvent<HTMLDivElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -330,7 +348,15 @@ const ImageNode = ({ id, data, selected }: NodeProps<TNodeImage>) => {
         ) : (
           data.status !== ChunkStatus.PROCESSING && (
             <div className="flex h-full w-full items-center justify-center">
-              <Image size={32} className="text-white/25" strokeWidth={1.5} />
+              <button
+                aria-label="上传图片"
+                onClick={() => uploadRef.current?.click()}
+                className="nodrag flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl px-4 py-3 text-white/30 transition-colors hover:bg-white/5 hover:text-white/60"
+              >
+                <Upload size={30} strokeWidth={1.5} />
+                <span className="text-xs">上传图片</span>
+              </button>
+              <input ref={uploadRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
             </div>
           )
         )}

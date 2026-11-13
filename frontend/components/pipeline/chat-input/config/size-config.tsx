@@ -4,6 +4,7 @@ import Ratio from "../ratio";
 import { TNodeBase, TRatio } from "../../types/index";
 import Popper, { IPopperRef } from "../../popper";
 import { BUTTON_ACTIVE, BUTTON_NORMAL } from "@/constants/class-names";
+import DurationConfig from "./duration-config";
 
 const RATIO_CONFIG: TRatio[] = [
   "1:1",
@@ -22,17 +23,18 @@ const COUNTS = [1, 2, 4];
 
 interface IConfigProps extends TNodeBase {
   resolutions: string[];
+  durations?: number[];
   changeConfig: (config: TNodeBase["config"]) => void;
 }
 
 // 「比例 · 清晰度 · 数量」合并配置弹层（对齐即梦底部配置条）
-const SizeConfig = ({ config, resolutions, changeConfig }: IConfigProps) => {
+const SizeConfig = ({ config, resolutions, durations, changeConfig }: IConfigProps) => {
   const popperRef = useRef<IPopperRef>(null);
 
   return (
     <Popper
       ref={popperRef}
-      content={`${config?.ratio} · ${config?.resolution} · ${config?.count}`}
+      content={`${config?.ratio} · ${config?.resolution} · ${config?.count}${durations ? ` · ${config?.duration}s` : ""}`}
       trigger={
         <div className="flex w-[300px] flex-col gap-2 p-1">
           <div className="grid grid-cols-4 gap-2">
@@ -73,6 +75,11 @@ const SizeConfig = ({ config, resolutions, changeConfig }: IConfigProps) => {
               </div>
             ))}
           </div>
+          {durations && (
+            <div className="mt-1">
+              <DurationConfig config={config} durations={durations} changeConfig={changeConfig} />
+            </div>
+          )}
         </div>
       }
     />

@@ -12,6 +12,8 @@ const ToolboxModal = ({
   title,
   onClose,
   onConfirm,
+  confirmLabel = "确认",
+  headerAction,
   confirmDisabled,
   width = 880,
   classNames,
@@ -19,9 +21,11 @@ const ToolboxModal = ({
   children,
 }: {
   open: boolean;
-  title: string;
+  title: ReactNode;
   onClose: () => void;
   onConfirm?: () => void;
+  confirmLabel?: string;
+  headerAction?: ReactNode;
   confirmDisabled?: boolean;
   width?: number;
   // 各区域样式覆盖（按需对齐不同弹窗的设计稿）
@@ -71,16 +75,19 @@ const ToolboxModal = ({
               <span className={cn("text-base text-white", classNames?.title)}>
                 {title}
               </span>
-              <button
-                aria-label="关闭"
-                onClick={onClose}
-                className={cn(
-                  "flex size-8 items-center justify-center rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition-colors cursor-pointer",
-                  classNames?.close,
-                )}
-              >
-                <X size={closeIconSize} />
-              </button>
+              <div className="flex items-center gap-2">
+                {headerAction}
+                <button
+                  aria-label="关闭"
+                  onClick={onClose}
+                  className={cn(
+                    "flex size-8 items-center justify-center rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition-colors cursor-pointer",
+                    classNames?.close,
+                  )}
+                >
+                  <X size={closeIconSize} />
+                </button>
+              </div>
             </div>
 
             {children}
@@ -102,7 +109,7 @@ const ToolboxModal = ({
                   classNames?.confirm,
                 )}
               >
-                确认
+                {confirmLabel}
               </button>
             </div>}
           </motion.div>

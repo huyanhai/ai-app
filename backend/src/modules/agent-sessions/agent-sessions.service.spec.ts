@@ -3,7 +3,35 @@ import { AgentSessionsService } from './agent-sessions.service';
 jest.mock('../ai/ai.service', () => ({ AiService: class {} }));
 
 describe('AgentSessionsService', () => {
+  it('scopes session listing and creation to the current canvas', async () => {
+    const prisma = {
+      agentSession: {
+        findMany: jest.fn().mockResolvedValue([]),
+        create: jest.fn((input) => input.data),
+        updateMany: jest.fn().mockResolvedValue({ count: 2 }),
+      },
+    };
+    const service = new AgentSessionsService(prisma as any, {} as any, {} as any);
+
+    await service.list('canvas-1');
+    await service.create('canvas-1');
+    await service.claimLegacy('canvas-1');
+
+    expect(prisma.agentSession.findMany).toHaveBeenCalledWith({
+      where: { canvasId: 'canvas-1' },
+      orderBy: { updatedAt: 'desc' },
+    });
+    expect(prisma.agentSession.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ canvasId: 'canvas-1' }),
+    });
+    expect(prisma.agentSession.updateMany).toHaveBeenCalledWith({
+      where: { canvasId: 'default' },
+      data: { canvasId: 'canvas-1' },
+    });
+  });
+
   it('passes history to the agent and persists both messages', async () => {
+    const contentState = '{"root":{"children":[]}}';
     const prisma = {
       agentSession: {
         findUnique: jest.fn().mockResolvedValue({
@@ -42,6 +70,11 @@ describe('AgentSessionsService', () => {
       '  第一个问题  ',
       'model-1',
       undefined,
+      undefined,
+      [],
+      [],
+      'agent',
+      contentState,
     )) {
       events.push(event);
     }
@@ -67,6 +100,7 @@ describe('AgentSessionsService', () => {
         attachments: '[]',
         subjects: '[]',
         mode: 'agent',
+        contentState,
       },
     });
     expect(prisma.agentMessage.create).toHaveBeenNthCalledWith(2, {

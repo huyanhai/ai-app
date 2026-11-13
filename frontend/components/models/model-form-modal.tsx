@@ -8,6 +8,7 @@ import {
   getProvider,
   MODEL_CATEGORY_LABEL,
   MODEL_PROVIDERS,
+  normalizeProvider,
 } from "./constants";
 import { ChipGroup, Field, INPUT, SecretInput, SwitchRow } from "./fields";
 import {
@@ -28,7 +29,7 @@ const createDraft = (category: ModelCategory): TModelDraft => {
     name: "",
     provider: provider.value,
     modelId: "",
-    baseURL: provider.baseURL,
+    baseURL: "",
     apiKey: "",
     enabled: true,
     description: "",
@@ -42,7 +43,18 @@ const toDraft = ({
   hasApiKey: _hasApiKey,
   isDefault: _isDefault,
   ...rest
-}: TModelConfig) => structuredClone({ ...rest, apiKey: "" }) as TModelDraft;
+}: TModelConfig) => {
+  const draft = structuredClone({ ...rest, apiKey: "" }) as TModelDraft;
+  draft.provider = normalizeProvider(draft.provider, draft.category);
+  if (draft.category === ModelCategory.Video && draft.modelId === "MiniMax-H3") {
+    draft.params.resolutions = ["768P", "2K"];
+    draft.params.durations = Array.from({ length: 12 }, (_, index) => index + 4);
+  }
+  if (draft.category === ModelCategory.Video && draft.modelId === "viduq3-turbo") {
+    draft.params.resolutions = ["720P", "1080P"];
+  }
+  return draft;
+};
 
 type TErrors = {
   name?: string;
@@ -113,17 +125,12 @@ const ModelForm = ({
         ({ ...prev, params: { ...prev.params, ...value } }) as TModelDraft,
     );
 
-  // 切换服务商时，若接口地址未手动修改过则同步为新服务商的默认地址
-  const changeProvider = (provider: string) => {
-    const prevURL = getProvider(draft.provider)?.baseURL ?? "";
-    patch({
-      provider,
-      baseURL:
-        !draft.baseURL || draft.baseURL === prevURL
-          ? (getProvider(provider)?.baseURL ?? "")
-          : draft.baseURL,
-    });
-  };
+  const changeProvider = (provider: string) => patch({
+    provider,
+    ...(draft.category === ModelCategory.Video
+      ? { baseURL: getProvider(provider)?.baseURL ?? "" }
+      : {}),
+  });
 
   const submit = (e: FormEvent) => {
     e.preventDefault();

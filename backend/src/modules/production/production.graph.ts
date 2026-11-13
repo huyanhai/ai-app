@@ -2,8 +2,10 @@ import {
   ProductionEdge,
   ProductionNode,
   ProductionPlan,
+  ProductionStory,
   PRODUCTION_PHASE,
 } from './production.types';
+import { markProductionPromptAssets } from './production.prompt-assets';
 
 const edge = (source: string, target: string): ProductionEdge => ({
   id: `edge-${source}-${target}`,
@@ -13,9 +15,28 @@ const edge = (source: string, target: string): ProductionEdge => ({
   targetHandle: 'target-anchor',
 });
 
-const singleCharacterPrompt = (prompt: string) => `${prompt}\n\n只生成一幅正常的角色环境图：同一画面仅出现该角色一个人物、一个视角，保留符合角色身份与剧本场景的环境和自然光线。禁止三视图、多视角、正侧背并列、人物设定板、拼图、分栏和纯白色背景。`;
+const characterReferencePrompt = (prompt: string) => `${prompt}\n\n直接生成同一角色的标准全身三视图：正面、严格90度侧面、背面按左中右横向并排展示，保持完全相同的五官、发型、年龄、服装、配饰、材质和身材比例。三个人物均为全身完整可见、中性站姿、相同比例，使用简洁浅色无场景背景。禁止生成角色环境图、剧情动作、其他人物、道具表演或环境装饰。`;
 
-const turnaroundPrompt = (prompt: string) => `${prompt}\n\n基于已生成的角色环境图，为同一角色制作标准三视图参考：正面、侧面、背面并排展示，保持完全相同的五官、发型、年龄、服装、配饰、材质和身材比例。人物全身完整可见，中性站姿，简洁浅色背景，三视图排版清晰，不添加其他人物或环境。`;
+const sceneReferencePrompt = (prompt: string) => `${prompt}\n\n只生成无人环境参考图，用于固定场景的空间布局、建筑风格、自然地貌、陈设、光线和色彩。禁止出现任何人物、角色、人影、人体局部、故事动物或角色倒影，不要表现剧情动作；角色和表演仅在后续分镜图中加入。`;
+
+const propReferencePrompt = (prompt: string) => `${prompt}\n\n直接生成独立关键道具的标准三视图：正面、侧面、背面按左中右横向并排展示，三个视角的结构、材质、颜色、比例、磨损和标记完全一致。完整展示该物体或固定连接组件，使用简洁中性无场景背景。禁止出现任何人物、角色、人影、人体局部、故事动物或角色倒影，不表现角色操作、剧情动作或环境装饰。`;
+
+export function buildProductionStoryGraph(plan: ProductionStory) {
+  return {
+    nodes: [{
+      id: 'production-story',
+      type: 'textNode' as const,
+      position: { x: 0, y: 0 },
+      data: {
+        title: plan.title,
+        text: plan.story,
+        config: { scene: 'script' },
+        production: { kind: 'story', version: 1 },
+      },
+    }],
+    edges: [] as ProductionEdge[],
+  };
+}
 
 export function buildProductionGraph(
   plan: ProductionPlan,
@@ -31,8 +52,11 @@ export function buildProductionGraph(
   const edges: ProductionEdge[] = [];
   const [ratioWidth, ratioHeight] = plan.ratio.split(':').map(Number);
   const mediaWidth = ratioWidth > ratioHeight ? 250 * ratioWidth / ratioHeight : 250;
-  const sceneTextX = 1480;
-  const sceneImageX = 1840;
+  const mediaHeight = ratioWidth > ratioHeight ? 250 : 250 * ratioHeight / ratioWidth;
+  const turnaroundWidth = 250 * 16 / 9;
+  const referenceImageX = 760;
+  const sceneTextX = referenceImageX + turnaroundWidth + 80;
+  const sceneImageX = sceneTextX + 250 + 80;
   const shotTableX = sceneImageX + mediaWidth + 80;
   const shotImageX = shotTableX + 1600 + 80;
   const videoX = shotImageX + mediaWidth + 80;
@@ -49,13 +73,13 @@ export function buildProductionGraph(
     },
   });
 
-  (plan.characters ?? []).forEach((character, index) => {
+  let assetY = 0;
+  (plan.characters ?? []).forEach((character) => {
     const subjectId = `subject-${character.id}`;
     const imageId = `image-${character.id}`;
-    const turnaroundId = `${imageId}-turnaround`;
-    const characterPrompt = singleCharacterPrompt(character.referencePrompt);
-    const characterTurnaroundPrompt = turnaroundPrompt(character.referencePrompt);
-    const y = index * 360;
+    const characterPrompt = characterReferencePrompt(character.referencePrompt);
+    const y = assetY;
+    assetY += Math.max(360, mediaHeight + 110);
     nodes.push({
       id: subjectId,
       type: 'subjectNode',
@@ -75,35 +99,16 @@ export function buildProductionGraph(
       nodes.push({
         id: imageId,
         type: 'imageNode',
-        position: { x: 740, y },
-        data: {
-          title: `${character.name} · 角色参考图`,
-          url: '',
-          draftText: characterPrompt,
-          config: { ratio: '1:1', resolution: '2K', count: 1 },
-          production: {
-            kind: PRODUCTION_PHASE.character,
-            characterId: character.id,
-            prompt: characterPrompt,
-            referenceType: 'environment',
-            version: 1,
-          },
-        },
-      });
-    if (stage === 'storyboard')
-      nodes.push({
-        id: turnaroundId,
-        type: 'imageNode',
-        position: { x: 1100, y },
+        position: { x: referenceImageX, y },
         data: {
           title: `${character.name} · 角色三视图`,
           url: '',
-          draftText: characterTurnaroundPrompt,
+          draftText: characterPrompt,
           config: { ratio: '16:9', resolution: '2K', count: 1 },
           production: {
             kind: PRODUCTION_PHASE.character,
             characterId: character.id,
-            prompt: characterTurnaroundPrompt,
+            prompt: characterPrompt,
             referenceType: 'turnaround',
             version: 1,
           },
@@ -111,8 +116,109 @@ export function buildProductionGraph(
       });
     edges.push(edge(storyId, subjectId));
     if (stage === 'storyboard') edges.push(edge(subjectId, imageId));
-    if (stage === 'storyboard') edges.push(edge(imageId, turnaroundId));
   });
+
+  (plan.props ?? []).forEach((prop) => {
+    const subjectId = `subject-${prop.id}`;
+    const imageId = `image-${prop.id}`;
+    const textId = `text-${prop.id}-content`;
+    const y = assetY;
+    assetY += prop.textContent ? 510 : 360;
+    nodes.push({
+      id: subjectId,
+      type: 'subjectNode',
+      position: { x: 380, y },
+      data: {
+        title: prop.name,
+        name: prop.name,
+        description: `${prop.description}${prop.textContent ? `\n固定可见文字：${prop.textContent}` : ''}`,
+        production: { kind: 'prop', propId: prop.id, version: 1 },
+      },
+    });
+    if (prop.textContent) {
+      nodes.push({
+        id: textId,
+        type: 'textNode',
+        position: { x: 380, y: y + 180 },
+        data: {
+          title: `${prop.name} · 固定文字`,
+          text: prop.textContent,
+          production: { kind: 'propText', propId: prop.id, version: 1 },
+        },
+      });
+      edges.push(edge(storyId, textId));
+    }
+    if (stage === 'storyboard') {
+      nodes.push({
+        id: imageId,
+        type: 'imageNode',
+        position: { x: referenceImageX, y },
+        data: {
+          title: `${prop.name} · 道具三视图`,
+          url: '',
+          draftText: propReferencePrompt(prop.referencePrompt),
+          config: { ratio: '16:9', resolution: '2K', count: 1 },
+          production: {
+            kind: PRODUCTION_PHASE.prop,
+            propId: prop.id,
+            prompt: propReferencePrompt(prop.referencePrompt),
+            textContent: prop.textContent,
+            version: 1,
+          },
+        },
+      });
+      edges.push(edge(subjectId, imageId));
+      if (prop.textContent) edges.push(edge(textId, imageId));
+    }
+    edges.push(edge(storyId, subjectId));
+  });
+
+  const sceneAssets = [...(plan.sceneAssets ?? [])];
+  const sceneAssetIds = new Map<string, string>();
+  if (plan.sceneAssets) {
+    plan.scenes.forEach((scene) =>
+      sceneAssetIds.set(scene.id, scene.sceneAssetId ?? scene.id),
+    );
+  } else {
+    const legacyAssets = new Map<string, (typeof sceneAssets)[number]>();
+    plan.scenes.forEach((scene) => {
+      const key = scene.location.trim().toLocaleLowerCase() || scene.id;
+      let asset = legacyAssets.get(key);
+      if (!asset) {
+        asset = {
+          id: scene.sceneAssetId ?? scene.id,
+          title: scene.location || scene.title,
+          location: scene.location,
+          referencePrompt: scene.referencePrompt ?? '',
+        };
+        legacyAssets.set(key, asset);
+        sceneAssets.push(asset);
+      }
+      sceneAssetIds.set(scene.id, asset.id);
+    });
+  }
+  if (stage === 'storyboard')
+    sceneAssets.forEach((scene) => {
+      const scenePrompt = sceneReferencePrompt(scene.referencePrompt);
+      nodes.push({
+        id: `image-${scene.id}`,
+        type: 'imageNode',
+        position: { x: referenceImageX, y: assetY },
+        data: {
+          title: `${scene.title} · 场景参考图`,
+          url: '',
+          draftText: scenePrompt,
+          config: { ratio: plan.ratio, resolution: '2K', count: 1 },
+          production: {
+            kind: PRODUCTION_PHASE.scene,
+            sceneAssetId: scene.id,
+            prompt: scenePrompt,
+            version: 1,
+          },
+        },
+      });
+      assetY += Math.max(360, mediaHeight + 110);
+    });
 
   let sceneY = 0;
   const orderedShots = plan.scenes.flatMap((scene) => scene.shots ?? []);
@@ -139,7 +245,7 @@ export function buildProductionGraph(
     });
   plan.scenes.forEach((scene) => {
     const sceneTextId = `text-${scene.id}`;
-    const sceneImageId = `image-${scene.id}`;
+    const sceneImageId = `image-${sceneAssetIds.get(scene.id) ?? scene.sceneAssetId ?? scene.id}`;
     const shots = scene.shots ?? [];
     const sceneHeight = Math.max(1, shots.length) * 430;
     nodes.push({
@@ -153,34 +259,17 @@ export function buildProductionGraph(
         production: { kind: 'scene', sceneId: scene.id, version: 1 },
       },
     });
-    if (stage === 'storyboard')
-      nodes.push({
-        id: sceneImageId,
-        type: 'imageNode',
-        position: { x: sceneImageX, y: sceneY },
-        data: {
-          title: `${scene.title} · 场景参考图`,
-          url: '',
-          draftText: scene.referencePrompt,
-          config: { ratio: plan.ratio, resolution: '2K', count: 1 },
-          production: {
-            kind: PRODUCTION_PHASE.scene,
-            sceneId: scene.id,
-            prompt: scene.referencePrompt,
-            version: 1,
-          },
-        },
-      });
     edges.push(edge(storyId, sceneTextId));
-    if (stage === 'storyboard') edges.push(edge(sceneTextId, sceneImageId));
-    if (stage === 'storyboard') edges.push(edge(sceneTextId, shotTableId));
 
     if (stage === 'storyboard')
       shots.forEach((shot, shotIndex) => {
         const previousShot = previousShots.get(shot.id);
         const transition = shot.transitionFromPrevious;
         const useContinuity = Boolean(
-          continuity && previousShot && transition?.mode === 'continuous',
+          continuity &&
+            previousShot &&
+            previousShot.continuityGroupId === shot.continuityGroupId &&
+            transition?.mode === 'continuous',
         );
         const shotImageId = `image-${shot.id}`;
         const videoId = `video-${shot.id}`;
@@ -198,13 +287,18 @@ export function buildProductionGraph(
           data: {
             title: `${shot.title} · 分镜图`,
             url: '',
-            draftText: shot.visualPrompt ?? '',
+            draftText: markProductionPromptAssets(
+              shot.visualPrompt ?? '',
+              plan,
+              scene,
+            ),
             config: { ratio: plan.ratio, resolution: '2K', count: 1 },
             production: {
               kind: PRODUCTION_PHASE.storyboard,
               sceneId: scene.id,
               shotId: shot.id,
               characterIds: shot.characterIds,
+              propIds: shot.propIds,
               prompt: shot.visualPrompt,
               version: 1,
             },
@@ -217,7 +311,11 @@ export function buildProductionGraph(
           data: {
             title: `${shot.title} · 视频`,
             url: '',
-            draftText: shot.motionPrompt ?? '',
+            draftText: markProductionPromptAssets(
+              shot.motionPrompt ?? '',
+              plan,
+              scene,
+            ),
             config: {
               ratio: plan.ratio,
               duration: shot.duration,
@@ -239,12 +337,20 @@ export function buildProductionGraph(
           },
         });
         edges.push(
-          edge(shotTableId, shotImageId),
+          {
+            ...edge(sceneTextId, shotImageId),
+            data: { kind: 'sceneMembership' },
+          },
           edge(sceneImageId, shotImageId),
           edge(shotImageId, videoId),
         );
         shot.characterIds.forEach((characterId) => {
-          edges.push(edge(`image-${characterId}-turnaround`, shotImageId));
+          edges.push(edge(`image-${characterId}`, shotImageId));
+        });
+        shot.propIds?.forEach((propId) => {
+          edges.push(edge(`image-${propId}`, shotImageId));
+          const prop = plan.props?.find((item) => item.id === propId);
+          if (prop?.textContent) edges.push(edge(`text-${propId}-content`, shotImageId));
         });
         if (continuityPrompt && previousVideoId && transition) {
           const previousVideo = nodes.find((node) => node.id === previousVideoId);

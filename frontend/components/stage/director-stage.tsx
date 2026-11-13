@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 import { ColorField, NumberField, NumericInput, StageModal, Toggle } from "./controls";
 import { IconButton } from "@/components/ui/icon-button";
+import { Slider } from "@/components/ui/slider";
 import { AssetPanel } from "./asset-panel";
 import { ActionPanel, ActionPreset } from "./action-panel";
 import { StageScene } from "./scene";
@@ -957,7 +958,7 @@ export default function DirectorStage({ nodeId }: { nodeId: string }) {
             <div className="flex w-11 flex-col items-center gap-2 rounded-lg border border-white/10 bg-[#202020]/95 p-1 shadow-lg">
               {TOOL_ITEMS.map((item) => { const Icon = item.icon; return <IconButton key={item.id} label={`${item.label} · ${item.key}`} tooltipPosition="right" disabled={item.id === "rotate" && rotationLocked} active={tool === item.id} onClick={() => setTool(item.id)}><Icon size={17} /></IconButton>; })}
               <IconButton label="落到地面 · G" tooltipPosition="right" disabled={!selectedObject || selectedObject.locked} onClick={dropToGround}><ArrowDownToLine size={17} /></IconButton>
-              <div className="my-1 h-px w-full bg-white/8" />
+              <div className="h-px w-1/2 bg-white/8" />
               <IconButton label="视图设置" tooltipPosition="right" active={viewMenuOpen} onClick={() => setViewMenuOpen((open) => !open)}><Eye size={17} /></IconButton>
             </div>
           </nav>
@@ -974,7 +975,7 @@ export default function DirectorStage({ nodeId }: { nodeId: string }) {
             <IconButton label="收起机位预览" className="absolute right-3 top-3 bg-[#202020]/90" onClick={() => setPreviewOpen(false)}><ChevronDown size={15} /></IconButton>
             <button type="button" onClick={() => setSplitPreview((split) => !split)} className="absolute bottom-3 right-3 flex items-center gap-1 text-[10px] text-white/45 hover:text-white">分屏预览<Maximize2 size={11} /></button>
             <span className="absolute bottom-3 left-3 text-lg text-white/55">L</span>
-            {!splitPreview && <input aria-label="拖动调整预览大小" type="range" min="240" max="480" value={previewSize} onChange={(event) => setPreviewSize(Number(event.target.value))} className="absolute bottom-1 left-1/2 h-1 w-20 -translate-x-1/2 accent-white/50" />}
+            {!splitPreview && <Slider aria-label="拖动调整预览大小" min={240} max={480} value={previewSize} showValue={false} showLimits={false} onValueChange={setPreviewSize} className="absolute bottom-1 left-1/2 w-20 -translate-x-1/2" />}
           </div> : <button type="button" className="absolute right-4 top-4 z-10 flex items-center gap-2 rounded-lg border border-white/10 bg-[#202020] px-3 py-2 text-xs text-white/60" onClick={() => setPreviewOpen(true)}><Aperture size={14} />机位预览</button>}
 
           <div className="absolute bottom-5 left-1/2 z-30 -translate-x-1/2"><button type="button" className="flex items-center gap-2 rounded-lg border border-white/10 bg-[#202020]/90 px-4 py-2 text-xs text-white/70" onClick={() => setResetKey((key) => key + 1)}><Aperture size={14} />导演视角<ChevronDown size={12} /></button></div>

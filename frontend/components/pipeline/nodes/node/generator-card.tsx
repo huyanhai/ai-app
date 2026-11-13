@@ -10,6 +10,7 @@ import {
   Maximize2,
   Palette,
   Play,
+  Sparkles,
   Shapes,
   Square,
   Video,
@@ -22,7 +23,6 @@ import Editor from "../../editor";
 import OptionPopper from "../../option-popper";
 import SizeConfig from "../../chat-input/config/size-config";
 import VideoConfig from "../../chat-input/config/video-config";
-import DurationConfig from "../../chat-input/config/duration-config";
 import Frame from "../../chat-input/frame";
 import { useGenerate } from "../../hooks/use-generate";
 import {
@@ -41,9 +41,10 @@ import {
   TAllNodes,
   TNodeBase,
   TNodeImage,
+  TPaletteSelection,
   VideoModeType,
 } from "../../types";
-import { ModelCategory } from "@/components/models/types";
+import { ModelCategory, TModelConfigOf } from "@/components/models/types";
 import { useModelStore } from "@/store/model-store";
 import { usePipelineStore } from "@/store/pipeline-store";
 import { ChunkStatus } from "backend/src/common/utils/ai-stream-utils";
@@ -139,13 +140,14 @@ const GeneratorCard = ({ node, active }: { node: TAllNodes; active: boolean }) =
   const [pillsCollapsed, setPillsCollapsed] = useState(false);
   const [toolboxOpen, setToolboxOpen] = useState<TToolboxId | null>(null);
   const [editorText, setEditorText] = useState(data.draftText || data.production?.prompt || "");
+  const [referenceQuery, setReferenceQuery] = useState("");
   const [referenceMenuPosition, setReferenceMenuPosition] = useState<{
     left: number;
     top: number;
   } | null>(null);
   const models = useModelStore((s) => s.models);
   const defaults = useModelStore((s) => s.defaults);
-  const { editorRef, submit, stop, disabled, setIsEmpty, imageNodes, videoNodes } = useGenerate(
+  const { editorRef, submit, stop, disabled, setIsEmpty, imageNodes, videoNodes, optimizePrompt, isOptimizing, optimizationError } = useGenerate(
     id,
     type,
     data,
@@ -197,13 +199,23 @@ const GeneratorCard = ({ node, active }: { node: TAllNodes; active: boolean }) =
     ) ?? imageModels[0];
   const imageModel = data.config?.model ?? defaultImageModel?.name;
   const videoModels = models.filter(
-    (model) => model.category === ModelCategory.Video && model.enabled,
+    (model): model is TModelConfigOf<ModelCategory.Video> =>
+      model.category === ModelCategory.Video && model.enabled,
   );
   const defaultVideoModel =
     videoModels.find(
       (model) => model.id === defaults[ModelCategory.Video],
     ) ?? videoModels[0];
   const videoModel = data.config?.model ?? defaultVideoModel?.name;
+  const selectedVideoModel = videoModels.find((model) => model.name === videoModel) ?? defaultVideoModel;
+  const videoResolutions = selectedVideoModel?.modelId === "MiniMax-H3"
+    ? ["768P", "2K"]
+    : selectedVideoModel?.modelId === "viduq3-turbo"
+      ? ["720P", "1080P"]
+    : selectedVideoModel?.params.resolutions?.length
+      ? selectedVideoModel.params.resolutions
+      : ["480P", "720P", "1080P"];
+  const videoDurations = Array.from({ length: 12 }, (_, index) => index + 4);
   const audioModels = models.filter(
     (model) => model.category === ModelCategory.Audio && model.enabled,
   );
@@ -222,6 +234,18 @@ const GeneratorCard = ({ node, active }: { node: TAllNodes; active: boolean }) =
         ) as TAllNodes[],
     );
   };
+
+  useEffect(() => {
+    if (type !== NodeType.VideoNode || !selectedVideoModel) return;
+    const patch: TNodeBase["config"] = {};
+    if (!data.config?.resolution || !videoResolutions.includes(data.config.resolution)) {
+      patch.resolution = videoResolutions[0];
+    }
+    if (!data.config?.duration || !videoDurations.includes(data.config.duration)) {
+      patch.duration = videoDurations[0];
+    }
+    if (Object.keys(patch).length) changeConfig(patch);
+  }, [type, selectedVideoModel?.id]);
 
   // + 添加参考：上传图片并在节点左侧生成相连的图片节点作为参考素材
   const handleUploadReference = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -255,7 +279,7 @@ const GeneratorCard = ({ node, active }: { node: TAllNodes; active: boolean }) =
   };
 
   const isGenerating = "status" in data && data.status === ChunkStatus.PROCESSING;
-  const canSubmit = !disabled && !isGenerating;
+  const canSubmit = !disabled && !isGenerating && !isOptimizing;
 
   const references = useStore(
     (state) => Array.from(state.nodeLookup.values()).flatMap<SubjectReference>((node) => {
@@ -329,12 +353,13 @@ const GeneratorCard = ({ node, active }: { node: TAllNodes; active: boolean }) =
   }, [referenceMenuOpen]);
 
   // 工具箱选择写回节点 config
-  const confirmToolbox = (patch: Partial<TCameraSelection> | string) => {
+  const confirmToolbox = (patch: Partial<TCameraSelection> | string | TPaletteSelection | null) => {
     const toolbox = { ...data.config?.toolbox };
     if (toolboxOpen === "camera") {
       toolbox.camera = patch as TCameraSelection;
     } else if (toolboxOpen === "palette") {
-      toolbox.palette = patch as string;
+      if (patch) toolbox.palette = patch as TPaletteSelection;
+      else delete toolbox.palette;
     } else if (toolboxOpen === "style") {
       toolbox.style = patch as string;
     } else if (toolboxOpen === "movement") {
@@ -350,6 +375,18 @@ const GeneratorCard = ({ node, active }: { node: TAllNodes; active: boolean }) =
       className="flex size-7 items-center justify-center rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
     >
       <Maximize2 size={13} />
+    </button>
+  );
+
+  const optimizeButton = (
+    <button
+      aria-label={isOptimizing ? "正在优化提示词" : "优化提示词"}
+      title={isOptimizing ? "正在优化提示词" : "优化提示词"}
+      onClick={() => void optimizePrompt()}
+      disabled={isGenerating || isOptimizing}
+      className="flex size-7 items-center justify-center rounded text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+    >
+      <Sparkles size={14} className={isOptimizing ? "animate-pulse" : undefined} />
     </button>
   );
 
@@ -520,24 +557,25 @@ const GeneratorCard = ({ node, active }: { node: TAllNodes; active: boolean }) =
                 ref={editorRef}
                 onSubmit={canSubmit ? submit : () => {}}
                 images={imageNodes}
-                initialState={superjson.stringify(data.draftText || data.production?.prompt || "")}
+                initialState={data.draftState || superjson.stringify(data.draftText || data.production?.prompt || "")}
                 noImageMention
-                onTextChange={(value) => {
+                onStateChange={(value) => {
+                  setNodes((nodes) => nodes.map((node) =>
+                    node.id === id ? { ...node, data: { ...node.data, draftState: value } } : node,
+                  ) as TAllNodes[]);
+                }}
+                onTextChange={(value, referenceQuery) => {
                   setEditorText(value);
                   setNodes((nodes) => nodes.map((node) =>
                     node.id === id ? { ...node, data: { ...node.data, draftText: value } } : node,
                   ) as TAllNodes[]);
-                  const triggerIndex = value.lastIndexOf("@");
-                  if (value.endsWith("@")) {
+                  if (referenceQuery != null) {
+                    setReferenceQuery(referenceQuery);
                     window.setTimeout(openReferenceMenu, 0);
-                  } else if (
-                    triggerIndex < 0 ||
-                    /\s/.test(value.slice(triggerIndex + 1))
-                  ) {
+                  } else {
                     setReferenceMenuPosition(null);
                   }
                 }}
-                onBlur={() => setReferenceMenuPosition(null)}
                 onEmptyStateChange={setIsEmpty}
                 placeholder={NODE_PROMPT_PLACEHOLDER[type]}
                 autoFocus={false}
@@ -588,6 +626,8 @@ const GeneratorCard = ({ node, active }: { node: TAllNodes; active: boolean }) =
         document.body,
       )}
 
+      {optimizationError && <div className="mt-2 text-xs text-red-400">{optimizationError}</div>}
+
       {/* 底部配置条 */}
       <div className="mt-2 flex items-center justify-between">
         <div className="flex items-center gap-1 text-xs">
@@ -624,6 +664,7 @@ const GeneratorCard = ({ node, active }: { node: TAllNodes; active: boolean }) =
                 resolutions={["1K", "2K", "4K"]}
                 changeConfig={changeConfig}
               />
+              {optimizeButton}
               <button
                 aria-label="引用参考"
                 onClick={triggerReferenceMenu}
@@ -643,14 +684,12 @@ const GeneratorCard = ({ node, active }: { node: TAllNodes; active: boolean }) =
               />
               <SizeConfig
                 config={data.config}
-                resolutions={["720P", "1080P"]}
+                resolutions={videoResolutions}
+                durations={videoDurations}
                 changeConfig={changeConfig}
               />
               <VideoConfig config={data.config} changeConfig={changeConfig} />
-              <DurationConfig
-                config={data.config}
-                changeConfig={changeConfig}
-              />
+              {optimizeButton}
               <button
                 aria-label="引用参考"
                 onClick={triggerReferenceMenu}
@@ -701,7 +740,7 @@ const GeneratorCard = ({ node, active }: { node: TAllNodes; active: boolean }) =
         <ReferencePicker
           references={references}
           position={referenceMenuPosition}
-          query={editorText.slice(editorText.lastIndexOf("@") + 1)}
+          query={referenceQuery}
           allowedKinds={
             type === NodeType.ImageNode
               ? ["subject", "image"]

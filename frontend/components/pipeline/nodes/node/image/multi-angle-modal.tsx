@@ -15,6 +15,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import type { TNodeImage } from "../../../types";
+import { Slider } from "@/components/ui/slider";
 
 export type MultiAngleParams = {
   direction: string;
@@ -24,7 +25,6 @@ export type MultiAngleParams = {
 };
 
 const DEFAULT_PARAMS: MultiAngleParams = { direction: "正面", horizontal: 0, vertical: 0, zoom: "标准" };
-const SLIDER_CLASS = "block h-2 w-full cursor-pointer appearance-none rounded-full outline-none [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:w-1 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-white [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-1 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white";
 const DIRECTIONS = [
   { label: "左上", horizontal: 315, vertical: 30, icon: ArrowDownRight },
   { label: "上方", horizontal: 0, vertical: 60, icon: ArrowDown },
@@ -244,17 +244,17 @@ const MultiAngleModal = ({
             </section>
             <section>
               <h3 className="mb-2 text-xs text-white/75">水平</h3>
-              <input aria-label="水平角度" type="range" min="0" max="360" step="0.1" value={params.horizontal} onChange={(event) => setParams((value) => ({ ...value, horizontal: Number(event.target.value), direction: "自定义" }))} className={SLIDER_CLASS} style={{ background: `linear-gradient(to right, rgba(255,255,255,.24) ${params.horizontal / 3.6}%, rgba(255,255,255,.1) ${params.horizontal / 3.6}%)` }} />
+              <Slider aria-label="水平角度" min={0} max={360} step={0.1} value={params.horizontal} showLimits={false} showTicks tickValues={[0, 45, 90, 135, 180, 225, 270, 315, 360]} formatValue={(value) => `${value.toFixed(1)}°`} onValueChange={(horizontal) => setParams((value) => ({ ...value, horizontal, direction: "自定义" }))} />
               <div className="mt-2 flex justify-between text-[10px] text-white/35">{[0, 45, 90, 135, 180, 225, 270, 315, 360].map((value) => <span key={value} className={params.horizontal === value ? "text-white" : ""}>{value}</span>)}</div>
             </section>
             <section>
               <h3 className="mb-2 text-xs text-white/75">垂直</h3>
-              <input aria-label="垂直角度" type="range" min="-30" max="60" step="0.1" value={params.vertical} onChange={(event) => setParams((value) => ({ ...value, vertical: Number(event.target.value), direction: "自定义" }))} className={SLIDER_CLASS} style={{ background: `linear-gradient(to right, rgba(255,255,255,.24) ${(params.vertical + 30) / .9}%, rgba(255,255,255,.1) ${(params.vertical + 30) / .9}%)` }} />
+              <Slider aria-label="垂直角度" min={-30} max={60} step={0.1} value={params.vertical} showLimits={false} showTicks tickValues={[-30, 0, 30, 60]} formatValue={(value) => `${value.toFixed(1)}°`} onValueChange={(vertical) => setParams((value) => ({ ...value, vertical, direction: "自定义" }))} />
               <div className="mt-2 flex justify-between text-[10px] text-white/35">{[-30, 0, 30, 60].map((value) => <span key={value} className={params.vertical === value ? "text-white" : ""}>{value}</span>)}</div>
             </section>
             <section>
               <h3 className="mb-2 text-xs text-white/75">景别缩放</h3>
-              <input aria-label="景别缩放" type="range" min="0" max="2" step="1" value={zoomIndex} onChange={(event) => setParams((value) => ({ ...value, zoom: (["近", "标准", "远"] as const)[Number(event.target.value)] }))} className={SLIDER_CLASS} style={{ background: `linear-gradient(to right, rgba(255,255,255,.24) ${zoomIndex * 50}%, rgba(255,255,255,.1) ${zoomIndex * 50}%)` }} />
+              <Slider aria-label="景别缩放" min={0} max={2} value={zoomIndex} showLimits={false} showTicks formatValue={(value) => (["近", "标准", "远"] as const)[value]} onValueChange={(index) => setParams((value) => ({ ...value, zoom: (["近", "标准", "远"] as const)[index] }))} />
               <div className="mt-2 flex justify-between text-[10px] text-white/35">{(["近", "标准", "远"] as const).map((value) => <span key={value} className={params.zoom === value ? "text-white" : ""}>{value}</span>)}</div>
             </section>
             </div>

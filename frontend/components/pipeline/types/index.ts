@@ -6,6 +6,11 @@ import { HumanMessage } from "langchain";
 export type TRatio = `${number}:${number}`;
 
 // 导演工具箱选择（相机 / 运镜 / 配色 / 风格）
+export type TPaletteSelection = {
+  name: string;
+  colors: string[];
+};
+
 export type TNodeToolbox = {
   camera?: {
     camera?: string; // 相机
@@ -14,7 +19,7 @@ export type TNodeToolbox = {
     aperture?: string; // 光圈
   };
   movement?: string; // 运镜名称
-  palette?: string; // 配色方案名称
+  palette?: string | TPaletteSelection; // 配色方案名称与色值
   style?: string; // 风格名称
 };
 
@@ -30,6 +35,10 @@ export enum NodeType {
   AudioNode = "audioNode",
   TimelineNode = "timelineNode",
   SubjectNode = "subjectNode",
+  CameraNode = "cameraNode",
+  PaletteNode = "paletteNode",
+  StyleNode = "styleNode",
+  MovementNode = "movementNode",
   StageNode = "stageNode",
   ShotTableNode = "shotTableNode",
 }
@@ -45,8 +54,10 @@ export enum VideoModeType {
 
 export type TNodeBase = {
   title?: string; // 节点标题（创建时自动编号，如 图片 1）
+  canvasCover?: boolean; // 是否为当前画布封面
   labelColor?: string; // 节点右上角标签色
   draftText?: string; // 生成卡片中尚未提交的输入内容
+  draftState?: string; // 生成卡片中包含 @ 引用的编辑器状态
   config?: {
     ratio?: TRatio; // 比例
     videoMode?: VideoModeType; // 生图模式
@@ -134,6 +145,8 @@ export type TNodeSubjectData = {
   description?: string;
 } & TNodeBase;
 
+export type TNodeToolboxData = TNodeBase;
+
 // 导演台（外部）节点数据
 export type TNodeStageData = TNodeBase;
 
@@ -175,6 +188,8 @@ export type TNodeTimeline = Node<TNodeTimelineData>;
 // 主体节点
 export type TNodeSubject = Node<TNodeSubjectData>;
 
+export type TDirectorNode = Node<TNodeToolboxData>;
+
 // 导演台节点
 export type TNodeStage = Node<TNodeStageData>;
 
@@ -186,6 +201,7 @@ export type TAllNodes =
   | TNodeAudio
   | TNodeTimeline
   | TNodeSubject
+  | TDirectorNode
   | TNodeStage
   | TNodeShotTable;
 

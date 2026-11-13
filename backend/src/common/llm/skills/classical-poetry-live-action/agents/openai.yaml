@@ -1,0 +1,4 @@
+interface:
+  display_name: "古诗词真人微剧情"
+  short_description: "把古诗词改编成贴近日常、有烟火气和代入感的真人微剧情"
+  default_prompt: "使用 $classical-poetry-live-action 将古诗词改编为真人生活化微剧情，并逐阶段完成剧本、分镜和生成提示词。"

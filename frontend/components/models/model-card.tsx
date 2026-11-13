@@ -91,7 +91,7 @@ const ModelCard = ({
   }, [confirming]);
 
   const rows = [
-    { label: "服务商", value: getProvider(model.provider)?.label ?? "-" },
+    { label: "服务商", value: getProvider(model.provider, model.category)?.label ?? "-" },
     { label: "模型 ID", value: model.modelId || "未填写", mono: true },
     { label: "接口地址", value: model.baseURL || "未填写", mono: true },
     {

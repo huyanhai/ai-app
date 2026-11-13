@@ -1,8 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { ListFilter, Search, SquareArrowUp, X } from "lucide-react";
 import { usePipelineStore } from "@/store/pipeline-store";
+import { subjectLibrary, SubjectLibraryItem } from "@/lib/subject-library";
 
 const TABS = ["资产", "主体", "画布"];
 const SUB_TABS = ["图片", "视频", "音频", "文档"];
@@ -13,6 +14,14 @@ const AssetModal = () => {
   const setOpen = usePipelineStore((s) => s.setAssetModalOpen);
   const [tab, setTab] = useState(TABS[0]);
   const [subTab, setSubTab] = useState(SUB_TABS[0]);
+  const [subjects, setSubjects] = useState<SubjectLibraryItem[]>([]);
+
+  useEffect(() => {
+    const load = () => setSubjects(subjectLibrary.list());
+    load();
+    window.addEventListener("subject-library-changed", load);
+    return () => window.removeEventListener("subject-library-changed", load);
+  }, []);
 
   return (
     <AnimatePresence>
@@ -60,7 +69,7 @@ const AssetModal = () => {
 
             {/* 二级 tab + 搜索 */}
             <div className="mt-3 flex items-center justify-between px-4">
-              <div className="flex gap-4">
+              {tab === "资产" && <div className="flex gap-4">
                 {SUB_TABS.map((item) => (
                   <button
                     key={item}
@@ -74,8 +83,8 @@ const AssetModal = () => {
                     {item}
                   </button>
                 ))}
-              </div>
-              <div className="flex items-center gap-2">
+              </div>}
+              <div className="ml-auto flex items-center gap-2">
                 <div className="flex items-center gap-1.5 rounded-lg bg-white/5 px-2.5 py-1.5 text-white/40">
                   <Search size={13} />
                   <input
@@ -100,9 +109,12 @@ const AssetModal = () => {
 
             {/* 素材网格 */}
             <div className="mt-2 flex-1 overflow-y-auto px-4 pb-4">
-              <div className="flex h-full items-center justify-center text-sm text-white/30">
-                暂无素材
-              </div>
+              {tab === "主体" && subjects.length > 0 ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                {subjects.map((subject) => <div key={subject.id} className="overflow-hidden rounded-xl border border-white/8 bg-white/[0.03]">
+                  <img src={subject.url} alt={subject.name} className="aspect-square w-full object-cover" />
+                  <div className="p-2.5"><p className="truncate text-xs text-white/80">{subject.name}</p>{subject.description && <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-white/35">{subject.description}</p>}</div>
+                </div>)}
+              </div> : <div className="flex h-full items-center justify-center text-sm text-white/30">暂无素材</div>}
             </div>
 
             {/* 底部操作 */}

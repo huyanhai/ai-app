@@ -1,7 +1,9 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../../common/prisma/prisma.service';
 
 export type CanvasSnapshot = {
+  viewport?: { x: number; y: number; zoom: number };
   nodes: unknown[];
   edges: unknown[];
   past: { nodes: unknown[]; edges: unknown[] }[];
@@ -27,8 +29,9 @@ export class CanvasService {
     createdAt: Date;
     updatedAt: Date;
   }) {
-    const nodes = JSON.parse(state.nodes) as { type?: string; data?: { url?: string } }[];
-    const preview = [...nodes].reverse().find((node) =>
+    const nodes = JSON.parse(state.nodes) as { id?: string; type?: string; data?: { url?: string; canvasCover?: boolean } }[];
+    const cover = nodes.find((node) => node.type === 'imageNode' && node.data?.canvasCover && node.data?.url);
+    const preview = cover ?? [...nodes].reverse().find((node) =>
       (node.type === 'imageNode' || node.type === 'videoNode') && node.data?.url,
     );
     return {
@@ -68,6 +71,7 @@ export class CanvasService {
       edges: JSON.parse(state.edges),
       past: JSON.parse(state.past),
       future: JSON.parse(state.future),
+      viewport: state.viewport ? JSON.parse(state.viewport) : undefined,
     };
   }
 
@@ -75,16 +79,106 @@ export class CanvasService {
     if (!Array.isArray(body.nodes) || !Array.isArray(body.edges)) {
       throw new BadRequestException('Invalid canvas snapshot');
     }
+    if (body.viewport && ![body.viewport.x, body.viewport.y, body.viewport.zoom].every(Number.isFinite)) {
+      throw new BadRequestException('Invalid canvas viewport');
+    }
     const values = {
       nodes: JSON.stringify(body.nodes),
       edges: JSON.stringify(body.edges),
       past: JSON.stringify((body.past ?? []).slice(-50)),
       future: JSON.stringify((body.future ?? []).slice(-50)),
+      ...(body.viewport ? { viewport: JSON.stringify(body.viewport) } : {}),
     };
     await this.prisma.canvasState.upsert({
       where: { id },
       create: { id, ...values },
       update: values,
+    });
+    return { success: true };
+  }
+
+  async saveViewport(id: string, viewport: { x: number; y: number; zoom: number }) {
+    if (![viewport.x, viewport.y, viewport.zoom].every(Number.isFinite)) {
+      throw new BadRequestException('Invalid canvas viewport');
+    }
+    await this.prisma.canvasState.updateMany({
+      where: { id },
+      data: { viewport: JSON.stringify(viewport) },
+    });
+    return { success: true };
+  }
+
+  async rename(id: string, title: string) {
+    const value = title?.trim();
+    if (!value) throw new BadRequestException('画布名称不能为空');
+    const state = await this.prisma.canvasState.update({
+      where: { id },
+      data: { title: value },
+    });
+    return this.summary(state);
+  }
+
+  async duplicate(id: string) {
+    const state = await this.prisma.canvasState.findUnique({ where: { id } });
+    if (!state) throw new NotFoundException('画布不存在');
+    const [generations, productions, sessions] = await Promise.all([
+      this.prisma.generationRecord.findMany({ where: { canvasId: id } }),
+      this.prisma.productionProject.findMany({ where: { canvasId: id } }),
+      this.prisma.agentSession.findMany({ where: { canvasId: id }, include: { messages: true } }),
+    ]);
+
+    return this.prisma.$transaction(async (transaction) => {
+      const canvas = await transaction.canvasState.create({
+        data: {
+          title: `${state.title} 副本`,
+          viewport: state.viewport,
+          nodes: state.nodes,
+          edges: state.edges,
+          past: state.past,
+          future: state.future,
+        },
+      });
+      if (generations.length) {
+        await transaction.generationRecord.createMany({
+          data: generations.map(({ id: recordId, canvasId, ...record }) => ({
+            ...record,
+            canvasId: canvas.id,
+          })),
+        });
+      }
+      if (productions.length) {
+        await transaction.productionProject.createMany({
+          data: productions.map(({ id: projectId, canvasId, ...project }) => ({
+            ...project,
+            id: randomUUID(),
+            canvasId: canvas.id,
+          })),
+        });
+      }
+      for (const session of sessions) {
+        await transaction.agentSession.create({
+          data: {
+            id: randomUUID(),
+            title: session.title,
+            canvasId: canvas.id,
+            createdAt: session.createdAt,
+            messages: {
+              create: session.messages.map(({ id: messageId, sessionId, ...message }) => message),
+            },
+          },
+        });
+      }
+      return this.summary(canvas);
+    });
+  }
+
+  async remove(id: string) {
+    await this.prisma.$transaction(async (transaction) => {
+      await transaction.agentMessage.deleteMany({ where: { session: { canvasId: id } } });
+      await transaction.agentSession.deleteMany({ where: { canvasId: id } });
+      await transaction.generationRecord.deleteMany({ where: { canvasId: id } });
+      await transaction.productionProject.deleteMany({ where: { canvasId: id } });
+      await transaction.canvasState.delete({ where: { id } });
     });
     return { success: true };
   }

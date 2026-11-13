@@ -10,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 import { usePipelineStore } from "@/store/pipeline-store";
+import { Slider } from "@/components/ui/slider";
 
 type CutoutEditorProps = {
   url: string;
@@ -195,14 +196,15 @@ const CutoutEditor = ({ url, width, height }: CutoutEditorProps) => {
           <Eraser size={15} />
         </button>
         <span className="mx-1 h-4 w-px bg-white/10" />
-        <input
+        <Slider
           aria-label="笔刷大小"
-          type="range"
-          min="8"
-          max="72"
+          min={8}
+          max={72}
           value={brushSize}
-          onChange={(event) => setBrushSize(Number(event.target.value))}
-          className="mx-2 h-1 w-24 cursor-pointer accent-white"
+          showValue={false}
+          showLimits={false}
+          onValueChange={setBrushSize}
+          className="mx-2 w-24"
         />
         <span className="w-7 text-right text-xs tabular-nums text-white/70">{brushSize}</span>
         <span className="mx-1 h-4 w-px bg-white/10" />

@@ -8,10 +8,11 @@ import { PrismaService } from '@/common/prisma/prisma.service';
 import { ModelsService } from '../models/models.service';
 import { ImageStorageService } from '../canvas/image-storage.service';
 import { genImage } from '@/common/llm/tools/gen-image';
+import { genSceneReferenceImage } from '@/common/llm/tools/gen-scene-reference';
 import { genVideo, queryVideoTask } from '@/common/llm/tools/gen-video';
 import { ChunkStatus } from '@/common/utils/ai-stream-utils';
 import { ProductionPlanner } from './production.planner';
-import { buildProductionGraph } from './production.graph';
+import { buildProductionGraph, buildProductionStoryGraph } from './production.graph';
 import {
   ConfirmProductionDto,
   ConfirmStageDto,
@@ -32,10 +33,12 @@ const ACTIVE_PHASES = [
   PRODUCTION_PHASE.storyboard,
   PRODUCTION_PHASE.video,
 ];
+const IMAGE_CONCURRENCY = 3;
 
 @Injectable()
 export class ProductionService {
   private readonly active = new Set<string>();
+  private readonly writeQueues = new Map<string, Promise<unknown>>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -43,6 +46,24 @@ export class ProductionService {
     private readonly models: ModelsService,
     private readonly images: ImageStorageService,
   ) {}
+
+  private workflowFor(idea: string) {
+    if (idea.includes('古诗词真人微剧情')) return 'classical-poetry-live-action' as const;
+    if (idea.includes('动漫视觉喜剧')) return 'animated-visual-comedy' as const;
+    return undefined;
+  }
+
+  private withTargetDuration<T>(plan: T, idea = ''): T {
+    if (!plan || typeof plan !== 'object' || 'targetDuration' in plan) return plan;
+    const seconds = idea.match(/(\d+(?:\.\d+)?)\s*秒/);
+    const minutes = idea.match(/(\d+(?:\.\d+)?)\s*分钟/);
+    const targetDuration = seconds
+      ? Number(seconds[1])
+      : minutes
+        ? Number(minutes[1]) * 60
+        : undefined;
+    return targetDuration ? { ...plan, targetDuration } : plan;
+  }
 
   async create(
     input: CreateProductionDto,
@@ -52,13 +73,16 @@ export class ProductionService {
     const project = await this.prisma.productionProject.create({
       data: {
         id: randomUUID(),
+        canvasId: input.canvasId || 'default',
         idea: input.idea,
+        ...(input.ideaState ? { ideaState: input.ideaState } : {}),
         modelId: input.modelId,
         status: 'requirements_pending',
         plan: '{}',
         nodes: '[]',
         edges: '[]',
         events: JSON.stringify([started]),
+        history: '[]',
       },
     });
     onEvent?.({ type: 'start', projectId: project.id, stage: 'requirements' });
@@ -66,9 +90,14 @@ export class ProductionService {
       const idea = input.style
         ? `${input.idea}\n\n用户已明确指定全片视频风格：${input.style}。这是用户的硬性创作要求，请纳入需求摘要，后续剧本、角色、分镜、图片提示词和视频提示词必须统一继承，不要再次询问风格。`
         : input.idea;
+      const requirementsModelId = input.files?.some((file) =>
+        file.type.startsWith('image/'),
+      )
+        ? (await this.models.visionRuntime()).id
+        : input.modelId;
       const requirements = await this.planner.requirements(
         idea,
-        input.modelId,
+        requirementsModelId,
         (data) =>
           onEvent?.({
             type: 'chunk',
@@ -76,6 +105,7 @@ export class ProductionService {
             stage: 'requirements',
             data,
           }),
+        input.files,
       );
       if (input.style)
         requirements.brief += `\n\n全片视频风格（用户指定，必须统一继承）：${input.style}`;
@@ -96,6 +126,9 @@ export class ProductionService {
               ? 'requirements_clarifying'
               : 'requirements_review',
           requirements: JSON.stringify(requirements),
+          history: JSON.stringify([
+            this.historyEntry('requirements', requirements),
+          ]),
           events: JSON.stringify(events),
         },
       });
@@ -114,6 +147,31 @@ export class ProductionService {
     }
   }
 
+  async latest(canvasId = 'default') {
+    const project = await this.prisma.productionProject.findFirst({
+      where: { canvasId },
+      orderBy: { updatedAt: 'desc' },
+    });
+    return project ? this.get(project.id) : null;
+  }
+
+  async claimLegacy(id: string, canvasId: string, nodeIds: string[]) {
+    if (!canvasId || canvasId === 'default') return null;
+    const project = await this.find(id);
+    if (project.canvasId !== 'default') return null;
+    const projectNodeIds = new Set(
+      this.parseNodes(project.nodes)
+        .filter((node) => node.data?.production)
+        .map((node) => node.id),
+    );
+    if (nodeIds.length && !nodeIds.some((nodeId) => projectNodeIds.has(nodeId))) return null;
+    await this.prisma.productionProject.update({
+      where: { id },
+      data: { canvasId },
+    });
+    return this.get(id);
+  }
+
   async get(id: string) {
     const project = await this.find(id);
     const plan = JSON.parse(project.plan);
@@ -122,21 +180,25 @@ export class ProductionService {
       (node) => node.id === 'production-shot-table',
     );
     if (plan.scenes && tableIndex >= 0) {
-      const continuity = this.parseEdges(project.edges).some(
+      const edges = this.parseEdges(project.edges);
+      const continuity = edges.some(
         (edge) => edge.data?.kind === 'continuity',
       );
       const merged = this.mergeLayout(
         buildProductionGraph(plan, 'storyboard', continuity),
         nodes,
       );
-      if (JSON.stringify(nodes) !== JSON.stringify(merged.nodes)) {
+      const nodesChanged = JSON.stringify(nodes) !== JSON.stringify(merged.nodes);
+      const edgesChanged = JSON.stringify(edges) !== JSON.stringify(merged.edges);
+      if (nodesChanged || edgesChanged) {
         nodes.splice(0, nodes.length, ...merged.nodes);
         project.nodes = JSON.stringify(nodes);
-        await this.prisma.productionProject.update({
+        project.edges = JSON.stringify(merged.edges);
+        const updated = await this.prisma.productionProject.update({
           where: { id },
-          data: { nodes: project.nodes },
+          data: { nodes: project.nodes, edges: project.edges },
         });
-        await this.syncCanvas(nodes, this.parseEdges(project.edges));
+        await this.syncCanvas(updated.canvasId ?? project.canvasId, nodes, merged.edges);
       }
     }
     const stage = this.mediaStage(project.status);
@@ -153,6 +215,8 @@ export class ProductionService {
     const project = await this.find(id);
     const allowedStages = [
       'requirements_review',
+      'story_review',
+      'story_pending',
       'script_review',
       'script_pending',
       'characters_review',
@@ -171,10 +235,18 @@ export class ProductionService {
       throw new BadRequestException('当前阶段不能确认');
     }
     const currentNodes = input.nodes as ProductionNode[];
-    let plan = this.mergePlanWithCanvas(
-      JSON.parse(project.plan),
-      currentNodes,
+    let plan = this.withTargetDuration(
+      this.mergePlanWithCanvas(JSON.parse(project.plan), currentNodes),
+      project.idea,
     );
+    if (project.status === 'story_review') {
+      if (plan.story !== JSON.parse(project.plan).story)
+        throw new BadRequestException('画布故事已修改，请先提交修改并重新审查');
+      if (!plan.storyReview)
+        return this.reviewStory(id, project, plan, onEvent);
+      if (plan.storyReview.issues.some((issue) => issue.severity === 'blocking'))
+        throw new BadRequestException('故事审查仍有必须修复的问题');
+    }
     const events = this.parseEvents(project.events);
     if (!project.status.endsWith('_pending'))
       events.push(
@@ -257,16 +329,18 @@ export class ProductionService {
           events: JSON.stringify(events),
         },
       });
-      await this.syncCanvas(graph.nodes, graph.edges);
+      await this.syncCanvas(project.canvasId, graph.nodes, graph.edges);
       if (auto)
-        this.schedule(id, [PRODUCTION_PHASE.character, PRODUCTION_PHASE.scene]);
+        this.schedule(id, [PRODUCTION_PHASE.character, PRODUCTION_PHASE.prop, PRODUCTION_PHASE.scene]);
       const result = this.serialize(updated);
       onEvent?.({ type: 'result', project: result });
       return result;
     }
 
     const nextStage = {
-      requirements_review: 'script',
+      requirements_review: 'story',
+      story_review: 'script',
+      story_pending: 'story',
       script_review: 'characters',
       script_pending: 'script',
       characters_review: 'storyboard',
@@ -288,7 +362,8 @@ export class ProductionService {
       this.event(
         nextStage,
         {
-          script: '编剧 Agent 开始生成故事和场景剧本',
+          story: '故事开发 Agent 开始生成完整故事',
+          script: '编剧 Agent 开始将故事改编为场景剧本',
           characters: '角色设计师 Agent 开始生成角色设定',
           storyboard: '场景师和分镜师 Agent 开始生成分镜',
           imagePrompts: '分镜图提示词 Agent 开始生成图片提示词',
@@ -304,28 +379,58 @@ export class ProductionService {
         events: JSON.stringify(events),
       },
     });
+    let stageSaved = false;
     try {
       const onChunk = (data: unknown) =>
         onEvent?.({ type: 'chunk', projectId: id, stage: nextStage, data });
       const nextPlan = await (async () => {
+        if (nextStage === 'story') {
+          const brief = project.requirements
+            ? JSON.parse(project.requirements).brief
+            : project.idea;
+          const story = this.withTargetDuration(await this.planner.story(
+            `原始输入：${project.idea}\n已确认需求：${brief}`,
+            project.modelId,
+            onChunk,
+          ), project.idea);
+          return story;
+        }
         if (nextStage === 'script') {
           const brief = project.requirements
             ? JSON.parse(project.requirements).brief
             : project.idea;
+          const approvedStory = project.status === 'story_review'
+            ? { ...plan, storyReview: undefined }
+            : null;
+          const scriptInput = approvedStory
+            ? JSON.stringify({ originalInput: project.idea, approvedRequirements: brief, approvedStory })
+            : brief;
+          const script = await this.planner.script(scriptInput, project.modelId, onChunk);
           return {
-            ...(await this.planner.script(brief, project.modelId, onChunk)),
+            ...(this.workflowFor(project.idea)
+              ? { workflow: this.workflowFor(project.idea) }
+              : {}),
+            ...script,
+            ...(approvedStory ? {
+              ...approvedStory,
+              storyReview: plan.storyReview,
+              scenes: script.scenes,
+            } : {}),
             characters: [],
           };
         }
-        if (nextStage === 'characters')
+        if (nextStage === 'characters') {
+          const assets = await this.planner.characters(
+            plan,
+            project.modelId,
+            onChunk,
+          );
           return {
             ...plan,
-            characters: await this.planner.characters(
-              plan,
-              project.modelId,
-              onChunk,
-            ),
+            characters: assets.characters,
+            props: assets.props,
           };
+        }
         if (nextStage === 'storyboard')
           return this.planner.storyboard(plan, project.modelId, onChunk);
         if (nextStage === 'imagePrompts')
@@ -333,17 +438,21 @@ export class ProductionService {
         return this.planner.videoPrompts(plan, project.modelId, onChunk);
       })();
       const graph = this.mergeLayout(
-        buildProductionGraph(
+        nextStage === 'story'
+          ? buildProductionStoryGraph(nextPlan)
+          : buildProductionGraph(
           nextPlan,
           nextStage === 'script' ||
             nextStage === 'characters' ||
             nextStage === 'storyboard'
             ? nextStage
             : 'storyboard',
-        ),
+          ),
         currentNodes,
       );
-      events.push(this.event(nextStage, '阶段结果已生成，等待用户确认'));
+      events.push(this.event(nextStage, nextStage === 'story'
+        ? '完整故事已生成，开始独立审查'
+        : '阶段结果已生成，等待用户确认'));
       const updated = await this.prisma.productionProject.update({
         where: { id },
         data: {
@@ -352,9 +461,16 @@ export class ProductionService {
           edges: JSON.stringify(graph.edges),
           status: `${statusStage}_review`,
           events: JSON.stringify(events),
+          history: JSON.stringify([
+            ...this.parseHistory(project.history),
+            this.historyEntry(nextStage, nextPlan),
+          ]),
         },
       });
-      await this.syncCanvas(graph.nodes, graph.edges);
+      stageSaved = true;
+      await this.syncCanvas(project.canvasId, graph.nodes, graph.edges);
+      if (nextStage === 'story')
+        return this.reviewStory(id, updated, nextPlan, onEvent);
       const result = this.serialize(updated);
       onEvent?.({ type: 'result', project: result });
       return result;
@@ -367,7 +483,10 @@ export class ProductionService {
       );
       await this.prisma.productionProject.update({
         where: { id },
-        data: { status: project.status, events: JSON.stringify(events) },
+        data: {
+          ...(!stageSaved && { status: project.status }),
+          events: JSON.stringify(events),
+        },
       });
       throw error;
     }
@@ -411,9 +530,9 @@ export class ProductionService {
       throw new BadRequestException('当前阶段不能修改');
     }
     const currentNodes = input.nodes as ProductionNode[];
-    const plan = this.mergePlanWithCanvas(
-      JSON.parse(project.plan),
-      currentNodes,
+    const plan = this.withTargetDuration(
+      this.mergePlanWithCanvas(JSON.parse(project.plan), currentNodes),
+      project.idea,
     );
     const events = this.parseEvents(project.events);
     const displayFeedback =
@@ -431,6 +550,7 @@ export class ProductionService {
       },
     });
     onEvent?.({ type: 'start', projectId: id, stage: input.stage });
+    let stageSaved = false;
     try {
       const onChunk = (data: unknown) =>
         onEvent?.({ type: 'chunk', projectId: id, stage: input.stage, data });
@@ -438,10 +558,16 @@ export class ProductionService {
         const previous = project.requirements
           ? JSON.parse(project.requirements)
           : null;
+        const requirementsModelId = input.files?.some((file) =>
+          file.type.startsWith('image/'),
+        )
+          ? (await this.models.visionRuntime()).id
+          : project.modelId;
         const requirements = await this.planner.requirements(
           `原始需求：${project.idea}\n已有需求摘要：${previous?.brief ?? '无'}\n用户补充：${input.feedback}`,
-          project.modelId,
+          requirementsModelId,
           onChunk,
+          input.files,
         );
         events.push(
           this.event(
@@ -455,6 +581,10 @@ export class ProductionService {
           where: { id },
           data: {
             requirements: JSON.stringify(requirements),
+            history: JSON.stringify([
+              ...this.parseHistory(project.history),
+              this.historyEntry('requirements', requirements, displayFeedback),
+            ]),
             status:
               requirements.status === 'questions'
                 ? 'requirements_clarifying'
@@ -467,8 +597,23 @@ export class ProductionService {
         return result;
       }
       const nextPlan =
-        input.stage === 'script'
+        input.stage === 'story'
+          ? await (async () => {
+              const brief = project.requirements
+                ? JSON.parse(project.requirements).brief
+                : project.idea;
+              const story = this.withTargetDuration(await this.planner.story(
+                `原始输入：${project.idea}\n已确认需求：${brief}\n当前故事：${JSON.stringify(plan)}\n用户修改意见：${input.feedback}`,
+                project.modelId,
+                onChunk,
+              ), project.idea);
+              return story;
+            })()
+        : input.stage === 'script'
           ? {
+              ...(this.workflowFor(project.idea)
+                ? { workflow: this.workflowFor(project.idea) }
+                : {}),
               ...(await this.planner.script(
                 `原始创意：${project.idea}\n当前剧本：${JSON.stringify(plan)}\n用户修改意见：${input.feedback}\n保留未要求修改的场景 ID。`,
                 project.modelId,
@@ -480,12 +625,20 @@ export class ProductionService {
                     data,
                   }),
               )),
+              ...(plan.storyReview ? {
+                story: plan.story,
+                synopsis: plan.synopsis,
+                storyArc: plan.storyArc,
+                ...(plan.comedyDesign ? { comedyDesign: plan.comedyDesign } : {}),
+                sourceBasis: plan.sourceBasis,
+                creativeAdditions: plan.creativeAdditions,
+                storyReview: plan.storyReview,
+              } : {}),
               characters: [],
             }
           : input.stage === 'characters'
-            ? {
-                ...plan,
-                characters: await this.planner.characters(
+            ? await (async () => {
+                const assets = await this.planner.characters(
                   { ...plan, revisionFeedback: input.feedback },
                   project.modelId,
                   (data) =>
@@ -495,8 +648,9 @@ export class ProductionService {
                       stage: input.stage,
                       data,
                     }),
-                ),
-              }
+                );
+                return { ...plan, characters: assets.characters, props: assets.props };
+              })()
             : input.stage === 'storyboard'
               ? await this.planner.storyboard(
                   { ...plan, revisionFeedback: input.feedback },
@@ -515,12 +669,14 @@ export class ProductionService {
                     onChunk,
                   );
       const graph = this.mergeLayout(
-        buildProductionGraph(
+        input.stage === 'story'
+          ? buildProductionStoryGraph(nextPlan)
+          : buildProductionGraph(
           nextPlan,
           ['script', 'characters', 'storyboard'].includes(input.stage)
             ? input.stage
             : 'storyboard',
-        ),
+          ),
         currentNodes,
       );
       events.push(this.event(input.stage, '修改结果已生成，等待用户再次确认'));
@@ -532,10 +688,17 @@ export class ProductionService {
           edges: JSON.stringify(graph.edges),
           status: `${statusStage}_review`,
           events: JSON.stringify(events),
+          history: JSON.stringify([
+            ...this.parseHistory(project.history),
+            this.historyEntry(input.stage, nextPlan, displayFeedback),
+          ]),
           error: null,
         },
       });
-      await this.syncCanvas(graph.nodes, graph.edges);
+      stageSaved = true;
+      await this.syncCanvas(project.canvasId, graph.nodes, graph.edges);
+      if (input.stage === 'story')
+        return this.reviewStory(id, updated, nextPlan, onEvent);
       const result = this.serialize(updated);
       onEvent?.({ type: 'result', project: result });
       return result;
@@ -548,7 +711,10 @@ export class ProductionService {
       );
       await this.prisma.productionProject.update({
         where: { id },
-        data: { status: project.status, events: JSON.stringify(events) },
+        data: {
+          ...(!stageSaved && { status: project.status }),
+          events: JSON.stringify(events),
+        },
       });
       throw error;
     }
@@ -605,7 +771,7 @@ export class ProductionService {
         error: null,
       },
     });
-    await this.syncCanvas(nodes, input.edges);
+    await this.syncCanvas(project.canvasId, nodes, input.edges);
     if (stage) this.schedule(id, this.phaseList(stage));
     else this.schedule(id);
     return this.serialize(updated);
@@ -621,6 +787,13 @@ export class ProductionService {
       data: { status: `${stage}_paused` },
     });
     return this.serialize(project);
+  }
+
+  async reviewCurrentStory(id: string) {
+    const project = await this.find(id);
+    const plan = JSON.parse(project.plan);
+    if (!plan.story) throw new BadRequestException('当前项目还没有可审查的故事');
+    return this.reviewStory(id, project, plan);
   }
 
   async retry(
@@ -675,7 +848,7 @@ export class ProductionService {
         error: null,
       },
     });
-    await this.syncCanvas(nodes, edges);
+    await this.syncCanvas(project.canvasId, nodes, edges);
     this.schedule(id, [node.data.production.kind], nodeId);
     return this.serialize(updated);
   }
@@ -695,6 +868,7 @@ export class ProductionService {
       requirements: project.requirements
         ? JSON.parse(project.requirements)
         : null,
+      history: this.parseHistory(project.history),
       events: this.parseEvents(project.events),
       nodes: this.parseNodes(project.nodes),
       edges: this.parseEdges(project.edges),
@@ -713,6 +887,70 @@ export class ProductionService {
     return value ? JSON.parse(value) : [];
   }
 
+  private parseHistory(value?: string) {
+    return value ? JSON.parse(value) : [];
+  }
+
+  private historyEntry(stage: string, data: unknown, feedback?: string) {
+    return {
+      id: randomUUID(),
+      stage,
+      data,
+      feedback,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  private async reviewStory(
+    id: string,
+    project: any,
+    plan: any,
+    onEvent?: (event: ProductionStreamEvent) => void,
+  ) {
+    onEvent?.({ type: 'start', projectId: id, stage: 'storyReview' });
+    const events = [
+      ...this.parseEvents(project.events),
+      this.event('storyReview', '独立审查者正在检查故事完整性'),
+    ];
+    try {
+      const brief = project.requirements
+        ? JSON.parse(project.requirements).brief
+        : project.idea;
+      const storyReview = await this.planner.reviewStory(
+        `原始输入：${project.idea}\n已确认需求：${brief}`,
+        plan,
+        project.modelId,
+      );
+      events.push(this.event('storyReview', '故事审查已完成，等待用户确认'));
+      const updated = await this.prisma.productionProject.update({
+        where: { id },
+        data: {
+          plan: JSON.stringify({ ...plan, storyReview }),
+          status: 'story_review',
+          events: JSON.stringify(events),
+          error: null,
+        },
+      });
+      const result = this.serialize(updated);
+      onEvent?.({ type: 'result', project: result });
+      return result;
+    } catch (error) {
+      events.push(this.event('storyReview', `审查失败：${error instanceof Error ? error.message : String(error)}`));
+      const updated = await this.prisma.productionProject.update({
+        where: { id },
+        data: {
+          plan: JSON.stringify(plan),
+          status: 'story_review',
+          events: JSON.stringify(events),
+          error: '故事已保存，审查未完成。请重试审查。',
+        },
+      });
+      const result = this.serialize(updated);
+      onEvent?.({ type: 'result', project: result });
+      return result;
+    }
+  }
+
   private event(stage: string, message: string) {
     return {
       id: randomUUID(),
@@ -723,14 +961,16 @@ export class ProductionService {
   }
 
   private async appendEvent(id: string, stage: string, message: string) {
-    const project = await this.find(id);
-    const events = [
-      ...this.parseEvents(project.events),
-      this.event(stage, message),
-    ];
-    await this.prisma.productionProject.update({
-      where: { id },
-      data: { events: JSON.stringify(events) },
+    await this.serializedWrite(id, async () => {
+      const project = await this.find(id);
+      const events = [
+        ...this.parseEvents(project.events),
+        this.event(stage, message),
+      ];
+      await this.prisma.productionProject.update({
+        where: { id },
+        data: { events: JSON.stringify(events) },
+      });
     });
   }
 
@@ -738,6 +978,9 @@ export class ProductionService {
     const byId = new Map(nodes.map((node) => [node.id, node]));
     return {
       ...plan,
+      ...(plan.storyReview && !plan.scenes?.length && byId.get('production-story')?.data.production?.kind === 'story'
+        ? { story: byId.get('production-story')?.data.text ?? plan.story }
+        : {}),
       characters: (plan.characters ?? []).map((character: any) => ({
         ...character,
         name: byId.get(`subject-${character.id}`)?.data.name ?? character.name,
@@ -757,36 +1000,44 @@ export class ProductionService {
     currentNodes: ProductionNode[],
   ) {
     const current = new Map(currentNodes.map((node) => [node.id, node]));
-    const addsTurnarounds =
-      graph.nodes.some((node) => node.id.endsWith('-turnaround')) &&
-      !currentNodes.some((node) => node.id.endsWith('-turnaround'));
     return {
       ...graph,
       nodes: graph.nodes.map((node) => {
         const existing = current.get(node.id);
         if (!existing) return node;
-        const useMigratedPosition =
-          addsTurnarounds &&
-          existing.position.x >= 1120 &&
-          existing.position.x === node.position.x - 360;
+        if (node.data.production?.kind === 'story')
+          return { ...node, position: existing.position, data: node.data };
         const prompt = node.data.production?.prompt;
+        const promptChanged = Boolean(
+          prompt &&
+            existing.data.production?.prompt &&
+            existing.data.production.prompt !== prompt,
+        );
         const data =
           node.type === 'shotTableNode'
             ? node.data
             : prompt
               ? {
                   ...existing.data,
-                  draftText: prompt,
+                  title: node.data.title ?? existing.data.title,
+                  draftText: node.data.draftText ?? prompt,
+                  draftState: promptChanged
+                    ? undefined
+                    : existing.data.draftState,
+                  ...(promptChanged
+                    ? { url: '', status: undefined, error: null }
+                    : {}),
                   production: {
                     ...existing.data.production,
                     ...node.data.production,
                     prompt,
+                    stale: promptChanged || existing.data.production?.stale,
                   },
                 }
               : existing.data;
         return {
           ...node,
-          position: useMigratedPosition ? node.position : existing.position,
+          position: existing.position,
           data,
         };
       }),
@@ -815,7 +1066,7 @@ export class ProductionService {
 
   private phaseList(stage: string) {
     return stage === 'references'
-      ? [PRODUCTION_PHASE.character, PRODUCTION_PHASE.scene]
+      ? [PRODUCTION_PHASE.character, PRODUCTION_PHASE.prop, PRODUCTION_PHASE.scene]
       : stage === 'storyboards'
         ? [PRODUCTION_PHASE.storyboard]
         : [PRODUCTION_PHASE.video];
@@ -843,14 +1094,14 @@ export class ProductionService {
               (!targetNodeId || node.id === targetNodeId),
           )
           .map((node) => node.id);
-        for (const nodeId of nodeIds) {
-          project = await this.find(id);
-          if (project.status !== running) return;
-          const node = this.parseNodes(project.nodes).find(
+        const runNode = async (nodeId: string) => {
+          const current = await this.find(id);
+          if (current.status !== running) return false;
+          const node = this.parseNodes(current.nodes).find(
             (item) => item.id === nodeId,
           );
-          if (!node || node.data.status === ChunkStatus.SUCCESS) continue;
-          if (!this.dependenciesReady(node, project.nodes, project.edges)) {
+          if (!node || node.data.status === ChunkStatus.SUCCESS) return true;
+          if (!this.dependenciesReady(node, current.nodes, current.edges)) {
             await this.failNode(
               id,
               nodeId,
@@ -858,7 +1109,7 @@ export class ProductionService {
                 ? '请先成功生成上一镜，或选择使用本分镜图独立生成'
                 : '上游内容尚未生成成功',
             );
-            continue;
+            return true;
           }
           try {
             if (phase === PRODUCTION_PHASE.video)
@@ -871,6 +1122,28 @@ export class ProductionService {
               error instanceof Error ? error.message : String(error),
             );
           }
+          return true;
+        };
+        if (phase === PRODUCTION_PHASE.video) {
+          for (const nodeId of nodeIds) {
+            if (!(await runNode(nodeId))) return;
+          }
+        } else {
+          let nextIndex = 0;
+          const worker = async () => {
+            while (nextIndex < nodeIds.length) {
+              const nodeId = nodeIds[nextIndex++];
+              if (!(await runNode(nodeId))) return false;
+            }
+            return true;
+          };
+          const results = await Promise.all(
+            Array.from(
+              { length: Math.min(IMAGE_CONCURRENCY, nodeIds.length) },
+              worker,
+            ),
+          );
+          if (results.includes(false)) return;
         }
       }
       const project = await this.find(id);
@@ -929,14 +1202,32 @@ export class ProductionService {
     const nodes = this.parseNodes(project.nodes);
     const node = nodes.find((item) => item.id === nodeId);
     const incoming = this.parseEdges(project.edges)
-      .filter((edge) => edge.target === nodeId)
+      .filter((edge) =>
+        edge.target === nodeId && edge.data?.kind !== 'sceneMembership',
+      )
       .map((edge) => nodes.find((item) => item.id === edge.source))
       .filter(Boolean) as ProductionNode[];
-    const references = incoming.filter(
-      (item) => this.isMediaNode(item) && item.data.url,
-    );
+    const sceneReference =
+      node.data.production?.kind === PRODUCTION_PHASE.scene;
+    const propReference = node.data.production?.kind === PRODUCTION_PHASE.prop;
+    const references = sceneReference || propReference
+      ? []
+      : incoming.filter(
+          (item, index, items) =>
+            this.isMediaNode(item) &&
+            item.data.url &&
+            items.findIndex((candidate) => candidate.id === item.id) === index,
+        ).slice(0, 8);
     const context = incoming
       .flatMap((item) => {
+        if (sceneReference) return [];
+        if (
+          propReference &&
+          (item.type !== 'subjectNode' ||
+            item.data.production?.propId !== node.data.production?.propId) &&
+          item.type !== 'textNode'
+        )
+          return [];
         if (item.type === 'textNode') return [item.data.text];
         if (item.type === 'subjectNode')
           return [`${item.data.name}：${item.data.description}`];
@@ -947,11 +1238,25 @@ export class ProductionService {
     const prompt = [
       node.data.draftText || node.data.production.prompt,
       ...context,
+      references.length
+        ? `参考图映射（编号与后续图片一一对应，禁止互换身份或混合物体结构）：\n${references
+            .map((item, index) => `图片${index + 1}＝${item.data.title ?? item.id}`)
+            .join('\n')}`
+        : '',
       `整体视觉风格：${plan.visualStyle}`,
-      '保持所有参考角色外貌、年龄、服装和场景风格一致。',
-    ].join('\n');
+      !sceneReference && '保持所有参考角色外貌、年龄、服装、关键道具和场景风格一致。角色三视图是身份、面容、体型和服装结构的统一依据。关键道具三视图中的材质、形状、组成部件、尺寸比例、标记和已有文字不得重新设计。',
+      node.data.production?.kind === PRODUCTION_PHASE.storyboard &&
+        references.some((item) => item.data.production?.kind === PRODUCTION_PHASE.scene)
+        ? '场景参考图只提供地点、空间布局、材质、光线与色彩，不继承其无人空景状态、机位、构图或生成提示词；当前分镜的角色、动作、机位和构图以当前提示词为准。'
+        : '',
+      sceneReference
+        ? '这是干净空景资产：只保留拍摄场地，不合成任何角色、道具资产或剧情表演。'
+        : propReference
+          ? '这是独立道具资产：只绘制物体或固定连接组件，不合成任何角色、动物、人体局部、角色操作或剧情表演。'
+          : '',
+    ].filter(Boolean).join('\n');
     const runtimeModel = await this.models.runtime(undefined, 'image');
-    const result = await genImage({
+    const imageInput = {
       runtimeModel,
       message: [
         { type: 'text', text: prompt },
@@ -963,10 +1268,14 @@ export class ProductionService {
       textList: [],
       config: {
         ratio: node.data.config?.ratio || plan.ratio,
+        resolution: node.data.config?.resolution || '2K',
         count: 1,
         edit: references.length > 0,
       },
-    });
+    };
+    const result = sceneReference
+      ? await genSceneReferenceImage(imageInput, await this.models.visionRuntime())
+      : await genImage(imageInput);
     const image = result.content[0]?.image;
     if (!image) throw new Error('图片生成接口未返回结果');
     const url = image.startsWith('data:image/')
@@ -1035,7 +1344,7 @@ export class ProductionService {
     ]
       .filter(Boolean)
       .join('\n\n');
-    const runtimeModel = await this.models.runtime(undefined, 'video');
+    const runtimeModel = await this.models.runtime(node.data.config?.model, 'video');
     let taskId = node.data.production.taskId as string | undefined;
     await this.appendEvent(
       id,
@@ -1131,11 +1440,13 @@ export class ProductionService {
     nodeId: string,
     production: Record<string, any>,
   ) {
-    const project = await this.find(id);
-    const nodes = this.parseNodes(project.nodes);
-    const node = nodes.find((item) => item.id === nodeId);
-    node.data.production = { ...node.data.production, ...production };
-    await this.saveGraph(id, nodes, this.parseEdges(project.edges));
+    await this.serializedWrite(id, async () => {
+      const project = await this.find(id);
+      const nodes = this.parseNodes(project.nodes);
+      const node = nodes.find((item) => item.id === nodeId);
+      node.data.production = { ...node.data.production, ...production };
+      await this.saveGraph(id, nodes, this.parseEdges(project.edges));
+    });
   }
 
   private async patchNode(
@@ -1143,13 +1454,26 @@ export class ProductionService {
     nodeId: string,
     data: Record<string, any>,
   ) {
-    const project = await this.find(id);
-    const nodes = this.parseNodes(project.nodes);
-    const node = nodes.find((item) => item.id === nodeId);
-    if (!node) throw new NotFoundException('生成节点不存在');
-    node.data = { ...node.data, ...data };
-    if (data.error === null) delete node.data.error;
-    await this.saveGraph(id, nodes, this.parseEdges(project.edges));
+    await this.serializedWrite(id, async () => {
+      const project = await this.find(id);
+      const nodes = this.parseNodes(project.nodes);
+      const node = nodes.find((item) => item.id === nodeId);
+      if (!node) throw new NotFoundException('生成节点不存在');
+      node.data = { ...node.data, ...data };
+      if (data.error === null) delete node.data.error;
+      await this.saveGraph(id, nodes, this.parseEdges(project.edges));
+    });
+  }
+
+  private async serializedWrite<T>(id: string, write: () => Promise<T>) {
+    const previous = this.writeQueues.get(id) ?? Promise.resolve();
+    const current = previous.catch(() => undefined).then(write);
+    this.writeQueues.set(id, current);
+    try {
+      return await current;
+    } finally {
+      if (this.writeQueues.get(id) === current) this.writeQueues.delete(id);
+    }
   }
 
   private async saveGraph(
@@ -1157,21 +1481,64 @@ export class ProductionService {
     nodes: ProductionNode[],
     edges: Record<string, any>[],
   ) {
-    await this.prisma.productionProject.update({
+    const updated = await this.prisma.productionProject.update({
       where: { id },
       data: { nodes: JSON.stringify(nodes), edges: JSON.stringify(edges) },
     });
-    await this.syncCanvas(nodes, edges);
+    await this.syncCanvas(updated.canvasId, nodes, edges);
   }
 
-  private async syncCanvas(nodes: any[], edges: any[]) {
+  private async syncCanvas(canvasId: string, nodes: any[], edges: any[]) {
+    const existing = await this.prisma.canvasState.findUnique({
+      where: { id: canvasId },
+    });
+    const currentNodes = existing ? this.parseNodes(existing.nodes) : [];
+    const currentEdges = existing ? this.parseEdges(existing.edges) : [];
+    const incomingNodes = new Map(nodes.map((node) => [node.id, node]));
+    const managedNodeIds = new Set([
+      ...incomingNodes.keys(),
+      ...currentNodes.filter((node) => node.data?.production).map((node) => node.id),
+    ]);
+    const currentNodeIds = new Set(currentNodes.map((node) => node.id));
+    const mergedNodes = currentNodes
+      .filter((node) => !node.data?.production || incomingNodes.has(node.id))
+      .map((node) => {
+        const incoming = incomingNodes.get(node.id);
+        if (!incoming) return node;
+      if (node.data?.url && 'url' in incoming.data && !incoming.data.url) {
+        return {
+          ...node,
+          ...incoming,
+          position: node.position,
+          data: {
+            ...incoming.data,
+            url: node.data.url,
+            status: node.data.status,
+            error: node.data.error,
+          },
+        };
+      }
+        return { ...node, ...incoming, position: node.position };
+      });
+    const mergedNodeIds = new Set([
+      ...mergedNodes.map((node) => node.id),
+      ...incomingNodes.keys(),
+    ]);
+    const mergedEdges = currentEdges.filter((edge) =>
+      mergedNodeIds.has(edge.source) &&
+      mergedNodeIds.has(edge.target) &&
+      !(managedNodeIds.has(edge.source) && managedNodeIds.has(edge.target)),
+    );
     const values = {
-      nodes: JSON.stringify(nodes),
-      edges: JSON.stringify(edges),
+      nodes: JSON.stringify([
+        ...mergedNodes,
+        ...nodes.filter((node) => !currentNodeIds.has(node.id)),
+      ]),
+      edges: JSON.stringify([...mergedEdges, ...edges]),
     };
     await this.prisma.canvasState.upsert({
-      where: { id: 'default' },
-      create: { id: 'default', ...values },
+      where: { id: canvasId },
+      create: { id: canvasId, ...values },
       update: values,
     });
   }
@@ -1187,7 +1554,9 @@ export class ProductionService {
     const node = nodes.find((item) => item.id === nodeId);
     if (!node) return '';
     const incoming = edges
-      .filter((edge) => edge.target === nodeId)
+      .filter((edge) =>
+        edge.target === nodeId && edge.data?.kind !== 'sceneMembership',
+      )
       .sort((left, right) => left.source.localeCompare(right.source))
       .map((edge) => {
         const source = nodes.find((item) => item.id === edge.source);

@@ -15,15 +15,23 @@ export class AgentSessionsService {
     private readonly files: AgentFilesService,
   ) {}
 
-  list() {
+  list(canvasId = 'default') {
     return this.prisma.agentSession.findMany({
+      where: { canvasId },
       orderBy: { updatedAt: 'desc' },
     });
   }
 
-  create() {
+  create(canvasId = 'default') {
     return this.prisma.agentSession.create({
-      data: { id: crypto.randomUUID(), title: '新会话' },
+      data: { id: crypto.randomUUID(), title: '新会话', canvasId },
+    });
+  }
+
+  claimLegacy(canvasId: string) {
+    return this.prisma.agentSession.updateMany({
+      where: { canvasId: 'default' },
+      data: { canvasId },
     });
   }
 
@@ -101,6 +109,7 @@ export class AgentSessionsService {
     skillIds: string[] = [],
     subjects: AgentSubjectDto[] = [],
     mode: 'agent' | 'chat' = 'agent',
+    contentState?: string,
   ) {
     const session = await this.detail(sessionId);
     const history = await Promise.all(
@@ -137,6 +146,7 @@ export class AgentSessionsService {
           attachments: JSON.stringify(attachments),
           subjects: JSON.stringify(subjects),
           mode,
+          ...(contentState ? { contentState } : {}),
         },
       }),
       this.prisma.agentSession.update({

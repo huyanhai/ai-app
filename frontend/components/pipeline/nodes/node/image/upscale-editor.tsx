@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useReactFlow } from "@xyflow/react";
 import { ChevronDown, ChevronUp, LoaderCircle, ScanLine, SlidersHorizontal, Sparkles } from "lucide-react";
 import { ChunkStatus } from "backend/src/common/utils/ai-stream-utils";
+import { Slider } from "@/components/ui/slider";
 import { NodeType, TAllNodes, TNodeImage } from "../../../types";
 
 const resolutions = ["2K", "4K", "8K"];
@@ -45,18 +46,13 @@ const UpscaleEditor = ({ node, onSubmit }: { node: TNodeImage; onSubmit: () => v
           {detailOpen && (
             <div className="absolute left-1/2 top-[calc(100%+14px)] z-10 w-[240px] -translate-x-1/2 rounded-xl border border-white/5 bg-[#26262a] p-4 shadow-2xl">
               <div className="mb-4 text-sm text-white">细节生成程度</div>
-              <div className="flex items-center gap-3">
-                <input
-                  aria-label="细节生成程度"
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={detail}
-                  onChange={(event) => update({ upscaleDetail: Number(event.target.value) })}
-                  className="h-1 min-w-0 flex-1 cursor-pointer accent-white"
-                />
-                <span className="w-7 text-right text-xs text-white/70">{detail}</span>
-              </div>
+              <Slider
+                aria-label="细节生成程度"
+                min={0}
+                max={100}
+                value={detail}
+                onValueChange={(upscaleDetail) => update({ upscaleDetail })}
+              />
             </div>
           )}
         </div>

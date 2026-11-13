@@ -6,6 +6,7 @@ import {
   IsObject,
   IsNumber,
   IsBoolean,
+  IsIn,
 } from 'class-validator';
 import { ContentBlock } from 'langchain';
 
@@ -68,6 +69,10 @@ export class TextListDTO {
 }
 
 export class StreamDto {
+  @IsIn(['sceneReference'])
+  @IsOptional()
+  assetKind?: 'sceneReference';
+
   @IsArray()
   @IsNotEmpty()
   message: ContentBlock[];

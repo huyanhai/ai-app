@@ -81,9 +81,16 @@ const Wheel = ({
               className="flex w-full snap-center flex-col items-center justify-center gap-0.5 cursor-pointer"
               style={{ height: ITEM_H }}
             >
-              {option.label === value && (
+              {option.thumbnail ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={option.thumbnail}
+                  alt=""
+                  className={`size-8 shrink-0 object-contain transition-opacity ${option.label === value ? "opacity-90" : "opacity-35"}`}
+                />
+              ) : option.label === value ? (
                 <span className="text-white/80">{icon}</span>
-              )}
+              ) : null}
               <span
                 className={`text-sm transition-colors ${
                   option.label === value ? "text-white" : "text-white/30"
@@ -139,7 +146,7 @@ const CameraModal = ({
   const preview =
     (lastChanged && optionImage(lastChanged)) ||
     CAMERA_COLUMNS.map((c) => optionImage(c.key)).find(Boolean) ||
-    "/toolbox/camera-preview.jpg";
+    "/toolbox/camera/auto.webp";
 
   return (
     <ToolboxModal

@@ -1,39 +1,38 @@
-import { useRef } from "react";
+import { Slider } from "@/components/ui/slider";
+import { TNodeBase } from "../../types/index";
 
-import { TNodeBase, VideoModeType } from "../../types/index";
-import Popper, { IPopperRef } from "../../popper";
-import { BUTTON_ACTIVE, BUTTON_NORMAL } from "@/constants/class-names";
-
-const DURATION = [4, 5, 10, 15];
+const DURATION = Array.from({ length: 12 }, (_, index) => index + 4);
 
 interface IConfigProps extends TNodeBase {
+  durations?: number[];
   changeConfig: (config: TNodeBase["config"]) => void;
 }
 
-const DurationConfig = ({ config, changeConfig }: IConfigProps) => {
-  const popperRef = useRef<IPopperRef>(null);
+const DurationConfig = ({ config, durations = DURATION, changeConfig }: IConfigProps) => {
+  const options = [...(durations.length ? durations : DURATION)].sort((a, b) => a - b);
+  const min = options[0];
+  const max = options[options.length - 1];
+  const duration = config?.duration && options.includes(config.duration) ? config.duration : min;
 
   return (
-    <Popper
-      ref={popperRef}
-      content={config?.duration! + "s"}
-      trigger={
-        <div className="flex flex-col gap-1">
-          {DURATION.map((item, index) => (
-            <div
-              key={index}
-              className={`p-2 ${BUTTON_NORMAL} ${config?.duration === item && BUTTON_ACTIVE}`}
-              onClick={() => {
-                changeConfig({ duration: item, durationTouched: true });
-                popperRef.current?.closePopper();
-              }}
-            >
-              {item}s
-            </div>
-          ))}
-        </div>
-      }
-    />
+    <div className="w-full px-2 pb-1">
+      <Slider
+        aria-label="视频时长"
+        aria-valuetext={`${duration}秒`}
+        min={min}
+        max={max}
+        value={duration}
+        showTicks
+        tickValues={options}
+        formatValue={(value) => `${value}s`}
+        onValueChange={(value) => {
+          const next = options.reduce((nearest, item) =>
+            Math.abs(item - value) < Math.abs(nearest - value) ? item : nearest,
+          );
+          changeConfig({ duration: next, durationTouched: true });
+        }}
+      />
+    </div>
   );
 };
 

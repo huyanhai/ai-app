@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put } from '@nestjs/common';
 import { CanvasService, CanvasSnapshot, GenerationInput } from './canvas.service';
 import { ImageStorageService } from './image-storage.service';
 
@@ -32,6 +32,29 @@ export class CanvasController {
   @Put(':id')
   save(@Param('id') id: string, @Body() body: CanvasSnapshot) {
     return this.canvas.save(id, body);
+  }
+
+  @Patch(':id/viewport')
+  saveViewport(
+    @Param('id') id: string,
+    @Body() body: { x: number; y: number; zoom: number },
+  ) {
+    return this.canvas.saveViewport(id, body);
+  }
+
+  @Put(':id/title')
+  rename(@Param('id') id: string, @Body() body: { title: string }) {
+    return this.canvas.rename(id, body.title);
+  }
+
+  @Post(':id/duplicate')
+  duplicate(@Param('id') id: string) {
+    return this.canvas.duplicate(id);
+  }
+
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.canvas.remove(id);
   }
 
   @Get(':id/generations')

@@ -43,17 +43,22 @@ import ProductionTimeline, { ProductionStreamingPreview } from "./production-tim
 import VideoStylePicker, { getVideoStylePrompt, VIDEO_STYLES, type VideoStyleId } from "./video-style-picker";
 import type { Edge } from "@xyflow/react";
 import type { TAllNodes } from "./types";
+import { useCanvasId } from "./canvas-workspace-context";
 
 const CREATION_MODES = [
   "全流程广告片导演",
   "剧本开发",
   "剧情短片",
+  "古诗词真人微剧情",
+  "动漫视觉喜剧",
 ] as const;
 
 const CREATION_MODE_DESCRIPTIONS: Record<(typeof CREATION_MODES)[number], string> = {
   全流程广告片导演: "从广告创意到成片，逐阶段确认制作",
   剧本开发: "完善故事设定、人物冲突与分集大纲",
   剧情短片: "快速生成短剧剧本与视觉制作方案",
+  古诗词真人微剧情: "用日常生活、人物关系和自然表演还原诗意",
+  动漫视觉喜剧: "用机关连锁、夸张动作和角色反应制造画面笑点",
 };
 
 const CREATION_MODE_TOKEN_PREFIX = "creation-mode:";
@@ -77,22 +82,40 @@ const fileUrl = (url: string) =>
 const ProductionSelectionTags = ({ tokens }: { tokens: EditorToken[] }) => tokens.length > 0 ? (
   <div className="mb-2 flex flex-wrap gap-1.5">
     {tokens.map((token) => {
-      const Icon = token.kind === "style" ? Palette : Shuffle;
-      return <span key={token.id} className="inline-flex items-center gap-1 rounded-md bg-white/8 px-1.5 py-0.5 text-xs text-white/65"><Icon size={12} />{token.label}</span>;
+      const Icon = token.kind === "style" ? Palette : token.kind === "attachment" ? FileText : Shuffle;
+      return <span key={token.id} className="inline-flex items-center gap-1 rounded-md bg-white/8 px-1.5 py-0.5 text-xs text-white/65">
+        {token.kind === "attachment" && token.mimeType?.startsWith("image/") && token.url
+          ? <img src={token.url} alt="" className="size-8 rounded object-cover" />
+          : <Icon size={12} />}
+        {token.label}
+      </span>;
     })}
   </div>
 ) : null;
 
+const InputStatePreview = ({ state }: { state: string }) => (
+  <Editor
+    onSubmit={() => {}}
+    images={[]}
+    initialState={state}
+    noImageMention
+    autoFocus={false}
+    readOnly
+  />
+);
+
 export default function AIChatPanel({ onClose, subjects, width, onWidthChange, getProductionGraph, applyProductionGraph }: AIChatPanelProps) {
+  const canvasId = useCanvasId();
   const [text, setText] = useState("");
   const [sessionMenuOpen, setSessionMenuOpen] = useState(false);
   const [selectedModelId, setSelectedModelId] = useState("");
   const [selectedVideoStyle, setSelectedVideoStyle] = useState<VideoStyleId>("");
   const [videoStyleOpen, setVideoStyleOpen] = useState(false);
   const [actionError, setActionError] = useState("");
-  const [revisionStage, setRevisionStage] = useState<"requirements" | "script" | "characters" | "storyboard" | "imagePrompts" | "videoPrompts" | null>(null);
+  const [revisionStage, setRevisionStage] = useState<"requirements" | "story" | "script" | "characters" | "storyboard" | "imagePrompts" | "videoPrompts" | null>(null);
   const [pendingProductionIdea, setPendingProductionIdea] = useState("");
   const [pendingProductionTokens, setPendingProductionTokens] = useState<EditorToken[]>([]);
+  const [pendingProductionState, setPendingProductionState] = useState("");
   const [productionIdeaInCard, setProductionIdeaInCard] = useState(false);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
@@ -101,6 +124,7 @@ export default function AIChatPanel({ onClose, subjects, width, onWidthChange, g
   const [skillMenuOpen, setSkillMenuOpen] = useState(false);
   const [referenceMenuPosition, setReferenceMenuPosition] = useState<{ left: number; top: number } | null>(null);
   const editorRef = useRef<IEditorRef>(null);
+  const editorStateRef = useRef("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
   const sessionMenuRef = useRef<HTMLDivElement>(null);
@@ -119,7 +143,7 @@ export default function AIChatPanel({ onClose, subjects, width, onWidthChange, g
     createSession,
     renameSession,
     deleteSession,
-  } = useAgentChat();
+  } = useAgentChat(canvasId);
   const {
     project: production,
     isPlanning,
@@ -143,7 +167,7 @@ export default function AIChatPanel({ onClose, subjects, width, onWidthChange, g
   const currentTitle =
     sessions.find((session) => session.id === currentSessionId)?.title ??
     "新会话";
-  const revisionLabel = { requirements: "需求", script: "剧本", characters: "角色", storyboard: "分镜", imagePrompts: "分镜图提示词", videoPrompts: "视频提示词" }[revisionStage ?? "script"];
+  const revisionLabel = { requirements: "需求", story: "故事", script: "剧本", characters: "角色", storyboard: "分镜", imagePrompts: "分镜图提示词", videoPrompts: "视频提示词" }[revisionStage ?? "script"];
 
   useEffect(() => {
     void loadModels();
@@ -185,51 +209,67 @@ export default function AIChatPanel({ onClose, subjects, width, onWidthChange, g
   };
 
   const handleSend = () => {
-    const content = editorRef.current?.getContent();
-    if (!content?.text || !selectedModel || !isModelReady(selectedModel) || isLoading || isPlanning || isAdvancing) {
+    const content = editorRef.current?.getContent() ?? { text: "", tokens: [] as EditorToken[] };
+    const contentState = editorStateRef.current || undefined;
+    if ((!content.text && attachments.length === 0) || !selectedModel || !isModelReady(selectedModel) || isLoading || isPlanning || isAdvancing) {
       return;
     }
-    if (revisionStage) {
-      const reply = content.text.trim();
-      void reviseProduction(revisionStage, reply);
+    const files = attachments.map((file) => ({
+      name: file.name,
+      type: file.type,
+      url: file.url,
+      content: file.url.includes(";base64,")
+        ? file.url.split(";base64,")[1]
+        : file.url,
+    }));
+    const activeRevisionStage = revisionStage ?? (production?.status === "requirements_clarifying" ? "requirements" : null);
+    if (activeRevisionStage) {
+      if (attachments.length > 0 && activeRevisionStage !== "requirements") {
+        setActionError("图片和剧本附件请在需求阶段上传");
+        return;
+      }
+      const reply = content.text.trim() || "请分析我补充上传的附件，并更新需求摘要。";
+      void reviseProduction(activeRevisionStage, reply, files);
       editorRef.current?.clear();
       setText("");
+      setAttachments([]);
       setRevisionStage(null);
       setActionError("");
       return;
     }
     const productionMode = content.tokens.find((token) => token.id.startsWith(CREATION_MODE_TOKEN_PREFIX));
-    const productionCommand = content.text.match(/^\s*\/\s*(剧情短片|全流程广告片导演|剧本开发)\s*/);
+    const productionCommand = content.text.match(/^\s*\/\s*(剧情短片|全流程广告片导演|剧本开发|古诗词真人微剧情|动漫视觉喜剧)\s*/);
     if (productionMode || productionCommand) {
-      const idea = productionMode ? content.text.trim() : content.text.slice(productionCommand![0].length).trim();
+      const idea = (productionMode ? content.text.trim() : content.text.slice(productionCommand![0].length).trim())
+        || (attachments.length > 0 ? "请分析我上传的剧本和参考附件，提取创作需求。" : "");
       if (!idea) {
         setActionError("请在导演模式后输入故事创意");
         return;
       }
       const styleToken = content.tokens.find((token) => token.id.startsWith(VIDEO_STYLE_TOKEN_PREFIX));
       const style = VIDEO_STYLES.find((item) => item.id === styleToken?.id.slice(VIDEO_STYLE_TOKEN_PREFIX.length));
-      void planProduction(idea, selectedModel.id, getVideoStylePrompt(style));
+      const selectedProductionMode = productionMode?.id.slice(CREATION_MODE_TOKEN_PREFIX.length) ?? productionCommand?.[1];
+      const workflowIdea = ["古诗词真人微剧情", "动漫视觉喜剧"].includes(selectedProductionMode ?? "")
+        ? `【创作模式：${selectedProductionMode}】\n${idea}`
+        : idea;
+      void planProduction(workflowIdea, selectedModel.id, getVideoStylePrompt(style), files, contentState);
       setPendingProductionIdea(idea);
+      setPendingProductionState(contentState ?? "");
       setPendingProductionTokens(content.tokens.filter((token) =>
-        token.id.startsWith(CREATION_MODE_TOKEN_PREFIX) || token.id.startsWith(VIDEO_STYLE_TOKEN_PREFIX),
+        token.id.startsWith(CREATION_MODE_TOKEN_PREFIX) || token.id.startsWith(VIDEO_STYLE_TOKEN_PREFIX) || token.kind === "attachment",
       ));
       setProductionIdeaInCard(messages.length > 0);
       editorRef.current?.clear();
       setText("");
+      setAttachments([]);
       setActionError("");
       return;
     }
     void send({
       text: content.text,
+      contentState,
       modelId: selectedModel.id,
-      files: attachments.map((file) => ({
-        name: file.name,
-        type: file.type,
-        url: file.url,
-        content: file.url.includes(";base64,")
-          ? file.url.split(";base64,")[1]
-          : file.url,
-      })),
+      files,
       skillIds: selectedSkillIds,
       subjects: selectedSubjects,
       mode,
@@ -333,6 +373,7 @@ export default function AIChatPanel({ onClose, subjects, width, onWidthChange, g
       setSelectedVideoStyle("");
       setPendingProductionIdea("");
       setPendingProductionTokens([]);
+      setPendingProductionState("");
       setProductionIdeaInCard(false);
       setRevisionStage(null);
       setActionError("");
@@ -400,6 +441,8 @@ export default function AIChatPanel({ onClose, subjects, width, onWidthChange, g
     const delta = event.key === "ArrowLeft" ? 16 : -16;
     onWidthChange(Math.min(maxWidth, Math.max(minWidth, width + delta)));
   };
+
+  const initialProductionState = production?.ideaState || pendingProductionState;
 
   return (
     <section
@@ -522,8 +565,9 @@ export default function AIChatPanel({ onClose, subjects, width, onWidthChange, g
           {!productionIdeaInCard && (production?.idea || pendingProductionIdea) && (
             <div className="flex justify-end">
               <div className="max-w-[88%] whitespace-pre-wrap rounded-2xl bg-white/10 px-3.5 py-2.5 text-sm leading-6 text-white/90">
-                <ProductionSelectionTags tokens={pendingProductionTokens} />
-                {production?.idea || pendingProductionIdea}
+                {initialProductionState
+                  ? <InputStatePreview state={initialProductionState} />
+                  : <><ProductionSelectionTags tokens={pendingProductionTokens} />{production?.idea || pendingProductionIdea}</>}
               </div>
             </div>
           )}
@@ -539,7 +583,7 @@ export default function AIChatPanel({ onClose, subjects, width, onWidthChange, g
                     : "bg-white/5 text-white/85"
                 }`}
               >
-                {message.subjects && message.subjects.length > 0 && (
+                {!message.contentState && message.subjects && message.subjects.length > 0 && (
                   <div className="mb-2 flex flex-wrap gap-1">
                     {message.subjects.map((subject) => (
                       <span key={subject.id} className="rounded-md bg-white/8 px-1.5 py-0.5 text-xs text-white/55">
@@ -548,7 +592,7 @@ export default function AIChatPanel({ onClose, subjects, width, onWidthChange, g
                     ))}
                   </div>
                 )}
-                {message.attachments && message.attachments.length > 0 && (
+                {!message.contentState && message.attachments && message.attachments.length > 0 && (
                   <div className="mb-2 flex flex-wrap gap-2">
                     {message.attachments.map((attachment, attachmentIndex) =>
                       attachment.type.startsWith("image/") ? (
@@ -574,7 +618,9 @@ export default function AIChatPanel({ onClose, subjects, width, onWidthChange, g
                   </div>
                 )}
                 {message.role === "user" ? (
-                  message.content
+                  message.contentState
+                    ? <InputStatePreview state={message.contentState} />
+                    : message.content
                 ) : message.content ? (
                   <Markdown
                     className="agent-markdown"
@@ -595,7 +641,7 @@ export default function AIChatPanel({ onClose, subjects, width, onWidthChange, g
           ))}
           {isPlanning && (
             <div className="rounded-2xl border border-white/8 bg-[#1d1d1f] px-4 py-4 text-sm text-white/65">
-              {productionIdeaInCard && pendingProductionIdea && <div className="mb-3 flex justify-end"><div className="max-w-[88%] whitespace-pre-wrap rounded-2xl bg-white/10 px-3.5 py-2.5 text-white/90"><ProductionSelectionTags tokens={pendingProductionTokens} />{pendingProductionIdea}</div></div>}
+              {productionIdeaInCard && pendingProductionIdea && <div className="mb-3 flex justify-end"><div className="max-w-[88%] whitespace-pre-wrap rounded-2xl bg-white/10 px-3.5 py-2.5 text-white/90">{pendingProductionState ? <InputStatePreview state={pendingProductionState} /> : <><ProductionSelectionTags tokens={pendingProductionTokens} />{pendingProductionIdea}</>}</div></div>}
               <div className="mb-3">导演 Agent 正在分析创作需求…</div>
               <ProductionStreamingPreview preview={streamPreview} />
             </div>
@@ -603,7 +649,7 @@ export default function AIChatPanel({ onClose, subjects, width, onWidthChange, g
           {production && !isPlanning && (
             <ProductionTimeline
               project={production}
-              initialResponse={productionIdeaInCard ? <><ProductionSelectionTags tokens={pendingProductionTokens} />{production.idea}</> : ""}
+              initialResponse={productionIdeaInCard ? <>{initialProductionState ? <InputStatePreview state={initialProductionState} /> : <><ProductionSelectionTags tokens={pendingProductionTokens} />{production.idea}</>}</> : ""}
               advancing={isAdvancing}
               streamPreview={streamPreview}
               onConfirmStage={(mode, continuity) => void confirmStage(mode, continuity)}
@@ -649,6 +695,7 @@ export default function AIChatPanel({ onClose, subjects, width, onWidthChange, g
               noImageMention
               autoFocus={false}
               onTextChange={handleEditorTextChange}
+              onStateChange={(value) => { editorStateRef.current = value; }}
               onTrigger={(trigger) => {
                 if (trigger === "/") setSkillMenuOpen(true);
                 else window.setTimeout(openReferenceMenu, 0);
@@ -747,7 +794,7 @@ export default function AIChatPanel({ onClose, subjects, width, onWidthChange, g
                   type="button"
                   aria-label="发送消息"
                   onClick={handleSend}
-                  disabled={!text.trim() || !selectedModel || !isModelReady(selectedModel)}
+              disabled={(!text.trim() && attachments.length === 0) || !selectedModel || !isModelReady(selectedModel)}
                   className="flex size-9 cursor-pointer items-center justify-center rounded-full bg-white/85 text-[#171717] transition-colors hover:bg-white disabled:cursor-not-allowed disabled:bg-white/15 disabled:text-white/45"
                 >
                   <ArrowUp size={18} />

@@ -17,6 +17,10 @@ export const NODE_TYPE_LABEL: Record<NodeType, string> = {
   [NodeType.AudioNode]: "音频",
   [NodeType.TimelineNode]: "时间线",
   [NodeType.SubjectNode]: "主体",
+  [NodeType.CameraNode]: "相机",
+  [NodeType.PaletteNode]: "配色",
+  [NodeType.StyleNode]: "风格",
+  [NodeType.MovementNode]: "运镜",
   [NodeType.StageNode]: "导演台",
   [NodeType.ShotTableNode]: "分镜表",
 };
@@ -73,6 +77,10 @@ export const NODE_DEFAULT_DATA: Record<NodeType, TAllNodes["data"]> = {
   },
   [NodeType.TimelineNode]: {},
   [NodeType.SubjectNode]: { name: "主体 1" },
+  [NodeType.CameraNode]: {},
+  [NodeType.PaletteNode]: {},
+  [NodeType.StyleNode]: {},
+  [NodeType.MovementNode]: {},
   [NodeType.StageNode]: {},
   [NodeType.ShotTableNode]: { shots: [] },
 };

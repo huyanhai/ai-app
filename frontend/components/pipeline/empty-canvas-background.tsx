@@ -225,7 +225,7 @@ export default function EmptyCanvasBackground() {
     <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden" aria-hidden="true">
       <canvas ref={canvasRef} className="absolute inset-0" />
       <div ref={hintRef} className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-14 whitespace-nowrap text-2xl text-white/45 will-change-transform">
-        <span>右击画布</span>
+        <span>双击画布</span>
         <MousePointer2 ref={cursorRef} size={30} className="fill-sky-400/20 text-sky-400 will-change-transform" />
         <span>创建节点</span>
       </div>

@@ -2,7 +2,10 @@ import { forwardRef, useImperativeHandle, useRef, ForwardedRef } from "react";
 import {
   $createParagraphNode,
   $createTextNode,
+  $getNodeByKey,
+  $getSelection,
   $getRoot,
+  $isRangeSelection,
   $isTextNode,
   $insertNodes,
   SerializedEditorState,
@@ -45,15 +48,17 @@ interface IEditorProps {
   onEmptyStateChange?: (state: boolean) => void;
   placeholder?: string;
   autoFocus?: boolean;
-  onTextChange?: (text: string) => void;
+  onTextChange?: (text: string, referenceQuery?: string | null) => void;
   onTrigger?: (trigger: "/" | "@") => void;
   onTokenRemove?: (token: EditorToken) => void;
   onBlur?: () => void;
+  readOnly?: boolean;
 }
 
 export interface IEditorRef {
   getEditor: () => Promise<TSendMessageContent[]>;
   clear: () => void;
+  replaceText: (text: string) => void;
   insertText: (text: string) => void;
   focusEnd: () => void;
   insertToken: (token: EditorToken, placement?: "start" | "end") => void;
@@ -77,14 +82,17 @@ const Editor = (
     onTrigger,
     onTokenRemove,
     onBlur,
+    readOnly = false,
   }: IEditorProps,
   ref: ForwardedRef<IEditorRef>,
 ) => {
   const editorRef = useRef<LexicalEditor>(null);
+  const referenceSelectionRef = useRef<{ key: string; offset: number } | null>(null);
   // 在 initialConfig 中通过 editorState 设置初始内容，LexicalComposer 在挂载时
   // 会先处理 editorState，再注册子插件，因此不会触发 OnChangePlugin 且不影响历史记录
   const initialConfig: InitialConfigType = {
     namespace: "PipelineChatInput",
+    editable: !readOnly,
     onError(error: Error) {
       throw error;
     },
@@ -114,8 +122,10 @@ const Editor = (
 
   useImperativeHandle(ref, () => ({
     getEditor: () => {
+      const editor = editorRef.current;
+      if (!editor) return Promise.resolve([]);
       return new Promise<TSendMessageContent[]>((resolve) => {
-        editorRef.current?.read(() => {
+        editor.read(() => {
           const allNodes = $dfs();
           const messages: TSendMessageContent[] = [];
 
@@ -153,9 +163,20 @@ const Editor = (
       });
     },
     clear: () => {
+      referenceSelectionRef.current = null;
       editorRef.current?.update(() => {
         const root = $getRoot();
         root.clear();
+      });
+    },
+    replaceText: (text) => {
+      referenceSelectionRef.current = null;
+      editorRef.current?.update(() => {
+        const root = $getRoot();
+        root.clear();
+        const paragraph = $createParagraphNode();
+        paragraph.append($createTextNode(text));
+        root.append(paragraph);
       });
     },
     insertText: (text) => {
@@ -174,6 +195,28 @@ const Editor = (
     insertToken: (token, placement = "end") => {
       editorRef.current?.update(() => {
         const root = $getRoot();
+        const referenceSelection = referenceSelectionRef.current;
+        const referenceNode = referenceSelection
+          ? $getNodeByKey(referenceSelection.key)
+          : null;
+        if (token.kind === "subject" && referenceSelection && $isTextNode(referenceNode)) {
+          const text = referenceNode.getTextContent();
+          const beforeCaret = text.slice(0, referenceSelection.offset);
+          const triggerStart = beforeCaret.lastIndexOf("@");
+          if (triggerStart >= 0) {
+            referenceNode.setTextContent(
+              text.slice(0, triggerStart) + text.slice(referenceSelection.offset),
+            );
+            referenceNode.select(triggerStart, triggerStart);
+            const tokenNode = $createInlineTokenNode(token, editorRef);
+            const spaceNode = $createTextNode(" ");
+            $insertNodes([tokenNode, spaceNode]);
+            spaceNode.select(1, 1);
+            referenceSelectionRef.current = null;
+            return;
+          }
+        }
+        referenceSelectionRef.current = null;
         if (placement === "start") root.selectStart();
         else root.selectEnd();
         const textNodes = root.getAllTextNodes();
@@ -265,7 +308,18 @@ const Editor = (
               .some((node) => node.getTextContent().trim() !== "");
             const hasImage = $dfs().some(({ node }) => $isImageNode(node) || $isInlineTokenNode(node));
             const text = root.getTextContent();
-            onTextChange?.(text);
+            const selection = $getSelection();
+            let referenceQuery: string | null = null;
+            if ($isRangeSelection(selection) && selection.isCollapsed()) {
+              const beforeCaret = selection.anchor.getNode().getTextContent()
+                .slice(0, selection.anchor.offset);
+              referenceQuery = beforeCaret.match(/@([^\s@]*)$/)?.[1] ?? null;
+              referenceSelectionRef.current = referenceQuery == null ? null : {
+                key: selection.anchor.key,
+                offset: selection.anchor.offset,
+              };
+            }
+            onTextChange?.(text, referenceQuery);
             if (text.endsWith("/") || text.endsWith("@")) {
               onTrigger?.(text.at(-1) as "/" | "@");
             }

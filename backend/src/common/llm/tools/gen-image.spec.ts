@@ -59,6 +59,43 @@ describe('genImage', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[1][0]).toBe('https://example.com/images/edits');
     expect(fetchMock.mock.calls[1][1]?.body).toBeInstanceOf(FormData);
+    expect((fetchMock.mock.calls[1][1]?.body as FormData).get('size')).toBe('1024x1024');
+  });
+
+  it('sends the configured portrait size to the generations endpoint', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+      json: jest.fn().mockResolvedValue({ data: [{ url: 'result.png' }] }),
+    } as unknown as Response);
+
+    await genImage({
+      message: [{ type: 'text', text: 'a full-body character' }],
+      config: { ratio: '3:4' },
+      runtimeModel: {
+        id: 'model-config-id', provider: 'test-provider', baseURL: 'https://example.com',
+        apiKey: 'test-key', modelId: 'image-model', params: '{}',
+      },
+    });
+
+    const init = fetchMock.mock.calls[0][1];
+    expect(JSON.parse(init?.body as string).size).toBe('1152x1536');
+  });
+
+  it('applies the configured resolution while preserving the aspect ratio', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+      json: jest.fn().mockResolvedValue({ data: [{ url: 'result.png' }] }),
+    } as unknown as Response);
+
+    await genImage({
+      message: [{ type: 'text', text: 'a full-body character' }],
+      config: { ratio: '3:4', resolution: '2K' },
+      runtimeModel: {
+        id: 'model-config-id', provider: 'test-provider', baseURL: 'https://example.com',
+        apiKey: 'test-key', modelId: 'image-model', params: '{}',
+      },
+    });
+
+    const init = fetchMock.mock.calls[0][1];
+    expect(JSON.parse(init?.body as string).size).toBe('1536x2048');
   });
 
   it('sets a landscape output size for outpainting', async () => {
@@ -115,5 +152,6 @@ describe('genImage', () => {
     const form = fetchMock.mock.calls[1][1]?.body as FormData;
     expect(form.get('image')).toBeInstanceOf(Blob);
     expect(form.get('size')).toBe('1536x864');
+    expect(form.get('prompt')).toContain('[图片1]');
   });
 });

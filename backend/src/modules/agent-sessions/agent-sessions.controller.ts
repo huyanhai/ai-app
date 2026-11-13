@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   Res,
 } from '@nestjs/common';
@@ -20,13 +21,18 @@ export class AgentSessionsController {
   constructor(private readonly sessions: AgentSessionsService) {}
 
   @Get()
-  list() {
-    return this.sessions.list();
+  list(@Query('canvasId') canvasId?: string) {
+    return this.sessions.list(canvasId);
   }
 
   @Post()
-  create() {
-    return this.sessions.create();
+  create(@Body() body: { canvasId?: string }) {
+    return this.sessions.create(body.canvasId);
+  }
+
+  @Post('claim-legacy')
+  claimLegacy(@Body() body: { canvasId: string }) {
+    return this.sessions.claimLegacy(body.canvasId);
   }
 
   @Get(':id/files/:fileName')
@@ -80,6 +86,7 @@ export class AgentSessionsController {
         body.skillIds,
         body.subjects,
         body.mode,
+        body.contentState,
       )) {
         if (abortController.signal.aborted || res.writableEnded) break;
         res.write(`data: ${JSON.stringify(event)}\n\n`);

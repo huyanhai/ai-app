@@ -28,9 +28,12 @@ model ModelConfig {
 model AgentSession {
   id        String         @id
   title     String
+  canvasId  String         @default("default")
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
   messages  AgentMessage[]
+
+  @@index([canvasId, updatedAt])
 }
 
 model AgentMessage {
@@ -38,6 +41,7 @@ model AgentMessage {
   sessionId String
   role      String
   content   String
+  contentState String?
   attachments String?
   subjects  String?
   mode      String       @default("agent")
@@ -50,6 +54,7 @@ model AgentMessage {
 model CanvasState {
   id        String   @id @default(cuid())
   title     String   @default("未命名画布")
+  viewport  String?
   nodes     String
   edges     String
   past      String   @default("[]")
@@ -72,13 +77,33 @@ model GenerationRecord {
   @@index([canvasId, createdAt])
 }
 
+model GenerationJob {
+  id           String   @id @default(cuid())
+  kind         String
+  prompt       String
+  modelId      String
+  modelName    String
+  config       String   @default("{}")
+  referenceUrl String?
+  status       String   @default("pending")
+  urls         String   @default("[]")
+  error        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([createdAt])
+}
+
 model ProductionProject {
   id        String   @id
+  canvasId  String   @default("default")
   idea      String
+  ideaState String?
   modelId   String?
   status    String   @default("draft")
   plan      String
   requirements String?
+  history   String   @default("[]")
   nodes     String
   edges     String
   error     String?
@@ -86,4 +111,6 @@ model ProductionProject {
   events    String   @default("[]")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([canvasId, updatedAt])
 }

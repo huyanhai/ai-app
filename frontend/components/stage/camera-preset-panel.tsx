@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Camera, Check, ChevronLeft, ChevronRight, Crosshair, RotateCcw, Route, Search, X } from "lucide-react";
 import { CAMERA_PRESETS, CameraPresetDefinition, CameraPresetDraft, CameraPresetId } from "./camera-presets";
 import { NumericInput } from "./controls";
+import { Slider } from "@/components/ui/slider";
 
 const THUMB_PATHS: Record<CameraPresetId, string> = {
   "push-in": "M104 112 L151 94",
@@ -110,7 +111,7 @@ export function CameraPresetWizard({ draft, onChange, onClose, onApply }: {
       <div className="mt-4 grid grid-cols-[1fr_1fr_1.5fr] items-end gap-4">
         <label className="text-[10px] text-white/40"><span className="mb-1.5 block">开始时间 · 秒</span><NumericInput label="运镜开始时间" min={0} step={0.1} value={Number(draft.start.toFixed(2))} onChange={(start) => onChange({ start })} className={inputClass} /></label>
         <label className="text-[10px] text-white/40"><span className="mb-1.5 block">时长 · 秒</span><NumericInput label="运镜时长" min={0.1} max={60} step={0.1} value={draft.duration} onChange={(duration) => onChange({ duration })} className={inputClass} /></label>
-        <label className="text-[10px] text-white/40"><span className="mb-1.5 flex justify-between"><span>运动幅度</span><span className="text-white/65">{draft.amplitude.toFixed(1)}×</span></span><input aria-label="运动幅度" type="range" min={0.2} max={3} step={0.1} value={draft.amplitude} onChange={(event) => onChange({ amplitude: Number(event.target.value) })} className="h-8 w-full accent-white" /></label>
+        <label className="text-[10px] text-white/40"><span className="mb-1.5 block">运动幅度</span><Slider aria-label="运动幅度" min={0.2} max={3} step={0.1} value={draft.amplitude} formatValue={(value) => `${value.toFixed(1)}×`} onValueChange={(amplitude) => onChange({ amplitude })} /></label>
       </div>
       <p className="mt-3 text-[10px] text-white/30">拖动时间轴或播放以预览，应用后仍可在属性轨道中编辑关键帧。</p>
     </div>

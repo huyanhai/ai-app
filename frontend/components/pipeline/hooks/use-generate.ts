@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNodeConnections, useReactFlow } from "@xyflow/react";
 import { sseFetch } from "@/lib/sse";
 import {
@@ -21,6 +21,7 @@ import { SOURCE_HANDLE, TARGET_HANDLE } from "../constants";
 import { canvasHistoryApi } from "@/lib/canvas-history";
 import { readStageReference } from "@/components/stage/reference";
 import { useCanvasId } from "@/components/pipeline/canvas-workspace-context";
+import { TextScene } from "backend/src/common/utils/text-scene";
 
 // 文本节点走会话接口（见 chat），不在此表中
 const SUBMIT_URL: Partial<Record<NodeType, string>> = {
@@ -39,9 +40,15 @@ export const useGenerate = (
   const editorRef = useRef<IEditorRef>(null);
   // 同一节点再次发送时中止上一次未结束的会话
   const abortRef = useRef<AbortController | null>(null);
+  const optimizeAbortRef = useRef<AbortController | null>(null);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [optimizationError, setOptimizationError] = useState("");
   const [isEmpty, setIsEmpty] = useState(
-    !(nodeData?.draftText || nodeData?.production?.prompt)?.trim(),
+    !(nodeData?.draftText ?? nodeData?.production?.prompt)?.trim(),
   );
+  useEffect(() => {
+    setIsEmpty(!(nodeData?.draftText ?? nodeData?.production?.prompt)?.trim());
+  }, [nodeId, nodeData?.draftText, nodeData?.production?.prompt]);
   const imageEditorMode = usePipelineStore((state) =>
     state.imageEditor?.nodeId === nodeId && nodeType === NodeType.ImageNode
       ? state.imageEditor.mode
@@ -62,12 +69,16 @@ export const useGenerate = (
     handleType: "source",
   });
   const continuityEdges = getEdges().filter((edge) => edge.data?.kind === "continuity");
+  const sceneMembershipEdges = getEdges().filter((edge) => edge.data?.kind === "sceneMembership");
   const previousContinuityEdge = continuityEdges.find((edge) => edge.target === nodeId);
   const previousContinuityNode = previousContinuityEdge
     ? getNode(previousContinuityEdge.source)
     : undefined;
   const hasOutgoingContinuity = continuityEdges.some((edge) => edge.source === nodeId);
-  const continuityConnectionKeys = new Set(continuityEdges.map((edge) => `${edge.source}:${edge.target}`));
+  const ignoredConnectionKeys = new Set([
+    ...continuityEdges,
+    ...sceneMembershipEdges,
+  ].map((edge) => `${edge.source}:${edge.target}`));
 
   const { textNodes, imageNodes, videoNodes, stageNodes } = useMemo(() => {
     const textNodes: TNodeText[] = [];
@@ -75,7 +86,7 @@ export const useGenerate = (
     const videoNodes: TNodeImage[] = [];
     const stageNodes: TNodeStage[] = [];
     const referenceIds = incomingConnections
-      .filter((connection) => !continuityConnectionKeys.has(`${connection.source}:${connection.target}`))
+      .filter((connection) => !ignoredConnectionKeys.has(`${connection.source}:${connection.target}`))
       .map((connection) => connection.source);
     outgoingConnections.forEach((connection) => {
       if (connection.sourceHandle === TARGET_HANDLE && connection.targetHandle === SOURCE_HANDLE) {
@@ -98,7 +109,7 @@ export const useGenerate = (
       }
     });
     return { textNodes, imageNodes, videoNodes, stageNodes };
-  }, [incomingConnections, outgoingConnections, getNode, continuityEdges]);
+  }, [incomingConnections, outgoingConnections, getNode, continuityEdges, sceneMembershipEdges]);
 
   const disabled = useMemo(() => {
     const hasStageReference = nodeType === NodeType.VideoNode && stageNodes.length > 0;
@@ -201,8 +212,13 @@ export const useGenerate = (
   const submit = useCallback(async () => {
     if (!nodeType) return;
     if (nodeType === NodeType.TextNode) return chat();
+    optimizeAbortRef.current?.abort();
     const url = SUBMIT_URL[nodeType];
     if (!url) return;
+    const sceneReference = nodeType === NodeType.ImageNode &&
+      nodeData?.production?.kind === "sceneReference";
+    const storyboardSceneReference = nodeData?.production?.kind === "storyboard" &&
+      imageNodes.some((node) => node.data.production?.kind === "sceneReference");
 
     let stageReferences: ReturnType<typeof readStageReference>[] = [];
     try {
@@ -217,7 +233,13 @@ export const useGenerate = (
       return;
     }
 
-    const editorMessages = await editorRef.current?.getEditor();
+    const editorMessages = (await editorRef.current?.getEditor()) ?? [];
+    const fallbackPrompt = (nodeData?.draftText ?? nodeData?.production?.prompt)?.trim();
+    const promptMessages = editorMessages.length
+      ? editorMessages
+      : fallbackPrompt
+        ? [{ type: "text" as const, text: fallbackPrompt }]
+        : [];
     if (nodeType === NodeType.VideoNode && previousContinuityEdge) {
       const previousFrame = previousContinuityNode?.data.production?.lastFrameUrl;
       const previousReady = previousContinuityNode &&
@@ -279,10 +301,20 @@ export const useGenerate = (
       nodeData && "upscaleDetail" in nodeData ? nodeData.upscaleDetail ?? 50 : 50;
     const upscaleResolution =
       nodeData && "upscaleResolution" in nodeData ? nodeData.upscaleResolution ?? "4K" : "4K";
-    const referenceMessages = nodeType === NodeType.VideoNode && previousContinuityEdge
+    const inlineImageUrls = new Set(promptMessages.flatMap((message) =>
+      message &&
+      typeof message === "object" &&
+      "type" in message &&
+      message.type === "image_url" &&
+      "image_url" in message &&
+      typeof message.image_url === "string"
+        ? [message.image_url]
+        : [],
+    ));
+    const referenceMessages = sceneReference || nodeType === NodeType.VideoNode && previousContinuityEdge
       ? []
       : imageNodes
-        .filter((image) => image.data.url)
+        .filter((image) => image.data.url && !inlineImageUrls.has(image.data.url))
         .map((image) => ({ type: "image_url" as const, image_url: image.data.url }));
     let videoReferenceMessages: { type: "video_url"; video_url: string }[] = [];
     if (nodeType === NodeType.VideoNode) {
@@ -338,9 +370,9 @@ export const useGenerate = (
                     type: "text" as const,
                     text: `${imagePreset.prompt}\n画面比例：${nodeData?.config?.ratio ?? imagePreset.ratio}，完整展示所有主体和画面内容，不要裁切。`,
                   },
-                  ...(editorMessages ?? []),
+                  ...promptMessages,
                 ]
-              : [...referenceMessages, ...(editorMessages ?? [])];
+              : [...referenceMessages, ...promptMessages];
 
     const selectedModel =
       nodeType === NodeType.ImageNode
@@ -367,12 +399,17 @@ export const useGenerate = (
     const abortController = new AbortController();
     abortRef.current = abortController;
     const toolbox = nodeData?.config?.toolbox;
+    const palettePrompt = toolbox?.palette
+      ? typeof toolbox.palette === "string"
+        ? `配色方案：${toolbox.palette}`
+        : `配色方案：${toolbox.palette.name}\n色板：${toolbox.palette.colors.join("、")}`
+      : "";
     const toolboxPrompt = [
       toolbox?.camera?.camera && `相机：${toolbox.camera.camera}`,
       toolbox?.camera?.lens && `镜头：${toolbox.camera.lens}`,
       toolbox?.camera?.focal && `焦距：${toolbox.camera.focal}`,
       toolbox?.camera?.aperture && `光圈：${toolbox.camera.aperture}`,
-      toolbox?.palette && `配色方案：${toolbox.palette}`,
+      palettePrompt,
       toolbox?.style && `画面风格：${toolbox.style}`,
       toolbox?.movement && `运镜方式：${toolbox.movement}`,
     ].filter(Boolean).join("\n");
@@ -385,6 +422,7 @@ export const useGenerate = (
       ...(videoReferencePrompt ? [{ type: "text" as const, text: videoReferencePrompt }] : []),
       ...(previousContinuityEdge && nodeData?.production?.continuity?.prompt ? [{ type: "text" as const, text: nodeData.production.continuity.prompt }] : []),
       ...(hasOutgoingContinuity && nodeData?.production?.outgoingContinuity?.prompt ? [{ type: "text" as const, text: nodeData.production.outgoingContinuity.prompt }] : []),
+      ...(storyboardSceneReference ? [{ type: "text" as const, text: "场景参考图只提供地点、空间布局、材质、光线与色彩，不继承其无人空景状态、机位、构图或生成提示词；当前分镜的角色、动作、机位和构图以当前提示词为准。" }] : []),
       ...(toolboxPrompt ? [{ type: "text" as const, text: toolboxPrompt }] : []),
     ];
     const requestDuration = videoNodes.length && !nodeData?.config?.durationTouched
@@ -410,6 +448,7 @@ export const useGenerate = (
       url,
       body: JSON.stringify({
         message: requestMessages,
+        assetKind: sceneReference ? "sceneReference" : undefined,
         config: {
           ...nodeData?.config,
           firstFrameUrl: previousContinuityEdge
@@ -425,14 +464,14 @@ export const useGenerate = (
             ? nodeData.outpaintRatio
             : requestRatio,
           resolution: isUpscaling ? upscaleResolution : nodeData?.config?.resolution,
-          edit: isImageEditing || isOutpainting || isUpscaling || Boolean(imagePreset) || referenceMessages.length > 0,
+          edit: isImageEditing || isOutpainting || isUpscaling || Boolean(imagePreset) || referenceMessages.length > 0 || inlineImageUrls.size > 0,
           outpaint: isOutpainting,
           upscale: isUpscaling,
           preset: imagePreset?.id,
           upscaleDetail: isUpscaling ? upscaleDetail : undefined,
         },
         modelId: selectedModel?.id,
-        textList: textNodes.map((node) => {
+        textList: (sceneReference ? [] : textNodes).map((node) => {
           try {
             return JSON.parse(node.data.text);
           } catch {
@@ -450,7 +489,7 @@ export const useGenerate = (
       abortController,
       cb: (data) => {
         if (abortController.signal.aborted) return;
-        if (data.type === "msg_chunk") {
+        if (data.type === "msg_chunk" && typeof data.content === "object" && "status" in data.content) {
           const { url, status, lastFrameUrl, lastFrameError } = data.content as IMediaData;
           updateNodeData(nodeId, { url, status });
           if (status === ChunkStatus.SUCCESS && url && !generationRecorded && nodeType) {
@@ -501,5 +540,69 @@ export const useGenerate = (
     });
   }, [nodeId, updateNodeData]);
 
-  return { editorRef, submit, stop, disabled, setIsEmpty, imageNodes, videoNodes };
+  const optimizePrompt = useCallback(async () => {
+    if (nodeType !== NodeType.ImageNode && nodeType !== NodeType.VideoNode) return;
+    const parts = (await editorRef.current?.getEditor()) ?? [];
+    const prompt = parts
+      .map((part) => typeof part === "string" ? part : part.type === "text" ? part.text : "")
+      .filter(Boolean)
+      .join("\n");
+    const references = textNodes.map((node) => node.data.text?.trim()).filter(Boolean);
+    const content = [
+      references.length ? `参考资料：\n${references.map((text, index) => `[${index + 1}] ${text}`).join("\n\n")}` : "",
+      prompt,
+    ].filter(Boolean).join("\n\n");
+    if (!content.trim()) {
+      setOptimizationError("请先输入提示词或连接文本参考");
+      return;
+    }
+    const model = getTextModel();
+    if (!model || !isModelReady(model)) {
+      setOptimizationError("未配置可用的文本模型，请先在模型配置中完善");
+      return;
+    }
+
+    optimizeAbortRef.current?.abort();
+    const abortController = new AbortController();
+    optimizeAbortRef.current = abortController;
+    setIsOptimizing(true);
+    setOptimizationError("");
+    let optimized = "";
+    try {
+      await sseFetch({
+        url: "/pipeline/chat",
+        body: JSON.stringify({
+          modelId: model.id,
+          scene: nodeType === NodeType.ImageNode ? TextScene.Image : TextScene.Video,
+          messages: [{
+            role: "user",
+            content: `请在保持创作意图的前提下优化以下内容，保留 [角色]、[场景] 标记和已有时间段：\n\n${content}`,
+          }],
+        }),
+        abortController,
+        cb: (event) => {
+          if (event.type === "msg_chunk") {
+            optimized += event.content as string;
+            editorRef.current?.replaceText(optimized);
+          }
+          if (event.type === "msg_error") {
+            setOptimizationError(String(event.error || "提示词优化失败"));
+          }
+        },
+      });
+    } catch (error) {
+      if (!abortController.signal.aborted) {
+        setOptimizationError(error instanceof Error ? error.message : String(error));
+      }
+    } finally {
+      if (optimizeAbortRef.current === abortController) {
+        optimizeAbortRef.current = null;
+        setIsOptimizing(false);
+      }
+    }
+  }, [nodeType, textNodes]);
+
+  useEffect(() => () => optimizeAbortRef.current?.abort(), []);
+
+  return { editorRef, submit, stop, disabled, setIsEmpty, imageNodes, videoNodes, optimizePrompt, isOptimizing, optimizationError };
 };

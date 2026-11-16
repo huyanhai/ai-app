@@ -39,6 +39,7 @@ import Controls from "@/components/pipeline/controls";
 import AssetModal from "@/components/pipeline/asset-modal";
 import AIChatPanel from "@/components/pipeline/ai-chat-panel";
 import CanvasNodePanel from "@/components/pipeline/canvas-node-panel";
+import StoryboardPrevizModal from "@/components/pipeline/storyboard-previz-modal";
 import EmptyCanvasBackground from "@/components/pipeline/empty-canvas-background";
 import { getNodeAlignment } from "@/components/pipeline/node-alignment";
 import { IconButton } from "@/components/ui/icon-button";
@@ -49,7 +50,7 @@ import GeneratorCard, {
 } from "@/components/pipeline/nodes/node/generator-card";
 import Menu from "@/components/pipeline/menu";
 import { TMenuRequest, usePipelineStore } from "@/store/pipeline-store";
-import { NodeType, TAllNodes, TNodeBase } from "@/components/pipeline/types";
+import { NodeType, TAllNodes, TNodeBase, TNodeShotTable } from "@/components/pipeline/types";
 import type { ReferenceKind, SubjectReference } from "@/components/chat/types";
 import {
   NODE_DEFAULT_DATA,
@@ -141,6 +142,9 @@ const Flow = () => {
   const [aiChatOpen, setAIChatOpen] = useState(false);
   const [aiChatWidth, setAIChatWidth] = useState(600);
   const [nodePanel, setNodePanel] = useState<"search" | "history" | null>(null);
+  const [previzOpen, setPrevizOpen] = useState(false);
+  const [previzBusy, setPrevizBusy] = useState(false);
+  const [previzError, setPrevizError] = useState("");
   const [nodes, setNodes, onNodesChange] = useNodesState<TAllNodes>([]);
   const [alignmentGuides, setAlignmentGuides] = useState<{ x: number | null; y: number | null }>({ x: null, y: null });
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -613,6 +617,50 @@ const Flow = () => {
     );
   };
 
+  useEffect(() => {
+    const open = () => setPrevizOpen(true);
+    window.addEventListener("open-storyboard-previz", open);
+    return () => window.removeEventListener("open-storyboard-previz", open);
+  }, []);
+
+  const createPreviz = async () => {
+    const projectId = window.localStorage.getItem(`active-production-id:${canvasId}`);
+    if (!projectId) {
+      setPrevizError("未找到当前画布的制作项目");
+      return;
+    }
+    setPrevizBusy(true);
+    setPrevizError("");
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE ?? ""}/productions/${projectId}/previz`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nodes, edges }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result?.message || "草图节点创建失败");
+      const additions = (result.nodes as TAllNodes[]).filter((node) => node.data.production?.kind === "storyboardPreviz");
+      const additionMap = new Map(additions.map((node) => [node.id, node]));
+      setNodes((current) => [
+        ...current.map((node) => {
+          const remote = additionMap.get(node.id);
+          if (!remote) return node;
+          const url = "url" in node.data && node.data.url ? node.data.url : "url" in remote.data ? remote.data.url : "";
+          const status = "status" in node.data ? node.data.status : undefined;
+          const remoteStatus = "status" in remote.data ? remote.data.status : undefined;
+          return { ...remote, position: node.position, selected: node.selected, data: { ...remote.data, url, status: url ? status ?? remoteStatus : remoteStatus } };
+        }),
+        ...additions.filter((node) => !current.some((item) => item.id === node.id)),
+      ] as TAllNodes[]);
+      const additionEdges = (result.edges as Edge[]).filter((edge) => edge.target.startsWith("previz-"));
+      setEdges((current) => [...current, ...additionEdges.filter((edge) => !current.some((item) => item.id === edge.id))]);
+    } catch (cause) {
+      setPrevizError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setPrevizBusy(false);
+    }
+  };
+
   const getProductionGraph = useCallback(
     () => ({ nodes, edges }),
     [edges, nodes],
@@ -909,6 +957,22 @@ const Flow = () => {
       <Toolbar />
       <Controls />
       <AssetModal />
+
+      <StoryboardPrevizModal
+        open={previzOpen}
+        shots={(nodes.find((node) => node.id === "production-shot-table") as TNodeShotTable | undefined)?.data.shots ?? []}
+        nodes={nodes}
+        busy={previzBusy}
+        error={previzError}
+        onClose={() => setPrevizOpen(false)}
+        onCreate={() => void createPreviz()}
+        onLocate={(nodeId) => {
+          locateNode(nodeId);
+          const node = getNode(nodeId);
+          if (node) setCurrentSelectNode(node);
+          setPrevizOpen(false);
+        }}
+      />
 
       <div
         className="absolute top-4 z-40 flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-[#1c1c1e]/95 p-1 shadow-2xl"

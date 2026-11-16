@@ -32,7 +32,7 @@ export type ProductionProject = {
   edges: Edge[];
 };
 
-export type ProductionStreamPreview = { stage: string; data?: unknown };
+export type ProductionStreamPreview = { stage: string; data?: unknown; projectId?: string };
 export type ProductionFileInput = { name: string; content: string; type: string; url: string };
 
 type ProductionHookOptions = {
@@ -78,7 +78,7 @@ const streamRequest = async (
     if (!line) return;
     const event = JSON.parse(line.slice(6));
     if (event.type === "start" || event.type === "chunk") {
-      onPreview({ stage: event.stage, data: event.data });
+      onPreview({ stage: event.stage, data: event.data, projectId: event.projectId });
     } else if (event.type === "result") {
       result = event.project;
     } else if (event.type === "error") {
@@ -201,6 +201,7 @@ export const useProduction = ({ getGraph, applyGraph }: ProductionHookOptions) =
 
   const plan = useCallback(async (idea: string, modelId: string, style?: string, files: ProductionFileInput[] = [], ideaState?: string) => {
     const controller = new AbortController();
+    let projectId = "";
     abortRef.current?.abort();
     abortRef.current = controller;
     setIsPlanning(true);
@@ -218,11 +219,20 @@ export const useProduction = ({ getGraph, applyGraph }: ProductionHookOptions) =
           files: files.map(({ name, content, type }) => ({ name, content, type })),
         }),
         signal: controller.signal,
-      }, setStreamPreview);
+      }, (preview) => {
+        projectId = preview.projectId ?? projectId;
+        setStreamPreview(preview);
+      });
       applyProject(next);
     } catch (cause) {
       if (controller.signal.aborted) setError("已停止生成");
-      else setError(cause instanceof Error ? cause.message : String(cause));
+      else {
+        setError(cause instanceof Error ? cause.message : String(cause));
+        if (projectId) {
+          const failed = await request<ProductionProject>(`/${projectId}`).catch(() => null);
+          if (failed?.status === "failed") applyProject(failed);
+        }
+      }
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
       setIsPlanning(false);

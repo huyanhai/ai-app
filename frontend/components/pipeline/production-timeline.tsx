@@ -41,6 +41,7 @@ type Props = {
   onStartPhase: (phase: MediaStage) => void;
   onPause: () => void;
   onRetry: (nodeId: string, independent?: boolean) => void;
+  onRetryRequirements: () => void;
   onModify: (stage: TextStage) => void;
   onAutoCompleteRequirements: () => void;
   initialResponse?: ReactNode;
@@ -131,7 +132,7 @@ function AgentCard({ title, stage, events, history, icon, children, defaultOpen 
   );
 }
 
-export default function ProductionTimeline({ project, advancing, streamPreview, onConfirmStage, onConfirm, onStartPhase, onPause, onRetry, onModify, onAutoCompleteRequirements, initialResponse }: Props) {
+export default function ProductionTimeline({ project, advancing, streamPreview, onConfirmStage, onConfirm, onStartPhase, onPause, onRetry, onRetryRequirements, onModify, onAutoCompleteRequirements, initialResponse }: Props) {
   const { plan, requirements, status } = project;
   const hasStoryboard = plan.scenes?.some((scene) => scene.shots?.length);
   const storyIssues = plan.storyReview?.issues ?? [];
@@ -173,11 +174,12 @@ export default function ProductionTimeline({ project, advancing, streamPreview, 
   };
 
   return <div className="space-y-4">
-    {(requirements || streamPreview?.stage === "requirements") && <AgentCard title="导演 Agent · 需求澄清" stage="requirements" events={project.events} history={project.history} icon={<AgentIcon name="director" />} defaultOpen={status.startsWith("requirements_")} active={streamPreview?.stage === "requirements"}>
+    {(requirements || streamPreview?.stage === "requirements" || (status === "failed" && !requirements)) && <AgentCard title="导演 Agent · 需求澄清" stage="requirements" events={project.events} history={project.history} icon={<AgentIcon name="director" />} defaultOpen={status.startsWith("requirements_") || status === "failed"} active={streamPreview?.stage === "requirements"}>
       {initialResponse && <div className="mb-3 flex justify-end"><div className="max-w-[88%] whitespace-pre-wrap rounded-2xl bg-white/10 px-3.5 py-2.5 text-sm leading-6 text-white/90">{initialResponse}</div></div>}
       {streamPreview?.stage === "requirements" && <div className="mb-3"><ProductionStreamingPreview preview={streamPreview} /></div>}
       {requirements && !advancing && status !== "requirements_pending" && <div className="rounded-xl bg-black/20 p-4"><Markdown className="agent-markdown text-sm leading-6 text-white/70">{formatRequirementBrief(requirements.brief)}</Markdown>{requirements.questions.length > 0 && <ul className="mt-3 space-y-2 text-sm text-amber-100/75">{requirements.questions.map((question) => <li key={question}>• {question}</li>)}</ul>}</div>}
       {status === "requirements_clarifying" && !advancing && <div className="mt-3 space-y-2"><button type="button" onClick={onAutoCompleteRequirements} className={primaryButton}>让 Agent 帮我补充</button><button type="button" onClick={() => onModify("requirements")} className={secondaryButton}>自己回答</button></div>}
+      {status === "failed" && !requirements && !advancing && <div className="space-y-2"><p className="text-sm text-red-300">{project.error || "需求分析执行失败"}</p><button type="button" onClick={onRetryRequirements} className={primaryButton}>继续执行</button></div>}
       {actions("requirements", "确认需求，开发完整故事", status === "requirements_review")}
     </AgentCard>}
 
@@ -205,6 +207,7 @@ export default function ProductionTimeline({ project, advancing, streamPreview, 
     {(hasStoryboard || streamPreview?.stage === "storyboard" || status === "storyboard_pending") && <AgentCard title="场景师 · 分镜师" stage="storyboard" events={project.events} history={project.history} icon={<AgentIcon name="scene-designer" />} defaultOpen={status === "storyboard_review" || status === "storyboard_pending"} active={streamPreview?.stage === "storyboard"}>
       {streamPreview?.stage === "storyboard" && <div className="mb-3"><ProductionStreamingPreview preview={streamPreview} /></div>}
       {hasStoryboard && <div className="space-y-2">{plan.scenes?.map((scene) => scene.shots?.map((shot) => <div key={shot.id} className="rounded-xl bg-black/20 p-3"><div className="text-sm text-white/75">{scene.title} / {shot.title}<span className="ml-2 text-xs text-white/35">{shot.duration}s</span></div><p className="mt-2 text-xs leading-5 text-white/55">{shot.description}</p><p className="mt-1 text-xs leading-5 text-white/40">动作与运镜：{shot.movement}</p></div>))}</div>}
+      {hasStoryboard && <button onClick={() => window.dispatchEvent(new CustomEvent("open-storyboard-previz"))} className="mt-3 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/65 hover:bg-white/10 hover:text-white">打开草图故事板</button>}
       {actions("storyboard", "确认分镜，生成分镜图提示词", status === "storyboard_review")}
     </AgentCard>}
 

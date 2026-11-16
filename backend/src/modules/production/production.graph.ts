@@ -21,6 +21,56 @@ const sceneReferencePrompt = (prompt: string) => `${prompt}\n\n只生成无人�
 
 const propReferencePrompt = (prompt: string) => `${prompt}\n\n直接生成独立关键道具的标准三视图：正面、侧面、背面按左中右横向并排展示，三个视角的结构、材质、颜色、比例、磨损和标记完全一致。完整展示该物体或固定连接组件，使用简洁中性无场景背景。禁止出现任何人物、角色、人影、人体局部、故事动物或角色倒影，不表现角色操作、剧情动作或环境装饰。`;
 
+export function buildProductionPrevizGraph(plan: ProductionPlan, currentNodes: ProductionNode[]) {
+  const currentById = new Map(currentNodes.map((node) => [node.id, node]));
+  const [ratioWidth, ratioHeight] = plan.ratio.split(':').map(Number);
+  const mediaWidth = ratioWidth > ratioHeight ? 250 * ratioWidth / ratioHeight : 250;
+  const nodes: ProductionNode[] = [];
+  const edges: ProductionEdge[] = [];
+  const addEdge = (source: string, target: string, membership = false) => {
+    if (!currentById.has(source) && source !== 'production-shot-table') return;
+    edges.push({
+      ...edge(source, target),
+      ...(membership ? { data: { kind: 'sceneMembership' as const } } : {}),
+    });
+  };
+  let shotIndex = 0;
+  plan.scenes.forEach((scene) => scene.shots.forEach((shot) => {
+    const id = `previz-${shot.id}`;
+    const finalNode = currentById.get(`image-${shot.id}`);
+    const videoNode = currentById.get(`video-${shot.id}`);
+    const position = videoNode?.position ?? finalNode?.position ?? { x: 3600, y: shotIndex * 430 };
+    shotIndex += 1;
+    if (currentById.has(id)) return;
+    const prompt = `${shot.visualPrompt || `${shot.description}。动作与运镜：${shot.movement}`}\n\n生成黑白铅笔草图故事板，清晰呈现角色位置、动作相位、视线、道具状态和构图，保留表演与叙事信息，不添加编号、时间码、文字或水印。`;
+    nodes.push({
+      id,
+      type: 'imageNode',
+      position: { x: position.x + mediaWidth + 80, y: position.y },
+      data: {
+        title: `${shot.title} · 草图`,
+        url: '',
+        draftText: markProductionPromptAssets(prompt, plan, scene),
+        config: { ratio: plan.ratio, resolution: '1K', count: 1 },
+        production: {
+          kind: PRODUCTION_PHASE.previz,
+          sceneId: scene.id,
+          shotId: shot.id,
+          characterIds: shot.characterIds,
+          propIds: shot.propIds,
+          prompt,
+          version: 1,
+        },
+      },
+    });
+    addEdge(`text-${scene.id}`, id, true);
+    addEdge(`image-${scene.sceneAssetId ?? scene.id}`, id);
+    shot.characterIds.forEach((characterId) => addEdge(`image-${characterId}`, id));
+    shot.propIds?.forEach((propId) => addEdge(`image-${propId}`, id));
+  }));
+  return { nodes, edges };
+}
+
 export function buildProductionStoryGraph(plan: ProductionStory) {
   return {
     nodes: [{

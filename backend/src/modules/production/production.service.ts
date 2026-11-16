@@ -12,7 +12,7 @@ import { genSceneReferenceImage } from '@/common/llm/tools/gen-scene-reference';
 import { genVideo, queryVideoTask } from '@/common/llm/tools/gen-video';
 import { ChunkStatus } from '@/common/utils/ai-stream-utils';
 import { ProductionPlanner } from './production.planner';
-import { buildProductionGraph, buildProductionStoryGraph } from './production.graph';
+import { buildProductionGraph, buildProductionPrevizGraph, buildProductionStoryGraph } from './production.graph';
 import {
   ConfirmProductionDto,
   ConfirmStageDto,
@@ -187,6 +187,7 @@ export class ProductionService {
       const merged = this.mergeLayout(
         buildProductionGraph(plan, 'storyboard', continuity),
         nodes,
+        edges,
       );
       const nodesChanged = JSON.stringify(nodes) !== JSON.stringify(merged.nodes);
       const edgesChanged = JSON.stringify(edges) !== JSON.stringify(merged.edges);
@@ -307,6 +308,7 @@ export class ProductionService {
       const graph = this.mergeLayout(
         buildProductionGraph(plan, 'storyboard', input.continuity),
         currentNodes,
+        input.edges,
       );
       events.push(
         this.event(
@@ -449,6 +451,7 @@ export class ProductionService {
             : 'storyboard',
           ),
         currentNodes,
+        input.edges,
       );
       events.push(this.event(nextStage, nextStage === 'story'
         ? '完整故事已生成，开始独立审查'
@@ -524,7 +527,11 @@ export class ProductionService {
           : input.stage;
     const allowed =
       input.stage === 'requirements'
-        ? ['requirements_clarifying', 'requirements_review']
+        ? [
+            'requirements_clarifying',
+            'requirements_review',
+            ...(!project.requirements ? ['failed'] : []),
+          ]
         : [`${statusStage}_review`];
     if (!allowed.includes(project.status)) {
       throw new BadRequestException('当前阶段不能修改');
@@ -589,6 +596,7 @@ export class ProductionService {
               requirements.status === 'questions'
                 ? 'requirements_clarifying'
                 : 'requirements_review',
+            error: null,
             events: JSON.stringify(events),
           },
         });
@@ -678,6 +686,7 @@ export class ProductionService {
             : 'storyboard',
           ),
         currentNodes,
+        input.edges,
       );
       events.push(this.event(input.stage, '修改结果已生成，等待用户再次确认'));
       const updated = await this.prisma.productionProject.update({
@@ -794,6 +803,42 @@ export class ProductionService {
     const plan = JSON.parse(project.plan);
     if (!plan.story) throw new BadRequestException('当前项目还没有可审查的故事');
     return this.reviewStory(id, project, plan);
+  }
+
+  async createPreviz(id: string, input: ConfirmProductionDto) {
+    const project = await this.find(id);
+    if (project.status.endsWith('_running') || project.status.endsWith('_pending'))
+      throw new BadRequestException('请等待当前任务结束后再创建草图故事板');
+    const plan = JSON.parse(project.plan);
+    if (!plan.scenes?.some((scene: any) => scene.shots?.length))
+      throw new BadRequestException('请先生成并确认分镜表');
+    const currentById = new Map<string, ProductionNode>([
+      ...this.parseNodes(project.nodes),
+      ...(input.nodes as ProductionNode[]),
+    ].map((node) => [node.id, node]));
+    const currentNodes = [...currentById.values()];
+    const previz = buildProductionPrevizGraph(plan, currentNodes);
+    if (!previz.nodes.length) return this.serialize(project);
+    const nodes = [...currentNodes, ...previz.nodes];
+    const edgeById = new Map([
+      ...this.parseEdges(project.edges),
+      ...input.edges,
+      ...previz.edges,
+    ].map((edge) => [edge.id, edge]));
+    const edges = [...edgeById.values()];
+    const updated = await this.prisma.productionProject.update({
+      where: { id },
+      data: {
+        nodes: JSON.stringify(nodes),
+        edges: JSON.stringify(edges),
+        events: JSON.stringify([
+          ...this.parseEvents(project.events),
+          this.event('previz', `已创建 ${previz.nodes.length} 个草图节点，可逐镜手动生成`),
+        ]),
+      },
+    });
+    await this.syncCanvas(project.canvasId, nodes, edges);
+    return this.serialize(updated);
   }
 
   async retry(
@@ -998,10 +1043,22 @@ export class ProductionService {
   private mergeLayout(
     graph: { nodes: ProductionNode[]; edges: any[] },
     currentNodes: ProductionNode[],
+    currentEdges: any[] = [],
   ) {
     const current = new Map(currentNodes.map((node) => [node.id, node]));
+    const generatedIds = new Set(graph.nodes.map((node) => node.id));
+    const preserved = currentNodes.filter((node) =>
+      node.data.production?.kind === PRODUCTION_PHASE.previz && !generatedIds.has(node.id));
+    const preservedIds = new Set(preserved.map((node) => node.id));
+    const availableIds = new Set([...generatedIds, ...preservedIds]);
+    const edgeIds = new Set(graph.edges.map((edge) => edge.id));
+    const preservedEdges = currentEdges.filter((edge) =>
+      !edgeIds.has(edge.id) &&
+      (preservedIds.has(edge.source) || preservedIds.has(edge.target)) &&
+      availableIds.has(edge.source) && availableIds.has(edge.target));
     return {
       ...graph,
+      edges: [...graph.edges, ...preservedEdges],
       nodes: graph.nodes.map((node) => {
         const existing = current.get(node.id);
         if (!existing) return node;
@@ -1040,7 +1097,7 @@ export class ProductionService {
           position: existing.position,
           data,
         };
-      }),
+      }).concat(preserved),
     };
   }
 
@@ -1245,7 +1302,7 @@ export class ProductionService {
         : '',
       `整体视觉风格：${plan.visualStyle}`,
       !sceneReference && '保持所有参考角色外貌、年龄、服装、关键道具和场景风格一致。角色三视图是身份、面容、体型和服装结构的统一依据。关键道具三视图中的材质、形状、组成部件、尺寸比例、标记和已有文字不得重新设计。',
-      node.data.production?.kind === PRODUCTION_PHASE.storyboard &&
+      [PRODUCTION_PHASE.storyboard, PRODUCTION_PHASE.previz].includes(node.data.production?.kind) &&
         references.some((item) => item.data.production?.kind === PRODUCTION_PHASE.scene)
         ? '场景参考图只提供地点、空间布局、材质、光线与色彩，不继承其无人空景状态、机位、构图或生成提示词；当前分镜的角色、动作、机位和构图以当前提示词为准。'
         : '',

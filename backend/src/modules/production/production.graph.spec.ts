@@ -1,4 +1,4 @@
-import { buildProductionGraph } from './production.graph';
+import { buildProductionGraph, buildProductionPrevizGraph } from './production.graph';
 import { ProductionPlan } from './production.types';
 
 const plan: ProductionPlan = {
@@ -64,6 +64,25 @@ const plan: ProductionPlan = {
 };
 
 describe('buildProductionGraph', () => {
+  it('creates independent previz nodes without generating or replacing final media', () => {
+    const current = buildProductionGraph(plan).nodes.map((node) => ({
+      ...node,
+      data: node.id === 'image-shot-1'
+        ? { ...node.data, url: 'final.png', status: 'success' }
+        : node.data,
+    }));
+    const first = buildProductionPrevizGraph(plan, current);
+    expect(first.nodes).toHaveLength(2);
+    expect(first.nodes.every((node) => node.data.production.kind === 'storyboardPreviz')).toBe(true);
+    expect(first.nodes.every((node) => node.data.url === '' && node.data.config.resolution === '1K')).toBe(true);
+    expect(first.nodes[0].data.draftText).toContain('黑白铅笔草图故事板');
+    expect(first.edges.some((edge) => edge.source === 'image-character-1' && edge.target === 'previz-shot-1')).toBe(true);
+
+    const second = buildProductionPrevizGraph(plan, [...current, ...first.nodes]);
+    expect(second.nodes).toHaveLength(0);
+    expect(current.find((node) => node.id === 'image-shot-1')?.data.url).toBe('final.png');
+  });
+
   it('links key prop references and fixed text only to shots that use them', () => {
     const graph = buildProductionGraph({
       ...plan,

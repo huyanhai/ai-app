@@ -1,12 +1,20 @@
 "use client";
 import { memo } from "react";
 import { NodeProps } from "@xyflow/react";
-import { Table2 } from "lucide-react";
+import { LayoutGrid, Table2 } from "lucide-react";
 import NodeShell from "./shell";
 import { NodeType, TNodeShotTable } from "../../types";
 
 const ShotTableNode = ({ id, data, selected }: NodeProps<TNodeShotTable>) => (
   <NodeShell id={id} type={NodeType.ShotTableNode} selected={selected} title="全片分镜表" icon={<Table2 size={12} />} connectable={false}>
+    <div className="nodrag mb-2 flex justify-end">
+      <button
+        onClick={() => window.dispatchEvent(new CustomEvent("open-storyboard-previz"))}
+        className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/65 hover:bg-white/10 hover:text-white"
+      >
+        <LayoutGrid size={13} />草图故事板
+      </button>
+    </div>
     <div className="nowheel max-h-[720px] w-[1600px] overflow-auto rounded-2xl border border-white/8 bg-[#1b1b1e]">
       <table className="w-full border-collapse text-left text-xs text-white/65">
         <thead className="sticky top-0 z-10 bg-[#252528] text-white/80">

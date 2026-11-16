@@ -217,7 +217,7 @@ export const useGenerate = (
     if (!url) return;
     const sceneReference = nodeType === NodeType.ImageNode &&
       nodeData?.production?.kind === "sceneReference";
-    const storyboardSceneReference = nodeData?.production?.kind === "storyboard" &&
+    const storyboardSceneReference = ["storyboard", "storyboardPreviz"].includes(nodeData?.production?.kind ?? "") &&
       imageNodes.some((node) => node.data.production?.kind === "sceneReference");
 
     let stageReferences: ReturnType<typeof readStageReference>[] = [];

@@ -334,5 +334,6 @@ export const PRODUCTION_PHASE = {
   prop: 'propReference',
   scene: 'sceneReference',
   storyboard: 'storyboard',
+  previz: 'storyboardPreviz',
   video: 'video',
 } as const;

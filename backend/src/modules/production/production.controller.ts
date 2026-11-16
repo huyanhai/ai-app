@@ -110,6 +110,11 @@ export class ProductionController {
     return this.productions.reviewCurrentStory(id);
   }
 
+  @Post(':id/previz')
+  createPreviz(@Param('id') id: string, @Body() body: ConfirmProductionDto) {
+    return this.productions.createPreviz(id, body);
+  }
+
   @Post(':id/revise-stage/stream')
   @Header('Content-Type', 'text/event-stream')
   @Header('Cache-Control', 'no-cache')

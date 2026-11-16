@@ -58,6 +58,24 @@ describe('ProductionService confirmation', () => {
     expect(merged.nodes[0].data.production.stale).toBe(true);
   });
 
+  it('preserves generated previz media and references when later stages rebuild the graph', () => {
+    const { service } = makeService(null);
+    const previz = {
+      id: 'previz-shot-1', type: 'imageNode', position: { x: 100, y: 200 },
+      data: { url: 'sketch.png', status: ChunkStatus.SUCCESS, production: { kind: 'storyboardPreviz' } },
+    };
+    const merged = (service as any).mergeLayout({
+      nodes: [{ id: 'image-character-1', type: 'imageNode', position: { x: 0, y: 0 }, data: {} }],
+      edges: [],
+    }, [previz], [{
+      id: 'edge-image-character-1-previz-shot-1',
+      source: 'image-character-1', target: 'previz-shot-1',
+    }]);
+    expect(merged.nodes).toContain(previz);
+    expect(merged.edges).toHaveLength(1);
+    expect(merged.nodes.find((node: any) => node.id === previz.id).data.url).toBe('sketch.png');
+  });
+
   it('recovers target duration from an existing project idea', () => {
     const { service } = makeService(null);
     expect((service as any).withTargetDuration({ title: '采莲曲' }, '创作约30秒短片')).toEqual({ title: '采莲曲', targetDuration: 30 });
@@ -699,6 +717,41 @@ describe('ProductionService staged planning', () => {
       ),
     ).toBe(true);
     expect(planner.script).not.toHaveBeenCalled();
+  });
+
+  it('retries requirement analysis for a failed project without a result', async () => {
+    const planner = {
+      requirements: jest.fn().mockResolvedValue({
+        status: 'ready',
+        brief: '恢复后的完整需求',
+        questions: [],
+      }),
+    };
+    const project = {
+      id: 'project-1',
+      idea: '狼和羊搭档的动画短片',
+      modelId: 'model-1',
+      status: 'failed',
+      requirements: null,
+      error: '模型请求失败',
+      plan: '{}',
+      events: '[]',
+      edges: '[]',
+      nodes: '[]',
+    };
+    const { service } = makeService(project, planner);
+
+    const result = await service.reviseStage('project-1', {
+      stage: 'requirements',
+      feedback: '请根据原始需求继续执行',
+      nodes: [],
+      edges: [],
+    });
+
+    expect(result.status).toBe('requirements_review');
+    expect(result.requirements.brief).toBe('恢复后的完整需求');
+    expect(result.error).toBeNull();
+    expect(planner.requirements.mock.calls[0][0]).toContain(project.idea);
   });
 
   it('generates characters only after script confirmation', async () => {

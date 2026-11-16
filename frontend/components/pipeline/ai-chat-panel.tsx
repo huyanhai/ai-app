@@ -8,6 +8,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import {
+  ArrowDown,
   ArrowUp,
   Check,
   ChevronDown,
@@ -123,10 +124,12 @@ export default function AIChatPanel({ onClose, subjects, width, onWidthChange, g
   const [mode, setMode] = useState<"agent" | "chat">("agent");
   const [skillMenuOpen, setSkillMenuOpen] = useState(false);
   const [referenceMenuPosition, setReferenceMenuPosition] = useState<{ left: number; top: number } | null>(null);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const editorRef = useRef<IEditorRef>(null);
   const editorStateRef = useRef("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
+  const autoScrollRef = useRef(true);
   const sessionMenuRef = useRef<HTMLDivElement>(null);
   const skillMenuRef = useRef<HTMLDivElement>(null);
   const models = useModelStore((state) => state.models);
@@ -181,8 +184,13 @@ export default function AIChatPanel({ onClose, subjects, width, onWidthChange, g
   }, [selectedModelId, textModels]);
 
   useEffect(() => {
+    autoScrollRef.current = true;
+    setShowScrollToBottom(false);
+  }, [currentSessionId]);
+
+  useEffect(() => {
     const container = messagesRef.current;
-    if (container) container.scrollTop = container.scrollHeight;
+    if (container && autoScrollRef.current) container.scrollTop = container.scrollHeight;
   }, [messages, production?.events.length, isPlanning, isAdvancing]);
 
   useClickOutSide(sessionMenuRef, () => setSessionMenuOpen(false), sessionMenuOpen);
@@ -214,6 +222,7 @@ export default function AIChatPanel({ onClose, subjects, width, onWidthChange, g
     if ((!content.text && attachments.length === 0) || !selectedModel || !isModelReady(selectedModel) || isLoading || isPlanning || isAdvancing) {
       return;
     }
+    autoScrollRef.current = true;
     const files = attachments.map((file) => ({
       name: file.name,
       type: file.type,
@@ -444,6 +453,22 @@ export default function AIChatPanel({ onClose, subjects, width, onWidthChange, g
 
   const initialProductionState = production?.ideaState || pendingProductionState;
 
+  const handleMessagesScroll = () => {
+    const container = messagesRef.current;
+    if (!container) return;
+    const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 80;
+    autoScrollRef.current = atBottom;
+    setShowScrollToBottom(!atBottom);
+  };
+
+  const scrollToBottom = () => {
+    autoScrollRef.current = true;
+    messagesRef.current?.scrollTo({
+      top: messagesRef.current.scrollHeight,
+      behavior: "smooth",
+    });
+  };
+
   return (
     <section
       role="dialog"
@@ -561,7 +586,8 @@ export default function AIChatPanel({ onClose, subjects, width, onWidthChange, g
           </div>
         </div>
       ) : (
-        <div ref={messagesRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
+        <div className="relative min-h-0 flex-1">
+        <div ref={messagesRef} onScroll={handleMessagesScroll} className="h-full space-y-4 overflow-y-auto p-3">
           {!productionIdeaInCard && (production?.idea || pendingProductionIdea) && (
             <div className="flex justify-end">
               <div className="max-w-[88%] whitespace-pre-wrap rounded-2xl bg-white/10 px-3.5 py-2.5 text-sm leading-6 text-white/90">
@@ -657,6 +683,7 @@ export default function AIChatPanel({ onClose, subjects, width, onWidthChange, g
               onStartPhase={(phase) => void startMediaPhase(phase)}
               onPause={() => void pauseProduction()}
               onRetry={(nodeId, independent) => void retryProduction(nodeId, independent)}
+              onRetryRequirements={() => void reviseProduction("requirements", "请根据原始需求继续执行")}
               onAutoCompleteRequirements={() => {
                 void reviseProduction(
                   "requirements",
@@ -671,6 +698,18 @@ export default function AIChatPanel({ onClose, subjects, width, onWidthChange, g
               }}
             />
           )}
+        </div>
+        {showScrollToBottom && (
+          <button
+            type="button"
+            aria-label="滚动到底部"
+            title="滚动到底部"
+            onClick={scrollToBottom}
+            className="absolute bottom-3 left-1/2 z-10 flex size-9 -translate-x-1/2 cursor-pointer items-center justify-center rounded-full border border-white/15 bg-white/10 text-white/85 shadow-lg backdrop-blur-xl transition-all hover:scale-105 hover:bg-white/15 hover:text-white"
+          >
+            <ArrowDown size={17} />
+          </button>
+        )}
         </div>
       )}
 

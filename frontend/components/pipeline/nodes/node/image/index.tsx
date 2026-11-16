@@ -153,7 +153,7 @@ const ImageNode = ({ id, data, selected }: NodeProps<TNodeImage>) => {
       ) : (
       <motion.div
         ref={imageRef}
-        className={`relative overflow-hidden rounded-2xl bg-[#1f1f22] border border-white/5 transition-all duration-500 ${
+        className={`group/image relative overflow-hidden rounded-2xl bg-[#1f1f22] border border-white/5 transition-all duration-500 ${
           editing ? "nodrag nopan touch-none" : ""
         }`}
         style={{
@@ -350,12 +350,17 @@ const ImageNode = ({ id, data, selected }: NodeProps<TNodeImage>) => {
             <div className="flex h-full w-full items-center justify-center">
               <button
                 aria-label="上传图片"
+                title="上传图片"
                 onClick={() => uploadRef.current?.click()}
-                className="nodrag flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl px-4 py-3 text-white/30 transition-colors hover:bg-white/5 hover:text-white/60"
+                className={`nodrag absolute right-3 top-3 z-10 flex size-8 cursor-pointer items-center justify-center rounded-lg bg-white/5 text-white/60 transition-opacity hover:bg-white/10 hover:text-white ${
+                  selected
+                    ? "opacity-100"
+                    : "pointer-events-none opacity-0 focus-visible:pointer-events-auto focus-visible:opacity-100 group-hover/image:pointer-events-auto group-hover/image:opacity-100"
+                }`}
               >
-                <Upload size={30} strokeWidth={1.5} />
-                <span className="text-xs">上传图片</span>
+                <Upload size={16} strokeWidth={1.5} />
               </button>
+              <Image size={30} strokeWidth={1.5} className="text-white/20" />
               <input ref={uploadRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
             </div>
           )

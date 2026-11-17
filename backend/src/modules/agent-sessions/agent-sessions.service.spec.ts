@@ -11,7 +11,11 @@ describe('AgentSessionsService', () => {
         updateMany: jest.fn().mockResolvedValue({ count: 2 }),
       },
     };
-    const service = new AgentSessionsService(prisma as any, {} as any, {} as any);
+    const service = new AgentSessionsService(
+      prisma as any,
+      {} as any,
+      {} as any,
+    );
 
     await service.list('canvas-1');
     await service.create('canvas-1');
@@ -86,7 +90,12 @@ describe('AgentSessionsService', () => {
       undefined,
       'model-1',
       [],
-      { skillIds: [], subjects: [], mode: 'agent' },
+      {
+        skillIds: [],
+        subjects: [],
+        mode: 'agent',
+        canvas: { canvasId: 'default', revision: undefined },
+      },
     );
     expect(prisma.agentSession.update).toHaveBeenCalledWith({
       where: { id: 'session-1' },

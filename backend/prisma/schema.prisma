@@ -59,6 +59,7 @@ model CanvasState {
   edges     String
   past      String   @default("[]")
   future    String   @default("[]")
+  revision  Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

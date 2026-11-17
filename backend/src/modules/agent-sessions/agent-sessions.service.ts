@@ -87,9 +87,7 @@ export class AgentSessionsService {
           'utf8',
         );
         const name = source.match(/^name:\s*(.+)$/m)?.[1]?.trim();
-        const description = source
-          .match(/^description:\s*(.+)$/m)?.[1]
-          ?.trim();
+        const description = source.match(/^description:\s*(.+)$/m)?.[1]?.trim();
         if (name && description) {
           skills.push({ id: entry.name, name, description });
         }
@@ -110,6 +108,7 @@ export class AgentSessionsService {
     subjects: AgentSubjectDto[] = [],
     mode: 'agent' | 'chat' = 'agent',
     contentState?: string,
+    canvasRevision?: number,
   ) {
     const session = await this.detail(sessionId);
     const history = await Promise.all(
@@ -163,7 +162,19 @@ export class AgentSessionsService {
         signal,
         modelId,
         history,
-        { skillIds, subjects, mode },
+        {
+          skillIds,
+          subjects,
+          mode,
+          ...(mode === 'agent'
+            ? {
+                canvas: {
+                  canvasId: session.canvasId ?? 'default',
+                  revision: canvasRevision,
+                },
+              }
+            : {}),
+        },
       )) {
         if (event.type === 'msg_chunk') {
           assistantContent += String(event.content ?? '');

@@ -6,17 +6,24 @@ interface ToolCallItemProps {
 }
 
 export function ToolCallItem({ toolCall }: ToolCallItemProps) {
-  const displayName = toolCall.name === "simple_web_search" 
-    ? "Web Search" 
-    : toolCall.name === "complex_web_search" 
-      ? "Deep Web Browse" 
-      : toolCall.name;
+  const displayNames: Record<string, string> = {
+    simple_web_search: "网页搜索",
+    complex_web_search: "深度网页浏览",
+    canvas_get_state: "读取画布",
+    canvas_apply_ops: "修改画布",
+    canvas_arrange: "整理布局",
+    canvas_delete: "删除节点",
+    canvas_inspect_image: "查看图片",
+    canvas_inspect_video: "查看视频",
+    canvas_capture_frame: "截取视频帧",
+  };
+  const displayName = displayNames[toolCall.name] ?? toolCall.name;
 
   const stateLabel = toolCall.status === "running" 
-    ? "Executing..." 
+    ? "执行中..." 
     : toolCall.status === "completed" 
-      ? "Completed" 
-      : "Error";
+      ? "已完成" 
+      : "执行失败";
 
   return (
     <Tool defaultOpen={toolCall.status !== "completed"} className="my-2">

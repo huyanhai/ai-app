@@ -9,6 +9,7 @@ import { AgentSessionsModule } from './modules/agent-sessions/agent-sessions.mod
 import { CanvasModule } from './modules/canvas/canvas.module';
 import { ProductionModule } from './modules/production/production.module';
 import { GenerationModule } from './modules/generation/generation.module';
+import { AgentPlatformModule } from './modules/agent-platform/agent-platform.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { GenerationModule } from './modules/generation/generation.module';
     ModelsModule,
     PipelineModule,
     AiModule,
+    AgentPlatformModule,
     AgentSessionsModule,
     CanvasModule,
     ProductionModule,

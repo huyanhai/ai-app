@@ -1,8 +1,14 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../common/prisma/prisma.service';
 
 export type CanvasSnapshot = {
+  revision?: number;
   viewport?: { x: number; y: number; zoom: number };
   nodes: unknown[];
   edges: unknown[];
@@ -29,24 +35,40 @@ export class CanvasService {
     createdAt: Date;
     updatedAt: Date;
   }) {
-    const nodes = JSON.parse(state.nodes) as { id?: string; type?: string; data?: { url?: string; canvasCover?: boolean } }[];
-    const cover = nodes.find((node) => node.type === 'imageNode' && node.data?.canvasCover && node.data?.url);
-    const preview = cover ?? [...nodes].reverse().find((node) =>
-      (node.type === 'imageNode' || node.type === 'videoNode') && node.data?.url,
+    const nodes = JSON.parse(state.nodes) as {
+      id?: string;
+      type?: string;
+      data?: { url?: string; canvasCover?: boolean };
+    }[];
+    const cover = nodes.find(
+      (node) =>
+        node.type === 'imageNode' && node.data?.canvasCover && node.data?.url,
     );
+    const preview =
+      cover ??
+      [...nodes]
+        .reverse()
+        .find(
+          (node) =>
+            (node.type === 'imageNode' || node.type === 'videoNode') &&
+            node.data?.url,
+        );
     return {
       id: state.id,
       title: state.title,
       createdAt: state.createdAt,
       updatedAt: state.updatedAt,
       previewUrl: preview?.data?.url,
-      previewType: preview?.type === 'videoNode' ? 'video' : preview ? 'image' : undefined,
+      previewType:
+        preview?.type === 'videoNode' ? 'video' : preview ? 'image' : undefined,
       nodeCount: nodes.length,
     };
   }
 
   async list() {
-    const states = await this.prisma.canvasState.findMany({ orderBy: { updatedAt: 'desc' } });
+    const states = await this.prisma.canvasState.findMany({
+      orderBy: { updatedAt: 'desc' },
+    });
     return states.map((state) => this.summary(state));
   }
 
@@ -71,6 +93,7 @@ export class CanvasService {
       edges: JSON.parse(state.edges),
       past: JSON.parse(state.past),
       future: JSON.parse(state.future),
+      revision: state.revision ?? 0,
       viewport: state.viewport ? JSON.parse(state.viewport) : undefined,
     };
   }
@@ -79,7 +102,12 @@ export class CanvasService {
     if (!Array.isArray(body.nodes) || !Array.isArray(body.edges)) {
       throw new BadRequestException('Invalid canvas snapshot');
     }
-    if (body.viewport && ![body.viewport.x, body.viewport.y, body.viewport.zoom].every(Number.isFinite)) {
+    if (
+      body.viewport &&
+      ![body.viewport.x, body.viewport.y, body.viewport.zoom].every(
+        Number.isFinite,
+      )
+    ) {
       throw new BadRequestException('Invalid canvas viewport');
     }
     const values = {
@@ -89,15 +117,32 @@ export class CanvasService {
       future: JSON.stringify((body.future ?? []).slice(-50)),
       ...(body.viewport ? { viewport: JSON.stringify(body.viewport) } : {}),
     };
-    await this.prisma.canvasState.upsert({
-      where: { id },
-      create: { id, ...values },
-      update: values,
+    if (body.revision === undefined) {
+      await this.prisma.canvasState.upsert({
+        where: { id },
+        create: { id, ...values },
+        update: values,
+      });
+      return { success: true };
+    }
+    const updated = await this.prisma.canvasState.updateMany({
+      where: { id, revision: body.revision },
+      data: { ...values, revision: { increment: 1 } },
     });
-    return { success: true };
+    if (updated.count) return { success: true, revision: body.revision + 1 };
+    const existing = await this.prisma.canvasState.findUnique({
+      where: { id },
+    });
+    if (existing)
+      throw new ConflictException('画布已在其他位置更新，请刷新后重试');
+    await this.prisma.canvasState.create({ data: { id, ...values } });
+    return { success: true, revision: 0 };
   }
 
-  async saveViewport(id: string, viewport: { x: number; y: number; zoom: number }) {
+  async saveViewport(
+    id: string,
+    viewport: { x: number; y: number; zoom: number },
+  ) {
     if (![viewport.x, viewport.y, viewport.zoom].every(Number.isFinite)) {
       throw new BadRequestException('Invalid canvas viewport');
     }
@@ -124,7 +169,10 @@ export class CanvasService {
     const [generations, productions, sessions] = await Promise.all([
       this.prisma.generationRecord.findMany({ where: { canvasId: id } }),
       this.prisma.productionProject.findMany({ where: { canvasId: id } }),
-      this.prisma.agentSession.findMany({ where: { canvasId: id }, include: { messages: true } }),
+      this.prisma.agentSession.findMany({
+        where: { canvasId: id },
+        include: { messages: true },
+      }),
     ]);
 
     return this.prisma.$transaction(async (transaction) => {
@@ -163,7 +211,9 @@ export class CanvasService {
             canvasId: canvas.id,
             createdAt: session.createdAt,
             messages: {
-              create: session.messages.map(({ id: messageId, sessionId, ...message }) => message),
+              create: session.messages.map(
+                ({ id: messageId, sessionId, ...message }) => message,
+              ),
             },
           },
         });
@@ -174,10 +224,16 @@ export class CanvasService {
 
   async remove(id: string) {
     await this.prisma.$transaction(async (transaction) => {
-      await transaction.agentMessage.deleteMany({ where: { session: { canvasId: id } } });
+      await transaction.agentMessage.deleteMany({
+        where: { session: { canvasId: id } },
+      });
       await transaction.agentSession.deleteMany({ where: { canvasId: id } });
-      await transaction.generationRecord.deleteMany({ where: { canvasId: id } });
-      await transaction.productionProject.deleteMany({ where: { canvasId: id } });
+      await transaction.generationRecord.deleteMany({
+        where: { canvasId: id },
+      });
+      await transaction.productionProject.deleteMany({
+        where: { canvasId: id },
+      });
       await transaction.canvasState.delete({ where: { id } });
     });
     return { success: true };

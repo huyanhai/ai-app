@@ -3,6 +3,8 @@ import {
   IsIn,
   IsOptional,
   IsString,
+  IsInt,
+  Min,
 } from 'class-validator';
 import { streamDto } from '../../ai/dto/stream.dto';
 
@@ -27,6 +29,11 @@ export class AgentSubjectDto {
 }
 
 export class AgentStreamDto extends streamDto {
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  canvasRevision?: number;
+
   @IsString()
   @IsOptional()
   contentState?: string;

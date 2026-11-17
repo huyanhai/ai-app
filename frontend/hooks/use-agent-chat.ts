@@ -61,7 +61,11 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
   return (body ? JSON.parse(body) : undefined) as T;
 };
 
-export function useAgentChat(canvasId = "default") {
+export function useAgentChat(canvasId = "default", options: {
+  beforeSend?: () => number | undefined | Promise<number | undefined>;
+  onCanvasChanged?: () => void | Promise<void>;
+  onBusyChange?: (busy: boolean) => void;
+} = {}) {
   const activeSessionKey = `active-agent-session-id:${canvasId}`;
   const [sessions, setSessions] = useState<AgentSessionSummary[]>([]);
   const [skills, setSkills] = useState<AgentSkill[]>([]);
@@ -71,6 +75,15 @@ export function useAgentChat(canvasId = "default") {
   const [error, setError] = useState("");
   const abortRef = useRef<AbortController | null>(null);
   const currentSessionRef = useRef<string | null>(null);
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
+
+  useEffect(() => {
+    optionsRef.current.onBusyChange?.(isLoading);
+    return () => optionsRef.current.onBusyChange?.(false);
+  }, [isLoading]);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   const selectCurrentSession = useCallback((id: string | null) => {
     currentSessionRef.current = id;
@@ -204,8 +217,12 @@ export function useAgentChat(canvasId = "default") {
       setError("");
       let sessionId = currentSessionRef.current;
       const assistantId = crypto.randomUUID();
+      let streamStarted = false;
 
       try {
+        const canvasRevision = mode === "agent"
+          ? await optionsRef.current.beforeSend?.()
+          : undefined;
         if (!sessionId) {
           const session = await createSession();
           sessionId = session.id;
@@ -237,6 +254,7 @@ export function useAgentChat(canvasId = "default") {
 
         const abortController = new AbortController();
         abortRef.current = abortController;
+        streamStarted = true;
         await sseFetch({
           url: `/agent/sessions/${activeSessionId}/messages/stream`,
           abortController,
@@ -252,9 +270,20 @@ export function useAgentChat(canvasId = "default") {
             skillIds,
             subjects,
             mode,
+            canvasRevision,
           }),
           cb: (event) => {
             if (currentSessionRef.current !== activeSessionId) return;
+            if (
+              event.type === "tool_end" &&
+              ["canvas_apply_ops", "canvas_arrange", "canvas_delete"].includes(String(event.name)) &&
+              typeof event.output === "object" && event.output !== null &&
+              (event.output as { success?: boolean }).success
+            ) {
+              void Promise.resolve(optionsRef.current.onCanvasChanged?.()).catch((cause) => {
+                setError(cause instanceof Error ? cause.message : "画布刷新失败");
+              });
+            }
             setMessages((current) =>
               current.map((item) =>
                 applyEvent(item, event, assistantId),
@@ -277,6 +306,9 @@ export function useAgentChat(canvasId = "default") {
       } finally {
         abortRef.current = null;
         setIsLoading(false);
+        if (mode === "agent" && streamStarted) {
+          await Promise.resolve(optionsRef.current.onCanvasChanged?.()).catch(() => undefined);
+        }
         await loadSessions().catch(() => undefined);
       }
     },

@@ -37,7 +37,7 @@ import edgeTypes from "@/components/pipeline/edges";
 import Toolbar from "@/components/pipeline/toolbar";
 import Controls from "@/components/pipeline/controls";
 import AssetModal from "@/components/pipeline/asset-modal";
-import AIChatPanel from "@/components/pipeline/ai-chat-panel";
+import AgentHost from "@/components/pipeline/agent-host";
 import CanvasNodePanel from "@/components/pipeline/canvas-node-panel";
 import StoryboardPrevizModal from "@/components/pipeline/storyboard-previz-modal";
 import EmptyCanvasBackground from "@/components/pipeline/empty-canvas-background";
@@ -50,8 +50,9 @@ import GeneratorCard, {
 } from "@/components/pipeline/nodes/node/generator-card";
 import Menu from "@/components/pipeline/menu";
 import { TMenuRequest, usePipelineStore } from "@/store/pipeline-store";
-import { NodeType, TAllNodes, TNodeBase, TNodeShotTable } from "@/components/pipeline/types";
-import type { ReferenceKind, SubjectReference } from "@/components/chat/types";
+import { NodeType, TAllNodes, TNodeShotTable } from "@/components/pipeline/types";
+import { DOCK_WIDTH, useAgentSettings } from "@/store/agent-settings";
+import { useAgentCanvasSync } from "@/hooks/use-agent-canvas-sync";
 import {
   NODE_DEFAULT_DATA,
   NODE_TYPE_LABEL,
@@ -60,7 +61,7 @@ import {
   TARGET_ANCHOR,
   TARGET_HANDLE,
 } from "@/components/pipeline/constants";
-import { canvasHistoryApi, CanvasSnapshot } from "@/lib/canvas-history";
+import { canvasHistoryApi, CanvasSnapshot, type StoredCanvas } from "@/lib/canvas-history";
 import type { CanvasSummary } from "@/lib/canvas-history";
 import { subjectLibrary } from "@/lib/subject-library";
 import CanvasContextMenu, { CanvasContextAction, CanvasContextState } from "./canvas-context-menu";
@@ -140,7 +141,17 @@ const AlignmentGuides = ({ guides }: { guides: { x: number | null; y: number | n
 const Flow = () => {
   const canvasId = useCanvasId();
   const [aiChatOpen, setAIChatOpen] = useState(false);
-  const [aiChatWidth, setAIChatWidth] = useState(600);
+  const agentDockWidth = useAgentSettings((state) => state.dockWidth);
+  const agentPanelWidth = Math.max(DOCK_WIDTH.min, Math.min(DOCK_WIDTH.max, agentDockWidth));
+  useEffect(() => {
+    const toggleAgent = (event: KeyboardEvent) => {
+      if ((!event.metaKey && !event.ctrlKey) || event.key !== "/") return;
+      event.preventDefault();
+      setAIChatOpen((current) => !current);
+    };
+    window.addEventListener("keydown", toggleAgent);
+    return () => window.removeEventListener("keydown", toggleAgent);
+  }, []);
   const [nodePanel, setNodePanel] = useState<"search" | "history" | null>(null);
   const [previzOpen, setPrevizOpen] = useState(false);
   const [previzBusy, setPrevizBusy] = useState(false);
@@ -163,9 +174,16 @@ const Flow = () => {
   const lastSavedRef = useRef({ snapshot: currentSnapshot, past, future });
   const pendingSnapshotRef = useRef<CanvasSnapshot | null>(null);
   const historyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const canvasRevisionRef = useRef(0);
   const restoringRef = useRef(false);
+  const agentRemoteRef = useRef(false);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const latestViewportRef = useRef<Viewport | null>(null);
+  const nodesRef = useRef<TAllNodes[]>(nodes);
+  const edgesRef = useRef<Edge[]>(edges);
+  nodesRef.current = nodes;
+  edgesRef.current = edges;
   // hover 中的节点 id：hover/选中节点的直接上下游连线高亮为渐变流光
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
 
@@ -203,7 +221,7 @@ const Flow = () => {
   const showMiniMap = usePipelineStore((state) => state.showMiniMap);
   const showEdges = usePipelineStore((state) => state.showEdges);
 
-  const { setCenter, setViewport, screenToFlowPosition, getZoom, getNode } =
+  const { setCenter, setViewport, screenToFlowPosition, getZoom, getNode, fitView } =
     useReactFlow<TAllNodes>();
   const updateNodeInternals = useUpdateNodeInternals();
 
@@ -231,6 +249,37 @@ const Flow = () => {
     return () => window.removeEventListener("keydown", selectAllNodes, true);
   }, [setEdges, setNodes]);
 
+  const agentSync = useAgentCanvasSync({
+    canvas: { id: canvasId, graph: currentSnapshot, version: canvasRevisionRef.current },
+    getVersion: () => canvasRevisionRef.current,
+    mergeVersion: (version) => { canvasRevisionRef.current = version; },
+    hasUnsaved: () => saveTimerRef.current !== null || pendingSnapshotRef.current !== null,
+    nodesRef,
+    edgesRef,
+    setNodes,
+    setEdges,
+    skipNextSave: () => { restoringRef.current = true; agentRemoteRef.current = true; },
+    markTasksKnown: () => {},
+    resetHistory: () => { setPast((items) => items.filter((item) => item.agentRunId)); setFuture([]); },
+  });
+
+  const persistCanvas = useCallback(async (snapshot: StoredCanvas) => {
+    let next = snapshot;
+    let result;
+    try {
+      result = await canvasHistoryApi.save(canvasId, next);
+    } catch (error) {
+      const revision = await agentSync.autoMerge();
+      if (revision === null) throw error;
+      canvasRevisionRef.current = revision;
+      next = { ...snapshot, nodes: nodesRef.current, edges: edgesRef.current, revision };
+      result = await canvasHistoryApi.save(canvasId, next);
+    }
+    if (result.revision !== undefined) canvasRevisionRef.current = result.revision;
+    agentSync.saved(next, result.revision ?? next.revision ?? canvasRevisionRef.current);
+    return result;
+  }, [agentSync, canvasId]);
+
   useEffect(() => {
     let active = true;
     latestViewportRef.current = null;
@@ -241,12 +290,17 @@ const Flow = () => {
         if (!active) return;
         if (stored) {
           const current = withoutShotTableEdges(stored);
+          const storedPast = (stored.past ?? []).map(withoutShotTableEdges);
+          const storedFuture = (stored.future ?? []).map(withoutShotTableEdges);
+          canvasRevisionRef.current = stored.revision ?? 0;
+          agentSync.saved(current, stored.revision ?? 0);
           restoringRef.current = true;
           latestSnapshotRef.current = makeSnapshot(current.nodes, current.edges);
+          lastSavedRef.current = { snapshot: current, past: storedPast, future: storedFuture };
           setNodes(current.nodes);
           setEdges(current.edges);
-          setPast((stored.past ?? []).map(withoutShotTableEdges));
-          setFuture((stored.future ?? []).map(withoutShotTableEdges));
+          setPast(storedPast);
+          setFuture(storedFuture);
           if (stored.viewport) {
             latestViewportRef.current = stored.viewport;
             setHasStoredViewport(true);
@@ -261,7 +315,7 @@ const Flow = () => {
     return () => {
       active = false;
     };
-  }, [canvasId, setEdges, setNodes, setViewport]);
+  }, [agentSync, canvasId, setEdges, setNodes, setViewport]);
 
   useEffect(() => {
     if (!canvasLoaded) return;
@@ -286,6 +340,11 @@ const Flow = () => {
 
   useEffect(() => {
     if (!canvasLoaded) return;
+    if (agentRemoteRef.current) {
+      agentRemoteRef.current = false;
+      lastSavedRef.current = { snapshot: currentSnapshot, past, future };
+      return;
+    }
     const lastSaved = lastSavedRef.current;
     if (
       lastSaved.past === past &&
@@ -295,15 +354,20 @@ const Flow = () => {
       return;
     }
     lastSavedRef.current = { snapshot: currentSnapshot, past, future };
-    const timer = setTimeout(() => {
-      const snapshot = { ...currentSnapshot, past, future };
+    saveTimerRef.current = setTimeout(() => {
+      saveTimerRef.current = null;
+      const snapshot = { ...currentSnapshot, past, future, revision: canvasRevisionRef.current };
       saveQueueRef.current = saveQueueRef.current
         .catch(() => undefined)
-        .then(() => canvasHistoryApi.save(canvasId, snapshot).then(() => undefined))
+        .then(() => persistCanvas(snapshot))
+        .then(() => undefined)
         .catch(() => undefined);
     }, 600);
-    return () => clearTimeout(timer);
-  }, [canvasId, canvasLoaded, currentSnapshot, future, past]);
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    };
+  }, [canvasId, canvasLoaded, currentSnapshot, future, past, persistCanvas]);
 
   useEffect(() => {
     if (!canvasLoaded) return;
@@ -340,6 +404,44 @@ const Flow = () => {
     setPast((items) => [...items, currentSnapshot].slice(-50));
     setFuture(future.slice(0, -1));
   }, [currentSnapshot, future, setEdges, setNodes]);
+
+  const flushAgentCanvas = useCallback(async () => {
+    if (!canvasLoaded) return canvasRevisionRef.current;
+    if (historyTimerRef.current) clearTimeout(historyTimerRef.current);
+    historyTimerRef.current = null;
+    const pending = pendingSnapshotRef.current;
+    pendingSnapshotRef.current = null;
+    const nextPast = pending ? [...past, pending].slice(-50) : past;
+    const nextFuture = pending ? [] : future;
+    const hadScheduledSave = saveTimerRef.current !== null;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = null;
+    const lastSaved = lastSavedRef.current;
+    if (
+      !pending && !hadScheduledSave &&
+      lastSaved.past === nextPast && lastSaved.future === nextFuture &&
+      areSnapshotsEqual(lastSaved.snapshot, currentSnapshot)
+    ) {
+      await saveQueueRef.current;
+      return canvasRevisionRef.current;
+    }
+    saveQueueRef.current = saveQueueRef.current
+      .catch(() => undefined)
+      .then(() => persistCanvas({
+        ...currentSnapshot,
+        past: nextPast,
+        future: nextFuture,
+        revision: canvasRevisionRef.current,
+      }))
+      .then(() => undefined);
+    await saveQueueRef.current;
+    lastSavedRef.current = { snapshot: currentSnapshot, past: nextPast, future: nextFuture };
+    if (pending) {
+      setPast(nextPast);
+      setFuture(nextFuture);
+    }
+    return canvasRevisionRef.current;
+  }, [canvasLoaded, currentSnapshot, future, past, persistCanvas]);
 
   const restoreHistory = useCallback(
     (index: number) => {
@@ -595,7 +697,7 @@ const Flow = () => {
     [nodes],
   );
 
-  const locateNode = (nodeId: string) => {
+  const locateNode = useCallback((nodeId: string) => {
     const target = nodes.find((node) => node.id === nodeId);
     if (!target) return;
     setNodes(
@@ -605,7 +707,7 @@ const Flow = () => {
           selected: node.id === target.id,
         })) as TAllNodes[],
     );
-    const panelSpace = aiChatOpen ? aiChatWidth + 26 : 0;
+    const panelSpace = aiChatOpen ? agentPanelWidth + 26 : 0;
     const center = screenToFlowPosition({
       x: (window.innerWidth - panelSpace) / 2,
       y: window.innerHeight / 2,
@@ -615,7 +717,23 @@ const Flow = () => {
       target.position.y + (target.measured?.height ?? 0) / 2,
       { zoom: getZoom(), duration: 300 },
     );
-  };
+  }, [agentPanelWidth, aiChatOpen, getZoom, nodes, screenToFlowPosition, setCenter, setNodes]);
+
+  useEffect(() => {
+    const focus = (event: Event) => {
+      const detail = (event as CustomEvent<{ ids?: string[]; fit?: boolean }>).detail;
+      const ids = detail?.ids?.filter((id) => getNode(id)) ?? [];
+      if (!ids.length) return;
+      if (!detail.fit) {
+        locateNode(ids[0]);
+        return;
+      }
+      setNodes((current) => current.map((node) => ({ ...node, selected: ids.includes(node.id) })));
+      void fitView({ nodes: ids.map((id) => ({ id })), padding: 0.2, duration: 300 });
+    };
+    window.addEventListener("agent:focus-nodes", focus);
+    return () => window.removeEventListener("agent:focus-nodes", focus);
+  }, [fitView, getNode, locateNode, setNodes]);
 
   useEffect(() => {
     const open = () => setPrevizOpen(true);
@@ -660,22 +778,6 @@ const Flow = () => {
       setPrevizBusy(false);
     }
   };
-
-  const getProductionGraph = useCallback(
-    () => ({ nodes, edges }),
-    [edges, nodes],
-  );
-  const applyProductionGraph = useCallback(
-    (nextNodes: TAllNodes[], nextEdges: Edge[], replace = true) => {
-      if (!replace) {
-        restoringRef.current = true;
-        latestSnapshotRef.current = makeSnapshot(nextNodes, nextEdges);
-      }
-      setNodes(nextNodes);
-      setEdges(nextEdges);
-    },
-    [setEdges, setNodes],
-  );
 
   const locateLabelColor = (color: string) => {
     const target = nodes.find((node) => node.data.labelColor === color);
@@ -976,7 +1078,7 @@ const Flow = () => {
 
       <div
         className="absolute top-4 z-40 flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-[#1c1c1e]/95 p-1 shadow-2xl"
-        style={{ right: aiChatOpen ? aiChatWidth + 30 : 16 }}
+        style={{ right: aiChatOpen ? agentPanelWidth + 30 : 16 }}
       >
         {labelColors.map((color) => (
           <button
@@ -1019,7 +1121,7 @@ const Flow = () => {
       {nodePanel && (
         <div
           className="absolute top-[68px] z-40"
-          style={{ right: aiChatOpen ? aiChatWidth + 30 : 16 }}
+          style={{ right: aiChatOpen ? agentPanelWidth + 30 : 16 }}
         >
           <CanvasNodePanel
             type={nodePanel}
@@ -1045,41 +1147,13 @@ const Flow = () => {
         <Sparkles size={15} className="text-[#33a3ff]" />与 AI 对话
       </button>
 
-      {aiChatOpen && (
-        <AIChatPanel
-          onClose={() => setAIChatOpen(false)}
-          width={aiChatWidth}
-          onWidthChange={setAIChatWidth}
-          getProductionGraph={getProductionGraph}
-          applyProductionGraph={applyProductionGraph}
-          subjects={nodes.flatMap<SubjectReference>((node) => {
-            const kinds: Partial<Record<NodeType, ReferenceKind>> = {
-              [NodeType.SubjectNode]: "subject",
-              [NodeType.ImageNode]: "image",
-              [NodeType.VideoNode]: "video",
-              [NodeType.AudioNode]: "audio",
-              [NodeType.TextNode]: "text",
-            };
-            const kind = kinds[node.type as NodeType];
-            if (!kind) return [];
-            const data = node.data as TNodeBase & {
-              name?: string;
-              description?: string;
-              text?: string;
-              url?: string;
-            };
-            return [
-              {
-                id: node.id,
-                kind,
-                name: (kind === "subject" ? data.name : data.title) || node.id,
-                description: kind === "text" ? data.text : data.description,
-                url: data.url,
-              },
-            ];
-          })}
-        />
-      )}
+      <AgentHost
+        canvasId={canvasId}
+        open={aiChatOpen}
+        nodes={nodes}
+        onClose={() => setAIChatOpen(false)}
+        beforeSend={flushAgentCanvas}
+      />
 
       {menuRequest && (
         <>

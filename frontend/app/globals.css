@@ -149,3 +149,171 @@
 .agent-markdown :where(li, li > p) {
   margin-block: 0.15rem;
 }
+
+.agent-dark .agent-markdown :not(pre) > code {
+  background-color: rgb(255 255 255 / 0.12);
+  color: #f4f4f5;
+}
+
+.agent-dark {
+  color-scheme: dark;
+}
+.agent-dark :where(.text-zinc-900, .text-zinc-800) {
+  color: #f4f4f5;
+}
+.agent-dark .text-zinc-700 {
+  color: #e4e4e7;
+}
+.agent-dark .text-zinc-600 {
+  color: #d4d4d8;
+}
+.agent-dark .text-zinc-500 {
+  color: #a1a1aa;
+}
+.agent-dark .text-zinc-400 {
+  color: #71717a;
+}
+.agent-dark :where(.bg-white, .bg-white\/80, .bg-white\/95) {
+  background-color: #242424;
+}
+.agent-dark :where(.bg-zinc-50, .bg-zinc-50\/80) {
+  background-color: rgb(255 255 255 / 0.045);
+}
+.agent-dark .bg-zinc-100 {
+  background-color: rgb(255 255 255 / 0.08);
+}
+.agent-dark .bg-zinc-200 {
+  background-color: rgb(255 255 255 / 0.14);
+}
+.agent-dark .bg-zinc-300 {
+  background-color: rgb(255 255 255 / 0.2);
+}
+.agent-dark :where(.border-zinc-100, .border-zinc-200, .border-zinc-200\/70, .border-zinc-200\/80, .border-zinc-200\/90, .border-zinc-300) {
+  border-color: rgb(255 255 255 / 0.1);
+}
+.agent-dark :where(.border-zinc-500, .border-zinc-700) {
+  border-color: rgb(255 255 255 / 0.3);
+}
+.agent-dark :where(.ring-zinc-200, .ring-blue-200, .ring-violet-200) {
+  --tw-ring-color: rgb(255 255 255 / 0.1);
+}
+.agent-dark .via-zinc-200 {
+  --tw-gradient-via: rgb(255 255 255 / 0.1);
+}
+.agent-dark :where(.hover\:bg-zinc-50:hover, .hover\:bg-zinc-100:hover) {
+  background-color: rgb(255 255 255 / 0.08);
+}
+.agent-dark :where(.hover\:bg-zinc-200:hover, .hover\:bg-zinc-300:hover) {
+  background-color: rgb(255 255 255 / 0.14);
+}
+.agent-dark :where(.hover\:text-zinc-700:hover, .hover\:text-zinc-800:hover, .hover\:text-zinc-900:hover) {
+  color: #ffffff;
+}
+.agent-dark :where(.bg-blue-50, .bg-violet-50) {
+  background-color: rgb(51 163 255 / 0.12);
+}
+.agent-dark .bg-violet-50 {
+  background-color: rgb(167 139 250 / 0.12);
+}
+.agent-dark :where(.bg-emerald-50, .bg-emerald-50\/40) {
+  background-color: rgb(52 211 153 / 0.1);
+}
+.agent-dark :where(.bg-amber-50, .bg-amber-50\/40) {
+  background-color: rgb(251 191 36 / 0.1);
+}
+.agent-dark :where(.bg-red-50, .bg-red-50\/50) {
+  background-color: rgb(248 113 113 / 0.1);
+}
+.agent-dark :where(.border-blue-200, .border-blue-400) {
+  border-color: rgb(51 163 255 / 0.35);
+}
+.agent-dark :where(.border-emerald-200, .border-emerald-400) {
+  border-color: rgb(52 211 153 / 0.3);
+}
+.agent-dark :where(.border-amber-200, .border-amber-400, .border-amber-500) {
+  border-color: rgb(251 191 36 / 0.35);
+}
+.agent-dark :where(.border-red-200, .border-red-400) {
+  border-color: rgb(248 113 113 / 0.35);
+}
+.agent-dark :where(.text-blue-600, .text-blue-700) {
+  color: #33a3ff;
+}
+.agent-dark .text-violet-700 {
+  color: #c4b5fd;
+}
+.agent-dark :where(.text-emerald-600, .text-emerald-700) {
+  color: #6ee7b7;
+}
+.agent-dark :where(.text-amber-600, .text-amber-700) {
+  color: #fcd34d;
+}
+.agent-dark :where(.text-red-500, .text-red-600, .hover\:text-red-600:hover) {
+  color: #f87171;
+}
+.agent-dark .hover\:bg-red-50:hover {
+  background-color: rgb(248 113 113 / 0.1);
+}
+.agent-dark .hover\:bg-blue-100:hover {
+  background-color: rgb(96 165 250 / 0.14);
+}
+.agent-dark [role="switch"] > span {
+  background-color: #d4d4d8;
+}
+.agent-dark [role="switch"][aria-checked="true"] {
+  background-color: #f4f4f5;
+}
+.agent-dark [role="switch"][aria-checked="true"] > span {
+  background-color: #171717;
+}
+.agent-dark .bg-background {
+  background-color: #242424;
+}
+.agent-dark .text-foreground {
+  color: #f4f4f5;
+}
+.agent-dark .border-input {
+  border-color: rgb(255 255 255 / 0.12);
+}
+.agent-dark .accent-zinc-900 {
+  accent-color: #33a3ff;
+}
+.agent-dark :where(.text-blue-500, .text-blue-300) {
+  color: #33a3ff;
+}
+.agent-dark .bg-blue-500 {
+  background-color: #33a3ff;
+}
+.agent-dark .stroke-blue-500 {
+  stroke: #33a3ff;
+}
+.agent-dark .stroke-amber-500 {
+  stroke: #33a3ff;
+}
+.agent-dark .bg-amber-500 {
+  background-color: #33a3ff;
+}
+.agent-dark .border-amber-500 {
+  border-color: #33a3ff;
+}
+.agent-dark .text-amber-700 {
+  color: #33a3ff;
+}
+.agent-dark .bg-amber-50 {
+  background-color: rgb(51 163 255 / 0.1);
+}
+.agent-dark .animate-spin {
+  color: #33a3ff;
+}
+.agent-dark .bg-primary {
+  background-color: #0755bb;
+}
+.agent-dark .text-primary {
+  color: #33a3ff;
+}
+.agent-dark .focus-visible\:ring-blue-500\/40:focus-visible {
+  --tw-ring-color: rgb(51 163 255 / 0.4);
+}
+.agent-dark .thinking-shimmer {
+  background-image: linear-gradient(90deg, rgb(51 163 255 / 0.35) 25%, rgb(255 255 255 / 0.95) 50%, rgb(51 163 255 / 0.35) 75%);
+}

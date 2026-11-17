@@ -7,6 +7,7 @@ import { ModelsService } from '../models/models.service';
 import { markProductionPromptAssets } from './production.prompt-assets';
 import { prepareProductionAttachments } from './production.attachments';
 import { FileUploadDto } from '@/modules/ai/dto/stream.dto';
+import { extractTextFromContent } from '@/common/utils/message-utils';
 import {
   ProductionCharactersSchema,
   ProductionComedyStoryReviewSchema,
@@ -14,6 +15,7 @@ import {
   ProductionPlan,
   ProductionPlanSchema,
   ProductionRequirementsSchema,
+  ProductionScriptPlanSchema,
   ProductionScriptSchema,
   ProductionStorySchema,
   ProductionStoryReviewSchema,
@@ -31,7 +33,7 @@ const matchByIdOrOrder = <T extends { id: string }>(
   const indexed = items[index];
   return indexed?.id === id
     ? indexed
-    : items.find((item) => item.id === id) ?? indexed;
+    : (items.find((item) => item.id === id) ?? indexed);
 };
 
 const comedyReversalMinimum = (targetDuration?: number) =>
@@ -45,21 +47,25 @@ export class ProductionPlanner {
 
   constructor(private readonly models: ModelsService) {}
 
-  private async model(modelId?: string, options: {
-    temperature?: number;
-    maxTokens?: number;
-    timeout?: number;
-    maxRetries?: number;
-    disableReasoning?: boolean;
-  } = {}) {
+  private async model(
+    modelId?: string,
+    options: {
+      temperature?: number;
+      maxTokens?: number;
+      timeout?: number;
+      maxRetries?: number;
+      disableReasoning?: boolean;
+    } = {},
+  ) {
     const runtimeModel = await this.models.runtime(modelId, 'text');
     const { disableReasoning, ...modelOptions } = options;
     return createChatModel(runtimeModel, {
       temperature: 0.7,
       ...modelOptions,
-      modelKwargs: disableReasoning && runtimeModel.modelId.startsWith('sensenova-')
-        ? { reasoning_effort: 'none' }
-        : undefined,
+      modelKwargs:
+        disableReasoning && runtimeModel.modelId.startsWith('sensenova-')
+          ? { reasoning_effort: 'none' }
+          : undefined,
     });
   }
 
@@ -93,7 +99,10 @@ export class ProductionPlanner {
     ) {
       skills.push('classical-poetry-live-action');
     }
-    if (source.includes('animated-visual-comedy') || source.includes('动漫视觉喜剧')) {
+    if (
+      source.includes('animated-visual-comedy') ||
+      source.includes('动漫视觉喜剧')
+    ) {
       skills.push('animated-visual-comedy');
     }
     return this.creativeGuidance(...skills);
@@ -101,66 +110,100 @@ export class ProductionPlanner {
 
   private storyMethods(input: string) {
     const paths = ['workflow/references/methods/storyDevelopment.md'];
-    if (input.includes('classical-poetry-live-action') || input.includes('古诗词真人微剧情'))
-      paths.push('classical-poetry-live-action/references/adaptation-and-directing.md');
-    if (input.includes('animated-visual-comedy') || input.includes('动漫视觉喜剧'))
+    if (
+      input.includes('classical-poetry-live-action') ||
+      input.includes('古诗词真人微剧情')
+    )
+      paths.push(
+        'classical-poetry-live-action/references/adaptation-and-directing.md',
+      );
+    if (
+      input.includes('animated-visual-comedy') ||
+      input.includes('动漫视觉喜剧')
+    )
       paths.push('animated-visual-comedy/references/comedy-craft.md');
-    return paths.map((path) => readFileSync(
-      resolve(process.cwd(), 'src/common/llm/skills', path), 'utf8',
-    )).join('\n\n');
+    return paths
+      .map((path) =>
+        readFileSync(
+          resolve(process.cwd(), 'src/common/llm/skills', path),
+          'utf8',
+        ),
+      )
+      .join('\n\n');
   }
 
-  private validateComedyStory<T extends {
-    workflow?: 'classical-poetry-live-action' | 'animated-visual-comedy';
-    targetDuration?: number;
-    comedyDesign?: {
-      candidates: { id: string }[];
-      selectedCandidateId: string;
-      performanceBudget: { seconds: number }[];
-      reversals: {
-        origin: 'strategy' | 'mistake' | 'accident';
-        spatialLogic: string;
-        expectationEvidence: string;
-        expectation: string;
-        reversal: string;
-        stateChange: string;
-        advantageBefore: string;
-        advantageAfter: string;
-      }[];
-      endingCallback: {
-        winnerAction: string;
-        characterControl: string;
-        spatialSetup: string;
-        scaleConsistency: string;
+  private validateComedyStory<
+    T extends {
+      workflow?: 'classical-poetry-live-action' | 'animated-visual-comedy';
+      targetDuration?: number;
+      comedyDesign?: {
+        candidates: { id: string }[];
+        selectedCandidateId: string;
+        performanceBudget: { seconds: number }[];
+        reversals: {
+          origin: 'strategy' | 'mistake' | 'accident';
+          spatialLogic: string;
+          expectationEvidence: string;
+          expectation: string;
+          reversal: string;
+          stateChange: string;
+          advantageBefore: string;
+          advantageAfter: string;
+        }[];
+        endingCallback: {
+          winnerAction: string;
+          characterControl: string;
+          spatialSetup: string;
+          scaleConsistency: string;
+        };
       };
-    };
-  }>(story: T): T {
+    },
+  >(story: T): T {
     if (story.workflow !== 'animated-visual-comedy') return story;
     if (!story.comedyDesign)
       throw new Error('动漫喜剧缺少视觉钩子、反转和结尾回敬设计，请重试');
     const minimum = comedyReversalMinimum(story.targetDuration);
-    if (!story.comedyDesign.candidates.some((candidate) =>
-      candidate.id === story.comedyDesign?.selectedCandidateId
-    ))
+    if (
+      !story.comedyDesign.candidates.some(
+        (candidate) => candidate.id === story.comedyDesign?.selectedCandidateId,
+      )
+    )
       throw new Error('动漫喜剧必须从三个候选方案中明确选择最强方案');
     if (story.comedyDesign.reversals.length < minimum)
-      throw new Error(`动漫喜剧至少需要 ${minimum} 次有效局势反转，并另设结尾回敬`);
+      throw new Error(
+        `动漫喜剧至少需要 ${minimum} 次有效局势反转，并另设结尾回敬`,
+      );
     const maximum = comedyReversalMaximum(story.targetDuration);
     if (story.comedyDesign.reversals.length > maximum)
-      throw new Error(`当前时长最多容纳 ${maximum} 次主要反转，请合并重复动作并保留最强笑料`);
+      throw new Error(
+        `当前时长最多容纳 ${maximum} 次主要反转，请合并重复动作并保留最强笑料`,
+      );
     if (story.targetDuration) {
-      const seconds = story.comedyDesign.performanceBudget.reduce((total, item) => total + item.seconds, 0);
-      if (seconds < story.targetDuration * 0.9 || seconds > story.targetDuration * 1.1)
-        throw new Error(`喜剧表演预算为 ${seconds} 秒，与目标 ${story.targetDuration} 秒不匹配`);
+      const seconds = story.comedyDesign.performanceBudget.reduce(
+        (total, item) => total + item.seconds,
+        0,
+      );
+      if (
+        seconds < story.targetDuration * 0.9 ||
+        seconds > story.targetDuration * 1.1
+      )
+        throw new Error(
+          `喜剧表演预算为 ${seconds} 秒，与目标 ${story.targetDuration} 秒不匹配`,
+        );
     }
-    if (!story.comedyDesign.reversals.some((item) => item.origin === 'strategy'))
+    if (
+      !story.comedyDesign.reversals.some((item) => item.origin === 'strategy')
+    )
       throw new Error('动漫喜剧至少需要一次由角色主动策略造成的反转');
-    if (story.comedyDesign.reversals.some((item) =>
-      item.expectationEvidence.trim() === item.expectation.trim() ||
-      item.expectation.trim() === item.reversal.trim() ||
-      item.reversal.trim() === item.stateChange.trim() ||
-      item.advantageBefore.trim() === item.advantageAfter.trim()
-    ))
+    if (
+      story.comedyDesign.reversals.some(
+        (item) =>
+          item.expectationEvidence.trim() === item.expectation.trim() ||
+          item.expectation.trim() === item.reversal.trim() ||
+          item.reversal.trim() === item.stateChange.trim() ||
+          item.advantageBefore.trim() === item.advantageAfter.trim(),
+      )
+    )
       throw new Error('动漫喜剧反转必须有独立的预期证据，并推翻预期、改变优势');
     if (!story.comedyDesign.endingCallback.winnerAction.trim())
       throw new Error('动漫喜剧结尾必须由获胜者此前的行动促成，不能只靠巧合');
@@ -170,7 +213,9 @@ export class ProductionPlanner {
       !story.comedyDesign.endingCallback.spatialSetup.trim() ||
       !story.comedyDesign.endingCallback.scaleConsistency.trim()
     )
-      throw new Error('动漫喜剧必须交代动作空间、结果控制方式和物体尺寸重量逻辑');
+      throw new Error(
+        '动漫喜剧必须交代动作空间、结果控制方式和物体尺寸重量逻辑',
+      );
     return story;
   }
 
@@ -183,12 +228,12 @@ export class ProductionPlanner {
     const model = await this.model(modelId);
     const attachments = await prepareProductionAttachments(files);
     const text = `${input}${attachments.text}`;
-    const runnable = model
-      .withStructuredOutput(ProductionRequirementsSchema, {
-        name: 'clarify_production_requirements',
-        method: 'functionCalling',
-      });
-    const stream = await runnable.streamEvents([
+    const runnable = model.withStructuredOutput(ProductionRequirementsSchema, {
+      name: 'clarify_production_requirements',
+      method: 'functionCalling',
+    });
+    const stream = await runnable.streamEvents(
+      [
         new SystemMessage(`你是导演 Agent 的需求澄清助手。判断影视创作需求是否足以生成完整剧本。
 只询问会实质改变主角、故事冲突、结局、改编边界、目标时长或视觉形式的关键缺项，最多 3 个问题，不重复已知信息。
 信息足够时 status=ready 且 questions=[]；信息不足时 status=questions，brief 汇总已知需求，questions 给出最关键的问题。
@@ -200,13 +245,12 @@ brief 使用易读的 Markdown 格式：按“用户明确要求”“Agent 创�
         new SystemMessage(this.guidanceFor(input, 'elicitation-skill')),
         attachments.images.length
           ? new HumanMessage({
-              content: [
-                { type: 'text', text },
-                ...attachments.images,
-              ],
+              content: [{ type: 'text', text }, ...attachments.images],
             })
           : new HumanMessage(text),
-      ], { version: 'v2' });
+      ],
+      { version: 'v2' },
+    );
     let result: unknown;
     let rawArguments = '';
     let streamedBrief = '';
@@ -261,12 +305,22 @@ brief 使用易读的 Markdown 格式：按“用户明确要求”“Agent 创�
   }
 
   async story(input: string, modelId?: string, onChunk?: ProductionChunk) {
-    const comedyStory = input.includes('animated-visual-comedy') || input.includes('动漫视觉喜剧');
-    const model = await this.model(modelId, comedyStory
-      ? { disableReasoning: true, maxTokens: 8000, timeout: 240_000, maxRetries: 0 }
-      : {});
+    const comedyStory =
+      input.includes('animated-visual-comedy') ||
+      input.includes('动漫视觉喜剧');
+    const model = await this.model(
+      modelId,
+      comedyStory
+        ? {
+            disableReasoning: true,
+            maxTokens: 8000,
+            timeout: 240_000,
+            maxRetries: 0,
+          }
+        : {},
+    );
     const messages = [
-        new SystemMessage(`你是故事开发 Agent。根据原始诗句、段落和已确认需求，先创作一篇有开端、发展、结果和情绪落点的完整故事，不写场景剧本、分镜或提示词。
+      new SystemMessage(`你是故事开发 Agent。根据原始诗句、段落和已确认需求，先创作一篇有开端、发展、结果和情绪落点的完整故事，不写场景剧本、分镜或提示词。
 sourceBasis 只写原文与用户明确要求的事实；creativeAdditions 列出你新增的人物、事件、动机与关系，不冒充原文或史实。
 storyArc 写清人物眼前目标、阻碍、实际行动、行动造成的结果，以及人物关系或处境的变化。故事正文必须把这些过程演出来，不能只在 storyArc 中声明。
 每个关键结果要由前文行动导致，人物位置、持物和数量保持连续。故事的完整性优先于目标视频时长；不要为了时长删掉必要因果，后续剧本阶段再决定如何演绎。
@@ -278,13 +332,17 @@ comedyDesign.performanceBudget 按故事顺序列出全部表演节拍，每项�
 根据角色关系选择 single-protagonist 或 rivalry。openingHook 从进行中的冲突开始，不用环境或姿势介绍拖延。reversals 逐项填写 actor、action、origin、setup、spatialLogic、expectationEvidence、expectation、reversal、payoff、stateChange、advantageBefore、advantageAfter；spatialLogic 交代起点、轨迹、落点和身体能力，至少一次 origin=strategy，预期必须有此前画面证据，优势前后必须不同。30 秒及以上至少两次，单纯事故变大不算反转。
 endingCallback 填写 apparentVictory、reusedSetup、plantedEarly、winnerAction、characterControl、spatialSetup、scaleConsistency、finalOutcome：关键规则必须在前三分之一提前展示，最终胜利由获胜者此前行动促成；characterControl 写清角色如何主动控制结果，spatialSetup 写清为何能到达落点，scaleConsistency 写清尺寸、重量和搬运方式。禁止无准备的“正好、精准、碰巧”接住，禁止让角色用嘴或单手拿走远超身体能力的重物。结尾回敬不计入前述反转数量。压缩重复转圈、扑空、摔倒和得意反应，确保目标时长能演完。
 遵守用户的题材、画幅、视觉风格和改编边界。古诗词改编保留核心意象与情绪，让诗意由生活事件自然产生，不强加重大灾难或作者生平。所有文本使用用户输入语言。`),
-        new SystemMessage(`${this.guidanceFor(input, 'short-drama-develop')}\n\n${this.storyMethods(input)}`),
-        new HumanMessage(input),
+      new SystemMessage(
+        `${this.guidanceFor(input, 'short-drama-develop')}\n\n${this.storyMethods(input)}`,
+      ),
+      new HumanMessage(input),
     ];
     if (comedyStory) {
       const stream = await model.stream([
         ...messages,
-        new HumanMessage('只输出一个完整 JSON 对象，不要 Markdown 或解释。顶层必须包含 title、synopsis、story、sourceBasis、creativeAdditions、storyArc、visualStyle、ratio、targetDuration、comedyDesign；所有字段严格遵循前述结构，不能省略 candidates、performanceBudget、openingHook、reversals 或 endingCallback。'),
+        new HumanMessage(
+          '只输出一个完整 JSON 对象，不要 Markdown 或解释。顶层必须包含 title、synopsis、story、sourceBasis、creativeAdditions、storyArc、visualStyle、ratio、targetDuration、comedyDesign；所有字段严格遵循前述结构，不能省略 candidates、performanceBudget、openingHook、reversals 或 endingCallback。',
+        ),
       ]);
       let rawText = '';
       let streamedStory = '';
@@ -296,9 +354,43 @@ endingCallback 填写 apparentVictory、reusedSetup、plantedEarly、winnerActio
           onChunk?.({ story: partialStory });
         }
       }
-      const start = rawText.indexOf('{');
-      const end = rawText.lastIndexOf('}');
-      const story = ProductionStorySchema.parse(JSON.parse(rawText.slice(start, end + 1)));
+      const parseStory = (source: string) => {
+        try {
+          const start = source.indexOf('{');
+          const end = source.lastIndexOf('}');
+          if (start < 0 || end < start) throw new Error('missing JSON object');
+          return ProductionStorySchema.safeParse(
+            JSON.parse(source.slice(start, end + 1)),
+          );
+        } catch {
+          return {
+            success: false as const,
+            error: {
+              issues: [{ path: [], message: '输出不是完整 JSON 对象' }],
+            },
+          };
+        }
+      };
+      let parsed = parseStory(rawText);
+      if (!parsed.success) {
+        const repaired = await model.invoke([
+          ...messages,
+          new HumanMessage(`上一次故事 JSON 未通过结构校验。请只输出修正后的完整 JSON 对象，不要 Markdown 或解释。
+保留已经正确的创作内容；根据故事正文补齐缺失字段并修正类型，不得省略 storyArc、三个 candidates 或 comedyDesign 的其他必填字段。
+sourceBasis 和 creativeAdditions 必须是字符串数组；候选 mode 只能是 single-protagonist 或 rivalry；五项 scores 必须是 1-10 的数字。
+校验错误：${JSON.stringify(parsed.error.issues)}
+原始输出：${rawText}`),
+        ]);
+        parsed = parseStory(extractTextFromContent(repaired.content));
+      }
+      if (!parsed.success) {
+        const details = parsed.error.issues
+          .slice(0, 4)
+          .map((issue) => `${issue.path.join('.') || 'JSON'}：${issue.message}`)
+          .join('；');
+        throw new Error(`故事结构修复后仍未通过校验：${details}`);
+      }
+      const story = parsed.data;
       onChunk?.(story);
       return this.validateComedyStory({
         ...story,
@@ -331,7 +423,8 @@ endingCallback 填写 apparentVictory、reusedSetup、plantedEarly、winnerActio
         onChunk?.(result);
       }
     }
-    let generated = result ?? (rawArguments ? JSON.parse(rawArguments) : undefined);
+    let generated =
+      result ?? (rawArguments ? JSON.parse(rawArguments) : undefined);
     if (!generated && rawText) {
       const start = rawText.indexOf('{');
       const end = rawText.lastIndexOf('}');
@@ -340,14 +433,17 @@ endingCallback 填写 apparentVictory、reusedSetup、plantedEarly、winnerActio
     const story = ProductionStorySchema.parse(generated);
     return this.validateComedyStory({
       ...story,
-      ...(input.includes('animated-visual-comedy') || input.includes('动漫视觉喜剧')
+      ...(input.includes('animated-visual-comedy') ||
+      input.includes('动漫视觉喜剧')
         ? { workflow: 'animated-visual-comedy' as const }
         : {}),
     });
   }
 
   async reviewStory(source: string, story: unknown, modelId?: string) {
-    const comedyReview = source.includes('animated-visual-comedy') || source.includes('动漫视觉喜剧');
+    const comedyReview =
+      source.includes('animated-visual-comedy') ||
+      source.includes('动漫视觉喜剧');
     const model = await this.model(modelId, {
       temperature: 0.2,
       maxTokens: comedyReview ? 1800 : 1200,
@@ -358,9 +454,11 @@ endingCallback 填写 apparentVictory、reusedSetup、plantedEarly、winnerActio
     const messages = [
       new SystemMessage(`你是独立故事审查者。只审查，不改写故事。对照原始输入、已确认需求、完整故事和故事行动链，找出影响演绎的具体问题。
 逐项检查：原文事实与新增演绎是否混淆；人物目标、阻碍、行动、结果是否有可追溯因果；位置、时间、物件和数量是否自洽；结尾是否回应故事建立的期待；关键变化是否能在后续剧本中演绎。
+主角持续没有有效行动、相邻事件只能用“然后”连接、关键冲突只由人物口头宣布而没有行动与后果、结尾未兑现故事已建立的回报时，即使故事结构字段完整，也应引用正文标记 blocking。
 每个 issue 必须引用输入或故事中的具体证据，说明问题和可执行的修法。只返回最重要的至多 5 个问题。只有与已给事实冲突、内部状态矛盾或关键因果断裂等可核对问题用 blocking；趣味、节奏、结尾气质及其他审美偏好只能用 suggestion。没有问题时返回 issues=[]，不为了凑数量编造问题。`),
-      new SystemMessage(comedyReview
-        ? `你是独立的视觉喜剧审查者，不因字段齐全就判定合格。逐个检查开场、每次 reversal 和 endingCallback，并引用故事正文证据。
+      new SystemMessage(
+        comedyReview
+          ? `你是独立的视觉喜剧审查者，不因字段齐全就判定合格。逐个检查开场、每次 reversal 和 endingCallback，并引用故事正文证据。
 开场若在环境和姿势介绍后才进入冲突，标记 blocking。每次反转分别核对：expectationEvidence 是否是此前真正展示过的画面，而非审查者替角色编造的预期；结果是否重新解释线索并改变优势；origin=strategy 是否确由角色主动策略造成。至少一次有效策略反转，最终胜利必须由获胜者此前行动促成，不能主要靠巧合。
 结尾关键规则必须在故事前三分之一已经展示，不能在兑现时才介绍；回敬必须产生新结果，不能重复摔倒或得意。重复转圈、扑空、摔倒、炫耀若没有新信息，指出需要合并的段落。无对白项目不得靠字幕或旁白解释。
 物理与巧合逐项审查：尺寸、重量和搬运方式必须符合角色身体能力；起点、轨迹和落点必须有空间依据；“正好、精准、碰巧”接住或命中若没有角色主动控制，category=physics 且 passed=false。只有主动踢一下机关、之后完全依赖幸运轨迹，不算完成结果控制。
@@ -369,28 +467,43 @@ endingCallback 填写 apparentVictory、reusedSetup、plantedEarly、winnerActio
 上述可核对缺陷均用 blocking；个人是否觉得好笑只作 suggestion。即使 storyReview 的其他项目通过，也不能漏报伪反转、迟铺垫、被动获胜和重复表演。
 blocking 必须有正文中的直接矛盾或动作缺失，不得把“可能被余光看见、理论上也许能察觉、路径未充分证明绝不相交”等假设当成事实。角色已明确低头、转身或视线被遮挡时，可接受对手利用该视线盲区；位置、先后顺序和移动方向已写清时，不要求穷举证明所有理论路径。假设性风险最多列为 suggestion，不能因此压低 overall 到 9 以下。
 overall 必须与证据一致：全部 comedyChecks 通过、issues 中没有 blocking 且没有需要返工的具体建议时，overall 应为 9-10，表示可以进入分镜；允许个别维度为 8，不得据此机械压低 overall。只有指出具体缺陷和返工理由时 overall 才能低于 9。`
-        : '只检查通用故事因果、事实和连续性，不额外审查喜剧机制。'),
+          : '只检查通用故事因果、事实和连续性，不额外审查喜剧机制。',
+      ),
       new HumanMessage(JSON.stringify({ source, story })),
     ];
-    const reviewSchema = comedyReview ? ProductionComedyStoryReviewSchema : ProductionStoryReviewSchema;
+    const reviewSchema = comedyReview
+      ? ProductionComedyStoryReviewSchema
+      : ProductionStoryReviewSchema;
     const result = await model
-      .withStructuredOutput(comedyReview ? ProductionComedyStoryReviewSchema : ProductionStoryReviewSchema, {
-        name: 'review_complete_story',
-        method: 'functionCalling',
-      })
+      .withStructuredOutput(
+        comedyReview
+          ? ProductionComedyStoryReviewSchema
+          : ProductionStoryReviewSchema,
+        {
+          name: 'review_complete_story',
+          method: 'functionCalling',
+        },
+      )
       .invoke(messages);
     let parsed = reviewSchema.safeParse(result);
     if (!parsed.success && comedyReview) {
       const fallback = await model.invoke([
         ...messages,
-        new HumanMessage('结构化调用未返回有效结果。请只输出一个完整 JSON 对象，不要 Markdown：必须含 issues、comedyChecks、comedyScore；严格逐项审查，不得省略评分。'),
+        new HumanMessage(
+          '结构化调用未返回有效结果。请只输出一个完整 JSON 对象，不要 Markdown：必须含 issues、comedyChecks、comedyScore；严格逐项审查，不得省略评分。',
+        ),
       ]);
-      const content = typeof fallback.content === 'string'
-        ? fallback.content
-        : fallback.content.map((part) => 'text' in part ? part.text : '').join('');
+      const content =
+        typeof fallback.content === 'string'
+          ? fallback.content
+          : fallback.content
+              .map((part) => ('text' in part ? part.text : ''))
+              .join('');
       const start = content.indexOf('{');
       const end = content.lastIndexOf('}');
-      parsed = reviewSchema.safeParse(JSON.parse(content.slice(start, end + 1)));
+      parsed = reviewSchema.safeParse(
+        JSON.parse(content.slice(start, end + 1)),
+      );
     }
     if (!parsed.success) throw parsed.error;
     const review = parsed.data;
@@ -399,23 +512,38 @@ overall 必须与证据一致：全部 comedyChecks 通过、issues 中没有 bl
       throw new Error('喜剧审查必须返回综合评分及各维度评分');
     const reversalCount = (story as any)?.comedyDesign?.reversals?.length ?? 0;
     if (!review.comedyChecks || review.comedyChecks.length < reversalCount + 4)
-      throw new Error('喜剧审查必须逐项覆盖开场、每个反转、结尾回敬、物理逻辑和表演时长');
+      throw new Error(
+        '喜剧审查必须逐项覆盖开场、每个反转、结尾回敬、物理逻辑和表演时长',
+      );
     const issues = [...review.issues];
-    review.comedyChecks.filter((check) => !check.passed).forEach((check) => {
-      if (issues.some((issue) => issue.problem === check.problem || issue.evidence === check.evidence)) return;
-      issues.push({
-        severity: 'blocking',
-        category: check.category === 'physics'
-          ? 'continuity'
-          : check.category === 'pacing'
-            ? 'adaptation'
-            : 'causality',
-        evidence: check.evidence,
-        problem: check.problem || `${check.target} 未通过喜剧审查`,
-        suggestion: '返回故事阶段修复该喜剧节拍，再重新审查',
+    review.comedyChecks
+      .filter((check) => !check.passed)
+      .forEach((check) => {
+        if (
+          issues.some(
+            (issue) =>
+              issue.problem === check.problem ||
+              issue.evidence === check.evidence,
+          )
+        )
+          return;
+        issues.push({
+          severity: 'blocking',
+          category:
+            check.category === 'physics'
+              ? 'continuity'
+              : check.category === 'pacing'
+                ? 'adaptation'
+                : 'causality',
+          evidence: check.evidence,
+          problem: check.problem || `${check.target} 未通过喜剧审查`,
+          suggestion: '返回故事阶段修复该喜剧节拍，再重新审查',
+        });
       });
-    });
-    if (review.comedyScore.overall < 9 && !issues.some((issue) => issue.problem.includes('综合评分低于 9')))
+    if (
+      review.comedyScore.overall < 9 &&
+      !issues.some((issue) => issue.problem.includes('综合评分低于 9'))
+    )
       issues.push({
         severity: 'blocking',
         category: 'adaptation',
@@ -436,37 +564,106 @@ overall 必须与证据一致：全部 comedyChecks 通过、issues 中没有 bl
     return { ...review, issues };
   }
 
-  async script(idea: string, modelId?: string, onChunk?: ProductionChunk) {
-    const model = await this.model(modelId);
-    const stream = await model
-      .withStructuredOutput(ProductionScriptSchema, {
-        name: 'write_script',
+  private async reviewScript(source: string, script: unknown, modelId?: string) {
+    const model = await this.model(modelId, {
+      temperature: 0.2,
+      maxTokens: 1500,
+      timeout: 120_000,
+      maxRetries: 1,
+      disableReasoning: true,
+    });
+    const result = await model
+      .withStructuredOutput(ProductionStoryReviewSchema, {
+        name: 'review_script',
         method: 'functionCalling',
       })
-      .stream([
-        new SystemMessage(`你是编剧 Agent。将已确认的完整故事改编为可拍摄的场景剧本；旧项目只有创意输入时仍可从创意写剧本。
-只完成剧本，不设计角色参考图或分镜。场景 ID 使用 scene-1、scene-2 的稳定格式。
-targetDuration 填写用户要求的目标总时长（秒）；用户未指定时可省略，后续不得把单场景时长误当成全片时长。
-完整故事已确认时，保留其关键人物、行动、因果和结局，不自行替换故事；将心理与叙述转为动作、对白和声音。目标时长不足以容纳必要转折时，不静默删改故事，在 adaptationNote 中明确说明时长冲突及需要延长或缩小演绎范围；没有冲突时省略该字段。
-动漫视觉喜剧必须无对白，保留已确认故事的 comedyDesign；旧项目没有该字段时，按相同结构补齐视觉钩子、有效反转和结尾回敬。
-剧本包含对白、动作、时间和地点，所有文本使用用户输入的语言。`),
-        new SystemMessage(
-          this.guidanceFor(idea, 'short-drama-develop', 'short-drama-write'),
-        ),
-        new HumanMessage(idea),
+      .invoke([
+        new SystemMessage(`你是独立剧本审查者。对照原始输入、已确认故事、scriptPlan 和实际场景正文审查，不改写剧本。
+检查关键人物行动、因果和结局是否被保留；每个场景是否实现契约中的目标、冲突、转向和退出状态；相邻节拍是否由上一行动导致，而非只用“然后”连接。
+以下问题有正文证据时使用 blocking：必要行动或转折被删除；人物成功主要来自无铺垫巧合；场景只复述梗概而没有可表演行动；同一场重复同一要求或反应且信息、权力、关系、物理状态均未变化；关键对白只解释背景或复述画面，没有说话目的、对方回应或局面变化；无对白项目出现对白、旁白或字幕解释。
+人物语言风格、留白、审美偏好和可选的节奏调整用 suggestion，不为了凑数量编造问题。每个 issue 引用具体场景或台词，至多返回最重要的 5 个。`),
+        new HumanMessage(JSON.stringify({ source, script })),
       ]);
-    let result: unknown;
-    for await (const chunk of stream) {
-      result = chunk;
-      onChunk?.(chunk);
+    return ProductionStoryReviewSchema.parse(result);
+  }
+
+  async script(idea: string, modelId?: string, onChunk?: ProductionChunk) {
+    const model = await this.model(modelId);
+    const guidance = this.guidanceFor(
+      idea,
+      'short-drama-develop',
+      'short-drama-write',
+    );
+    const scriptPlan = ProductionScriptPlanSchema.parse(
+      await model
+        .withStructuredOutput(ProductionScriptPlanSchema, {
+          name: 'plan_script',
+          method: 'functionCalling',
+        })
+        .invoke([
+          new SystemMessage(`你是剧本策划 Agent。在写场景正文前，将已确认故事转成可拍摄的创作契约；旧项目只有创意输入时仍可从创意规划。
+entryState 写清人物位置、持物、知识和未结束行动；goal 与 opposition 必须是本集具体追求及有筹码的阻力；payoff 写观众在本集实际得到的结果；exitState 写人物、关系、知识和物件的最终状态。
+beats 按“原因—人物行动—结果—下一压力”排列，每个关键结果由前一行动导致，不能只按时间罗列事件。
+scenes 使用 scene-1、scene-2 的稳定 ID。每场必须有不可替代的 objective、具体 conflict、可见 turn 和能交给下一场的 exitState；合并只重复信息或情绪的场景。
+只规划故事和场景，不写对白、角色参考图或分镜。目标时长不足以容纳必要转折时保留完整因果，由剧本阶段在 adaptationNote 说明。`),
+          new SystemMessage(guidance),
+          new HumanMessage(idea),
+        ]),
+    );
+    const contractInput = `${idea}\n已确认剧本创作契约：${JSON.stringify(scriptPlan)}`;
+    const generate = async (input: string) => {
+      const stream = await model
+        .withStructuredOutput(ProductionScriptSchema, {
+          name: 'write_script',
+          method: 'functionCalling',
+        })
+        .stream([
+          new SystemMessage(`你是编剧 Agent。严格按照已确认剧本创作契约，将完整故事改编为可拍摄的场景剧本，不设计角色参考图或分镜。
+最终 scenes 必须逐场实现 scriptPlan.scenes，保持相同场景 ID、地点和顺序，不遗漏契约中的因果节拍、人物行动、当集兑现和退出状态。
+每场 script 必须是完整可表演正文，不是场景梗概。用动作、对白和声音呈现心理与叙述；对白必须服务争取、回避、试探、逼迫或关系变化，删除只复述画面和背景的说明。
+targetDuration 填写用户要求的目标总时长（秒）；用户未指定时可省略，后续不得把单场景时长误当成全片时长。
+完整故事已确认时，保留其关键人物、行动、因果和结局，不自行替换故事。目标时长不足以容纳必要转折时，不静默删改故事，在 adaptationNote 中明确说明时长冲突及需要延长或缩小演绎范围；没有冲突时省略该字段。
+动漫视觉喜剧必须无对白，保留已确认故事的 comedyDesign；旧项目没有该字段时，按相同结构补齐视觉钩子、有效反转和结尾回敬。
+所有文本使用用户输入的语言。`),
+          new SystemMessage(guidance),
+          new HumanMessage(input),
+        ]);
+      let result: unknown;
+      for await (const chunk of stream) {
+        result = chunk;
+        onChunk?.(chunk);
+      }
+      return ProductionScriptSchema.parse(result);
+    };
+    let script = {
+      ...(await generate(contractInput)),
+      scriptPlan,
+      scriptAutoRepairCount: 0,
+    };
+    while (true) {
+      const review = await this.reviewScript(idea, script, modelId);
+      const blockingIssues = review.issues.filter(
+        (issue) => issue.severity === 'blocking',
+      );
+      if (!blockingIssues.length)
+        return this.validateComedyStory({
+          ...script,
+          ...(idea.includes('animated-visual-comedy') ||
+          idea.includes('动漫视觉喜剧')
+            ? { workflow: 'animated-visual-comedy' as const }
+            : {}),
+        });
+      if (script.scriptAutoRepairCount >= 3)
+        throw new Error('剧本自动优化暂未通过，请重新生成剧本');
+      const repairCount = script.scriptAutoRepairCount + 1;
+      script = {
+        ...(await generate(
+          `${contractInput}\n当前剧本：${JSON.stringify(script)}\n自动审查修订意见：${JSON.stringify(blockingIssues)}\n保留未涉及场景的稳定 ID，同时修正场景正文与相关故事字段，不只修改创作契约。`,
+        )),
+        scriptPlan,
+        scriptAutoRepairCount: repairCount,
+      };
     }
-    const script = ProductionScriptSchema.parse(result);
-    return this.validateComedyStory({
-      ...script,
-      ...(idea.includes('animated-visual-comedy') || idea.includes('动漫视觉喜剧')
-        ? { workflow: 'animated-visual-comedy' as const }
-        : {}),
-    });
   }
 
   async characters(
@@ -532,7 +729,9 @@ duration 必须覆盖完整动作、运镜和情绪停留：单一简单动作�
 禁止在动作、书写、阅读、对视或运镜尚未完成时结束。若一个镜头无法在自然节奏内交代完整，应拆成多个镜头，而不是压缩表演。
 targetDuration 存在时，全片镜头时长总和必须处于目标时长的 90%-110%，镜头总数不得超过“目标秒数 ÷ 5”向上取整；30 秒短片优先 4-5 镜，45 秒优先 5-7 镜。不得先按每个场景 4-10 镜展开再超额累计。
 所有镜头继承统一视觉风格，所有文本使用剧本语言。若输入包含 revisionFeedback，优先执行该修改意见，并保留未涉及场景和镜头的稳定 ID。`),
-        new SystemMessage('语言要求：所有输出与用户输入语言一致。中文项目的场景、动作、运镜及 referencePrompt 必须全部使用中文，即使输入中包含英文提示词也要改为中文。'),
+        new SystemMessage(
+          '语言要求：所有输出与用户输入语言一致。中文项目的场景、动作、运镜及 referencePrompt 必须全部使用中文，即使输入中包含英文提示词也要改为中文。',
+        ),
         new SystemMessage(
           this.guidanceFor(plan, 'short-drama-storyboard', 'storyboard'),
         ),
@@ -571,7 +770,12 @@ targetDuration 存在时，全片镜头时长总和必须处于目标时长的 9
     ) => {
       const resolved = ids
         .flatMap((id) => id.split(/[,，、]/))
-        .map((id) => entities.find((entity) => entity.id === id.trim() || entity.name === id.trim())?.id)
+        .map(
+          (id) =>
+            entities.find(
+              (entity) => entity.id === id.trim() || entity.name === id.trim(),
+            )?.id,
+        )
         .filter((id): id is string => Boolean(id));
       entities.forEach((entity) => {
         if (description.includes(entity.name)) resolved.push(entity.id);
@@ -590,19 +794,29 @@ targetDuration 存在时，全片镜头时长总和必须处于目标时长的 9
           shots: generated?.shots.map((shot: any) => ({
             ...shot,
             id: uniqueShotId(shot.id),
-            characterIds: resolveEntityIds(shot.characterIds, source.characters, shot.description),
-            propIds: resolveEntityIds(shot.propIds ?? [], source.props ?? [], shot.description),
+            characterIds: resolveEntityIds(
+              shot.characterIds,
+              source.characters,
+              shot.description,
+            ),
+            propIds: resolveEntityIds(
+              shot.propIds ?? [],
+              source.props ?? [],
+              shot.description,
+            ),
           })),
         };
       }),
     };
     const finalPlan = ProductionPlanSchema.parse(merged);
-    finalPlan.scenes.forEach((scene) => scene.shots.forEach((shot) => {
-      shot.narrativeBeat ||= shot.title;
-      shot.continuityGroupId ||= scene.id;
-      shot.startState ||= shot.description;
-      shot.endState ||= shot.description;
-    }));
+    finalPlan.scenes.forEach((scene) =>
+      scene.shots.forEach((shot) => {
+        shot.narrativeBeat ||= shot.title;
+        shot.continuityGroupId ||= scene.id;
+        shot.startState ||= shot.description;
+        shot.endState ||= shot.description;
+      }),
+    );
     if (source.targetDuration) {
       const shots = finalPlan.scenes.flatMap((scene) => scene.shots);
       const duration = shots.reduce((total, shot) => total + shot.duration, 0);
@@ -612,12 +826,16 @@ targetDuration 存在时，全片镜头时长总和必须处于目标时长的 9
         duration < source.targetDuration * 0.9 ||
         duration > source.targetDuration * 1.1
       ) {
-        throw new Error(`分镜需要按完整叙事节拍合并：目标 ${source.targetDuration} 秒，当前 ${shots.length} 镜、${duration} 秒；最多 ${maxShots} 镜且总时长需在目标的 90%-110% 内`);
+        throw new Error(
+          `分镜需要按完整叙事节拍合并：目标 ${source.targetDuration} 秒，当前 ${shots.length} 镜、${duration} 秒；最多 ${maxShots} 镜且总时长需在目标的 90%-110% 内`,
+        );
       }
     }
     if (!finalPlan.scenes.some((scene) => scene.shots.length > 0))
       throw new Error('分镜至少需要一个完整叙事镜头，请重试');
-    const narrativeBeats = finalPlan.scenes.flatMap((scene) => scene.shots.map((shot) => shot.narrativeBeat?.trim()).filter(Boolean));
+    const narrativeBeats = finalPlan.scenes.flatMap((scene) =>
+      scene.shots.map((shot) => shot.narrativeBeat?.trim()).filter(Boolean),
+    );
     if (new Set(narrativeBeats).size !== narrativeBeats.length)
       throw new Error('多个镜头重复承担同一剧情节点，请按故事主线合并后再试');
     if (source.workflow === 'animated-visual-comedy') {
@@ -627,7 +845,9 @@ targetDuration 存在时，全片镜头时长总和必须处于目标时长的 9
         throw new Error('动漫喜剧的每个镜头都需要标记喜剧功能，请重试');
       if (shots[0]?.comedyRole !== 'hook')
         throw new Error('动漫喜剧第一镜必须直接呈现视觉钩子');
-      if (shots.filter((shot) => shot.comedyRole === 'reversal').length < minimum)
+      if (
+        shots.filter((shot) => shot.comedyRole === 'reversal').length < minimum
+      )
         throw new Error(`动漫喜剧分镜至少需要 ${minimum} 个有效反转镜头`);
       if (shots.at(-1)?.comedyRole !== 'callback')
         throw new Error('动漫喜剧最后一镜必须复用前文线索完成结尾回敬');
@@ -636,7 +856,9 @@ targetDuration 存在时，全片镜头时长总和必须处于目标时长的 9
       finalPlan.characters.map((character) => character.id),
     );
     const propIds = new Set((finalPlan.props ?? []).map((prop) => prop.id));
-    const sceneAssetIds = new Set(finalPlan.sceneAssets?.map((scene) => scene.id));
+    const sceneAssetIds = new Set(
+      finalPlan.sceneAssets?.map((scene) => scene.id),
+    );
     const entityIds = [
       ...finalPlan.characters.map((character) => character.id),
       ...(finalPlan.props ?? []).map((prop) => prop.id),
@@ -649,15 +871,19 @@ targetDuration 存在时，全片镜头时长总和必须处于目标时长的 9
     if (
       byId.size !== source.scenes.length ||
       new Set(entityIds).size !== entityIds.length ||
-      finalPlan.scenes.some((scene) =>
-        !sceneAssetIds.has(scene.sceneAssetId ?? '') ||
-        scene.shots.some((shot) =>
-          shot.characterIds.some((id) => !characterIds.has(id)) ||
-          shot.propIds?.some((id) => !propIds.has(id)),
-        ),
+      finalPlan.scenes.some(
+        (scene) =>
+          !sceneAssetIds.has(scene.sceneAssetId ?? '') ||
+          scene.shots.some(
+            (shot) =>
+              shot.characterIds.some((id) => !characterIds.has(id)) ||
+              shot.propIds?.some((id) => !propIds.has(id)),
+          ),
       )
     ) {
-      throw new Error('分镜包含缺失场景、重复 ID 或无效场景、角色与道具引用，请重试');
+      throw new Error(
+        '分镜包含缺失场景、重复 ID 或无效场景、角色与道具引用，请重试',
+      );
     }
     return finalPlan;
   }
@@ -681,7 +907,9 @@ sceneAssets.referencePrompt 只用于生成独立场景资产，不得复制到 
 相邻镜头的叙事动作和视觉表达必须有明显增量：根据内容选择全景、中景、近景、特写、俯拍或主观视角，避免连续使用相同机位、相同人物站位、相同采莲或追逐姿势。相同场景不等于重复画面，每镜只选最能代表完整叙事节拍的关键瞬间。
 continuityGroupId 相同的相邻镜头必须承接 startState、endState 中的人物位置、朝向、持物手、道具状态和空间关系；不同组只保持角色身份和关键物体设计，不强行继承临时位置与动作。
 propIds 引用的关键道具必须继承输入道具的材质、形状、磨损、标记和文字内容，不得重新设计；引用图与固定文字资产优先级高于自由创作。`),
-        new SystemMessage('语言要求：visualPrompt 必须使用用户输入和剧本的语言。中文项目必须输出完整中文提示词，不得输出英文或中英混杂；仅模型参数等专有名词可保留英文。'),
+        new SystemMessage(
+          '语言要求：visualPrompt 必须使用用户输入和剧本的语言。中文项目必须输出完整中文提示词，不得输出英文或中英混杂；仅模型参数等专有名词可保留英文。',
+        ),
         new SystemMessage(this.guidanceFor(plan, 'short-drama-image-prompts')),
         new HumanMessage(JSON.stringify(plan)),
       ]);
@@ -694,17 +922,26 @@ propIds 引用的关键道具必须继承输入道具的材质、形状、磨损
     const finalPlan = ProductionPlanSchema.parse({
       ...plan,
       scenes: plan.scenes.map((scene, sceneIndex) => {
-        const generatedScene = matchByIdOrOrder(prompts.scenes, scene.id, sceneIndex);
+        const generatedScene = matchByIdOrOrder(
+          prompts.scenes,
+          scene.id,
+          sceneIndex,
+        );
         return {
           ...scene,
           shots: scene.shots.map((shot, shotIndex) => {
             const visualPrompt = generatedScene
-              ? matchByIdOrOrder(generatedScene.shots, shot.id, shotIndex)?.visualPrompt
-                || `${shot.description}。${plan.visualStyle}，静态关键帧，保持角色、道具和场景设定一致。`
+              ? matchByIdOrOrder(generatedScene.shots, shot.id, shotIndex)
+                  ?.visualPrompt ||
+                `${shot.description}。${plan.visualStyle}，静态关键帧，保持角色、道具和场景设定一致。`
               : `${shot.description}。${plan.visualStyle}，静态关键帧，保持角色、道具和场景设定一致。`;
             return {
               ...shot,
-              visualPrompt: markProductionPromptAssets(visualPrompt, plan, scene),
+              visualPrompt: markProductionPromptAssets(
+                visualPrompt,
+                plan,
+                scene,
+              ),
             };
           }),
         };
@@ -740,7 +977,9 @@ motionPrompt 描述可拍摄的完整过程，必须使用连续时间轴：首�
 存在 comedyRole 时，按对应喜剧功能完整呈现铺垫、预期、反向结果和反应；无对白项目禁止通过对白、字幕或旁白解释笑点。
 每个时段都要同时写清画面内容和运镜：角色动作、表情、位置变化、关键道具状态、环境反馈，以及机位、景别、构图和相机运动如何变化。有连续上一镜时，把入场承接放在第一时间段；存在下一镜时，把与下一镜配合的出场设计放在最后时间段。首镜没有入场承接，末镜不强制安排出场。每镜必须保留足够主体表演时间，不能整段只有转场。
 关键道具在全片中保持同一材质、形状、磨损、标记与文字，禁止改写书信内容、增减文字或让文字随动作变形。镜头必须在主要动作和运镜完成后再结束。`),
-        new SystemMessage('语言要求：motionPrompt 与全部转场字段必须使用用户输入和剧本的语言。中文项目必须输出完整中文提示词，不得输出英文或中英混杂；对白和固定文字资产必须逐字保留。'),
+        new SystemMessage(
+          '语言要求：motionPrompt 与全部转场字段必须使用用户输入和剧本的语言。中文项目必须输出完整中文提示词，不得输出英文或中英混杂；对白和固定文字资产必须逐字保留。',
+        ),
         new SystemMessage(this.guidanceFor(plan, 'short-drama-video-prompts')),
         new HumanMessage(JSON.stringify(plan)),
       ]);
@@ -753,7 +992,11 @@ motionPrompt 描述可拍摄的完整过程，必须使用连续时间轴：首�
     const finalPlan = ProductionPlanSchema.parse({
       ...plan,
       scenes: plan.scenes.map((scene, sceneIndex) => {
-        const generatedScene = matchByIdOrOrder(prompts.scenes, scene.id, sceneIndex);
+        const generatedScene = matchByIdOrOrder(
+          prompts.scenes,
+          scene.id,
+          sceneIndex,
+        );
         return {
           ...scene,
           shots: scene.shots.map((shot, shotIndex) => {
@@ -763,8 +1006,8 @@ motionPrompt 描述可拍摄的完整过程，必须使用连续时间轴：首�
             return {
               ...shot,
               motionPrompt: markProductionPromptAssets(
-                generatedShot?.motionPrompt
-                  || `画面内容及运镜：\n0:00-0:${String(shot.duration).padStart(2, '0')} ${shot.description}；运镜：${shot.movement}；完整呈现动作后再结束。`,
+                generatedShot?.motionPrompt ||
+                  `画面内容及运镜：\n0:00-0:${String(shot.duration).padStart(2, '0')} ${shot.description}；运镜：${shot.movement}；完整呈现动作后再结束。`,
                 plan,
                 scene,
               ),
@@ -777,7 +1020,8 @@ motionPrompt 描述可拍摄的完整过程，必须使用连续时间轴：首�
     const shots = finalPlan.scenes.flatMap((scene) => scene.shots);
     shots.slice(1).forEach((shot, index) => {
       const previousShot = shots[index];
-      const sameNarrative = shot.continuityGroupId === previousShot.continuityGroupId;
+      const sameNarrative =
+        shot.continuityGroupId === previousShot.continuityGroupId;
       if (!sameNarrative) {
         shot.transitionFromPrevious = {
           mode: 'cut',
@@ -786,7 +1030,8 @@ motionPrompt 描述可拍摄的完整过程，必须使用连续时间轴：首�
           previousOutro: '上一叙事单元完成当前动作后结束',
           currentIntro: `从“${shot.title}”的新时空画面开始`,
           cameraPath: shot.movement,
-          consistency: '仅保持角色身份、关键物体设计与统一视觉风格，不继承临时动作和空间状态',
+          consistency:
+            '仅保持角色身份、关键物体设计与统一视觉风格，不继承临时动作和空间状态',
         };
         return;
       }

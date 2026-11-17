@@ -1,5 +1,6 @@
 packages:
   - "backend"
   - "frontend"
+  - "agent"
   - "agents"
   - "web-annotator"

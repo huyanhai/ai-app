@@ -10,7 +10,7 @@ type MediaStage = "references" | "storyboards" | "videos";
 const STREAMING_LABELS: Record<string, string> = {
   requirements: "正在梳理故事方向与创作需求…",
   story: "正在扩展完整故事…",
-  storyReview: "正在审查故事的因果与连续性…",
+  storyReview: "正在自动优化故事…",
   script: "正在将故事改编为场景剧本…",
   characters: "正在设计角色形象与人物设定…",
   storyboard: "正在构思镜头语言与分镜节奏…",
@@ -24,7 +24,7 @@ const STREAMING_LABELS: Record<string, string> = {
 const STREAMING_STEPS: Record<string, string[]> = {
   requirements: ["整理用户输入与历史补充", "判断关键创作缺项", "形成可确认的需求摘要"],
   story: ["区分原文依据与创作补充", "建立人物目标与因果", "写出完整故事与结尾"],
-  storyReview: ["核对原文与演绎边界", "检查因果和状态连续性", "整理有依据的审查意见"],
+  storyReview: ["检查故事完整性", "自动修复需要调整的内容", "整理最终故事"],
   script: ["读取已确认的完整故事", "选择可演绎的事件", "编写场景动作与对白", "检查整体节奏与时长"],
   characters: ["提取主要角色与关键道具", "统一角色外貌与道具细节", "整理角色和道具三视图设定"],
   storyboard: ["分析剧本节拍与场景", "设计镜头内容与动作运镜", "检查镜头连续性与时长"],
@@ -135,8 +135,8 @@ function AgentCard({ title, stage, events, history, icon, children, defaultOpen 
 export default function ProductionTimeline({ project, advancing, streamPreview, onConfirmStage, onConfirm, onStartPhase, onPause, onRetry, onRetryRequirements, onModify, onAutoCompleteRequirements, initialResponse }: Props) {
   const { plan, requirements, status } = project;
   const hasStoryboard = plan.scenes?.some((scene) => scene.shots?.length);
-  const storyIssues = plan.storyReview?.issues ?? [];
-  const storyBlocked = storyIssues.some((issue) => issue.severity === "blocking");
+  const storyBlocked = plan.storyReview?.issues.some((issue) => issue.severity === "blocking") ?? false;
+  const storyRepairCount = plan.autoRepairCount ?? 0;
   const actions = (stage: TextStage, label: string, review: boolean) => review && !advancing && <div className="mt-3 space-y-2">
     <button type="button" disabled={advancing} onClick={() => onConfirmStage()} className={primaryButton}>{label}</button>
     <button type="button" disabled={advancing} onClick={() => onModify(stage)} className={secondaryButton}>我想修改</button>
@@ -183,12 +183,11 @@ export default function ProductionTimeline({ project, advancing, streamPreview, 
       {actions("requirements", "确认需求，开发完整故事", status === "requirements_review")}
     </AgentCard>}
 
-    {(plan.storyReview || streamPreview?.stage === "story" || streamPreview?.stage === "storyReview" || status === "story_pending" || status === "story_review") && <AgentCard title="故事开发与审查" stage="story" events={project.events} history={project.history} icon={<AgentIcon name="screenwriter" />} defaultOpen={status === "story_review" || status === "story_pending"} active={streamPreview?.stage === "story" || streamPreview?.stage === "storyReview"}>
+    {(plan.storyReview || streamPreview?.stage === "story" || streamPreview?.stage === "storyReview" || status === "story_pending" || status === "story_review") && <AgentCard title="故事开发" stage="story" events={project.events} history={project.history} icon={<AgentIcon name="screenwriter" />} defaultOpen={status === "story_review" || status === "story_pending"} active={streamPreview?.stage === "story" || streamPreview?.stage === "storyReview"}>
       {(streamPreview?.stage === "story" || streamPreview?.stage === "storyReview") && <div className="mb-3"><ProductionStreamingPreview preview={streamPreview} /></div>}
       {plan.story && <div className="rounded-xl bg-black/20 p-4"><h4 className="text-base font-medium text-white/90">{plan.title}</h4><p className="mt-2 text-sm leading-6 text-white/55">{plan.synopsis}</p><p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-white/70">{plan.story}</p>{plan.sourceBasis?.length ? <div className="mt-4 text-xs leading-5 text-white/45">原文依据：{plan.sourceBasis.join("；")}</div> : null}{plan.creativeAdditions?.length ? <div className="mt-2 text-xs leading-5 text-white/45">创作补充：{plan.creativeAdditions.join("；")}</div> : null}</div>}
-      {plan.storyReview && <div className="mt-3 space-y-2"><div className="text-sm font-medium text-white/75">故事审查</div>{storyIssues.length === 0 ? <p className="text-sm text-emerald-300/80">未发现需要修订的问题</p> : storyIssues.map((issue, index) => <div key={`${issue.category}-${index}`} className="border-l-2 border-white/15 bg-black/20 px-3 py-2 text-sm leading-6"><div className={issue.severity === "blocking" ? "text-amber-200" : "text-white/65"}>{issue.severity === "blocking" ? "需修复" : "建议"} · {issue.problem}</div><p className="mt-1 text-xs text-white/45">依据：{issue.evidence}</p><p className="mt-1 text-xs text-white/55">建议：{issue.suggestion}</p></div>)}</div>}
-      {status === "story_review" && !plan.storyReview && project.error && <p className="mt-3 text-sm text-red-300">{project.error}</p>}
-      {status === "story_review" && !advancing && <div className="mt-3 space-y-2"><button type="button" disabled={Boolean(plan.storyReview) && storyBlocked} onClick={() => onConfirmStage()} className={primaryButton}>{!plan.storyReview ? "重试故事审查" : storyBlocked ? "修复审查问题后继续" : "确认完整故事，开始改编剧本"}</button><button type="button" onClick={() => onModify("story")} className={secondaryButton}>修改故事</button></div>}
+      {status === "story_review" && project.error && <p className="mt-3 text-sm text-red-300">{project.error}</p>}
+      {status === "story_review" && !advancing && <div className="mt-3 space-y-2"><button type="button" onClick={() => onConfirmStage()} className={primaryButton}>{!plan.storyReview ? "继续自动生成" : storyBlocked ? (storyRepairCount >= 3 ? "重新生成故事" : "继续自动优化") : "确认完整故事，开始改编剧本"}</button><button type="button" onClick={() => onModify("story")} className={secondaryButton}>修改故事</button></div>}
     </AgentCard>}
 
     {((plan.scenes?.length ?? 0) > 0 || streamPreview?.stage === "script" || status === "script_pending") && <AgentCard title="编剧 Agent" stage="script" events={project.events} history={project.history} icon={<AgentIcon name="screenwriter" />} defaultOpen={status === "script_review" || status === "script_pending"} active={streamPreview?.stage === "script"}>

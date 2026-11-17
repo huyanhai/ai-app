@@ -10,7 +10,7 @@ import React, {
   useImperativeHandle,
 } from "react";
 import { Placement } from "../types";
-import { CARD } from "@/constants/class-names";
+import { CARD, POPOVER_SURFACE } from "@/constants/class-names";
 import { createPortal } from "react-dom";
 import { useClickOutSide } from "@/hooks/use-click-outside";
 import { ChevronDown } from "lucide-react";
@@ -86,7 +86,7 @@ const Popper = (
           exit={{ opacity: 0, y: placement === Placement.Top ? 6 : -6 }}
           transition={{ duration: 0.15, ease: "easeOut" }}
           style={popoverStyle}
-          className={`${CARD} backdrop-blur-xs bg-black/70`}
+          className={`${CARD} ${POPOVER_SURFACE}`}
         >
           {trigger}
         </motion.div>

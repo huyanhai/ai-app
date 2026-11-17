@@ -12,7 +12,11 @@ import { genSceneReferenceImage } from '@/common/llm/tools/gen-scene-reference';
 import { genVideo, queryVideoTask } from '@/common/llm/tools/gen-video';
 import { ChunkStatus } from '@/common/utils/ai-stream-utils';
 import { ProductionPlanner } from './production.planner';
-import { buildProductionGraph, buildProductionPrevizGraph, buildProductionStoryGraph } from './production.graph';
+import {
+  buildProductionGraph,
+  buildProductionPrevizGraph,
+  buildProductionStoryGraph,
+} from './production.graph';
 import {
   ConfirmProductionDto,
   ConfirmStageDto,
@@ -48,13 +52,15 @@ export class ProductionService {
   ) {}
 
   private workflowFor(idea: string) {
-    if (idea.includes('古诗词真人微剧情')) return 'classical-poetry-live-action' as const;
+    if (idea.includes('古诗词真人微剧情'))
+      return 'classical-poetry-live-action' as const;
     if (idea.includes('动漫视觉喜剧')) return 'animated-visual-comedy' as const;
     return undefined;
   }
 
   private withTargetDuration<T>(plan: T, idea = ''): T {
-    if (!plan || typeof plan !== 'object' || 'targetDuration' in plan) return plan;
+    if (!plan || typeof plan !== 'object' || 'targetDuration' in plan)
+      return plan;
     const seconds = idea.match(/(\d+(?:\.\d+)?)\s*秒/);
     const minutes = idea.match(/(\d+(?:\.\d+)?)\s*分钟/);
     const targetDuration = seconds
@@ -164,7 +170,8 @@ export class ProductionService {
         .filter((node) => node.data?.production)
         .map((node) => node.id),
     );
-    if (nodeIds.length && !nodeIds.some((nodeId) => projectNodeIds.has(nodeId))) return null;
+    if (nodeIds.length && !nodeIds.some((nodeId) => projectNodeIds.has(nodeId)))
+      return null;
     await this.prisma.productionProject.update({
       where: { id },
       data: { canvasId },
@@ -181,16 +188,16 @@ export class ProductionService {
     );
     if (plan.scenes && tableIndex >= 0) {
       const edges = this.parseEdges(project.edges);
-      const continuity = edges.some(
-        (edge) => edge.data?.kind === 'continuity',
-      );
+      const continuity = edges.some((edge) => edge.data?.kind === 'continuity');
       const merged = this.mergeLayout(
         buildProductionGraph(plan, 'storyboard', continuity),
         nodes,
         edges,
       );
-      const nodesChanged = JSON.stringify(nodes) !== JSON.stringify(merged.nodes);
-      const edgesChanged = JSON.stringify(edges) !== JSON.stringify(merged.edges);
+      const nodesChanged =
+        JSON.stringify(nodes) !== JSON.stringify(merged.nodes);
+      const edgesChanged =
+        JSON.stringify(edges) !== JSON.stringify(merged.edges);
       if (nodesChanged || edgesChanged) {
         nodes.splice(0, nodes.length, ...merged.nodes);
         project.nodes = JSON.stringify(nodes);
@@ -199,7 +206,11 @@ export class ProductionService {
           where: { id },
           data: { nodes: project.nodes, edges: project.edges },
         });
-        await this.syncCanvas(updated.canvasId ?? project.canvasId, nodes, merged.edges);
+        await this.syncCanvas(
+          updated.canvasId ?? project.canvasId,
+          nodes,
+          merged.edges,
+        );
       }
     }
     const stage = this.mediaStage(project.status);
@@ -245,8 +256,18 @@ export class ProductionService {
         throw new BadRequestException('画布故事已修改，请先提交修改并重新审查');
       if (!plan.storyReview)
         return this.reviewStory(id, project, plan, onEvent);
-      if (plan.storyReview.issues.some((issue) => issue.severity === 'blocking'))
-        throw new BadRequestException('故事审查仍有必须修复的问题');
+      if (
+        plan.storyReview.issues.some((issue) => issue.severity === 'blocking')
+      )
+        return this.reviewStory(
+          id,
+          project,
+          {
+            ...plan,
+            ...((plan.autoRepairCount ?? 0) >= 3 ? { autoRepairCount: 0 } : {}),
+          },
+          onEvent,
+        );
     }
     const events = this.parseEvents(project.events);
     if (!project.status.endsWith('_pending'))
@@ -298,11 +319,16 @@ export class ProductionService {
         shots.slice(1).some((shot) => !shot.transitionFromPrevious)
       ) {
         onEvent?.({ type: 'start', projectId: id, stage: 'videoPrompts' });
-        events.push(this.event('videoPrompts', '导演 Agent 正在补齐相邻镜头转场设计'));
-        plan = await this.planner.videoPrompts(
-          plan,
-          project.modelId,
-          (data) => onEvent?.({ type: 'chunk', projectId: id, stage: 'videoPrompts', data }),
+        events.push(
+          this.event('videoPrompts', '导演 Agent 正在补齐相邻镜头转场设计'),
+        );
+        plan = await this.planner.videoPrompts(plan, project.modelId, (data) =>
+          onEvent?.({
+            type: 'chunk',
+            projectId: id,
+            stage: 'videoPrompts',
+            data,
+          }),
         );
       }
       const graph = this.mergeLayout(
@@ -333,7 +359,11 @@ export class ProductionService {
       });
       await this.syncCanvas(project.canvasId, graph.nodes, graph.edges);
       if (auto)
-        this.schedule(id, [PRODUCTION_PHASE.character, PRODUCTION_PHASE.prop, PRODUCTION_PHASE.scene]);
+        this.schedule(id, [
+          PRODUCTION_PHASE.character,
+          PRODUCTION_PHASE.prop,
+          PRODUCTION_PHASE.scene,
+        ]);
       const result = this.serialize(updated);
       onEvent?.({ type: 'result', project: result });
       return result;
@@ -390,34 +420,48 @@ export class ProductionService {
           const brief = project.requirements
             ? JSON.parse(project.requirements).brief
             : project.idea;
-          const story = this.withTargetDuration(await this.planner.story(
-            `原始输入：${project.idea}\n已确认需求：${brief}`,
-            project.modelId,
-            onChunk,
-          ), project.idea);
+          const story = this.withTargetDuration(
+            await this.planner.story(
+              `原始输入：${project.idea}\n已确认需求：${brief}`,
+              project.modelId,
+              onChunk,
+            ),
+            project.idea,
+          );
           return story;
         }
         if (nextStage === 'script') {
           const brief = project.requirements
             ? JSON.parse(project.requirements).brief
             : project.idea;
-          const approvedStory = project.status === 'story_review'
-            ? { ...plan, storyReview: undefined }
-            : null;
+          const approvedStory =
+            project.status === 'story_review'
+              ? { ...plan, storyReview: undefined }
+              : null;
           const scriptInput = approvedStory
-            ? JSON.stringify({ originalInput: project.idea, approvedRequirements: brief, approvedStory })
+            ? JSON.stringify({
+                originalInput: project.idea,
+                approvedRequirements: brief,
+                approvedStory,
+              })
             : brief;
-          const script = await this.planner.script(scriptInput, project.modelId, onChunk);
+          const script = await this.planner.script(
+            scriptInput,
+            project.modelId,
+            onChunk,
+          );
           return {
             ...(this.workflowFor(project.idea)
               ? { workflow: this.workflowFor(project.idea) }
               : {}),
             ...script,
-            ...(approvedStory ? {
-              ...approvedStory,
-              storyReview: plan.storyReview,
-              scenes: script.scenes,
-            } : {}),
+            ...(approvedStory
+              ? {
+                  ...approvedStory,
+                  storyReview: plan.storyReview,
+                  scenes: script.scenes,
+                }
+              : {}),
             characters: [],
           };
         }
@@ -443,19 +487,24 @@ export class ProductionService {
         nextStage === 'story'
           ? buildProductionStoryGraph(nextPlan)
           : buildProductionGraph(
-          nextPlan,
-          nextStage === 'script' ||
-            nextStage === 'characters' ||
-            nextStage === 'storyboard'
-            ? nextStage
-            : 'storyboard',
-          ),
+              nextPlan,
+              nextStage === 'script' ||
+                nextStage === 'characters' ||
+                nextStage === 'storyboard'
+                ? nextStage
+                : 'storyboard',
+            ),
         currentNodes,
         input.edges,
       );
-      events.push(this.event(nextStage, nextStage === 'story'
-        ? '完整故事已生成，开始独立审查'
-        : '阶段结果已生成，等待用户确认'));
+      events.push(
+        this.event(
+          nextStage,
+          nextStage === 'story'
+            ? '完整故事已生成，开始独立审查'
+            : '阶段结果已生成，等待用户确认',
+        ),
+      );
       const updated = await this.prisma.productionProject.update({
         where: { id },
         data: {
@@ -610,44 +659,23 @@ export class ProductionService {
               const brief = project.requirements
                 ? JSON.parse(project.requirements).brief
                 : project.idea;
-              const story = this.withTargetDuration(await this.planner.story(
-                `原始输入：${project.idea}\n已确认需求：${brief}\n当前故事：${JSON.stringify(plan)}\n用户修改意见：${input.feedback}`,
-                project.modelId,
-                onChunk,
-              ), project.idea);
+              const story = this.withTargetDuration(
+                await this.planner.story(
+                  `原始输入：${project.idea}\n已确认需求：${brief}\n当前故事：${JSON.stringify(plan)}\n用户修改意见：${input.feedback}`,
+                  project.modelId,
+                  onChunk,
+                ),
+                project.idea,
+              );
               return story;
             })()
-        : input.stage === 'script'
-          ? {
-              ...(this.workflowFor(project.idea)
-                ? { workflow: this.workflowFor(project.idea) }
-                : {}),
-              ...(await this.planner.script(
-                `原始创意：${project.idea}\n当前剧本：${JSON.stringify(plan)}\n用户修改意见：${input.feedback}\n保留未要求修改的场景 ID。`,
-                project.modelId,
-                (data) =>
-                  onEvent?.({
-                    type: 'chunk',
-                    projectId: id,
-                    stage: input.stage,
-                    data,
-                  }),
-              )),
-              ...(plan.storyReview ? {
-                story: plan.story,
-                synopsis: plan.synopsis,
-                storyArc: plan.storyArc,
-                ...(plan.comedyDesign ? { comedyDesign: plan.comedyDesign } : {}),
-                sourceBasis: plan.sourceBasis,
-                creativeAdditions: plan.creativeAdditions,
-                storyReview: plan.storyReview,
-              } : {}),
-              characters: [],
-            }
-          : input.stage === 'characters'
-            ? await (async () => {
-                const assets = await this.planner.characters(
-                  { ...plan, revisionFeedback: input.feedback },
+          : input.stage === 'script'
+            ? {
+                ...(this.workflowFor(project.idea)
+                  ? { workflow: this.workflowFor(project.idea) }
+                  : {}),
+                ...(await this.planner.script(
+                  `原始创意：${project.idea}\n当前剧本：${JSON.stringify(plan)}\n用户修改意见：${input.feedback}\n保留未要求修改的场景 ID。`,
                   project.modelId,
                   (data) =>
                     onEvent?.({
@@ -656,35 +684,67 @@ export class ProductionService {
                       stage: input.stage,
                       data,
                     }),
-                );
-                return { ...plan, characters: assets.characters, props: assets.props };
-              })()
-            : input.stage === 'storyboard'
-              ? await this.planner.storyboard(
-                  { ...plan, revisionFeedback: input.feedback },
-                  project.modelId,
-                  onChunk,
-                )
-              : input.stage === 'imagePrompts'
-                ? await this.planner.imagePrompts(
+                )),
+                ...(plan.storyReview
+                  ? {
+                      story: plan.story,
+                      synopsis: plan.synopsis,
+                      storyArc: plan.storyArc,
+                      ...(plan.comedyDesign
+                        ? { comedyDesign: plan.comedyDesign }
+                        : {}),
+                      sourceBasis: plan.sourceBasis,
+                      creativeAdditions: plan.creativeAdditions,
+                      storyReview: plan.storyReview,
+                    }
+                  : {}),
+                characters: [],
+              }
+            : input.stage === 'characters'
+              ? await (async () => {
+                  const assets = await this.planner.characters(
+                    { ...plan, revisionFeedback: input.feedback },
+                    project.modelId,
+                    (data) =>
+                      onEvent?.({
+                        type: 'chunk',
+                        projectId: id,
+                        stage: input.stage,
+                        data,
+                      }),
+                  );
+                  return {
+                    ...plan,
+                    characters: assets.characters,
+                    props: assets.props,
+                  };
+                })()
+              : input.stage === 'storyboard'
+                ? await this.planner.storyboard(
                     { ...plan, revisionFeedback: input.feedback },
                     project.modelId,
                     onChunk,
                   )
-                : await this.planner.videoPrompts(
-                    { ...plan, revisionFeedback: input.feedback },
-                    project.modelId,
-                    onChunk,
-                  );
+                : input.stage === 'imagePrompts'
+                  ? await this.planner.imagePrompts(
+                      { ...plan, revisionFeedback: input.feedback },
+                      project.modelId,
+                      onChunk,
+                    )
+                  : await this.planner.videoPrompts(
+                      { ...plan, revisionFeedback: input.feedback },
+                      project.modelId,
+                      onChunk,
+                    );
       const graph = this.mergeLayout(
         input.stage === 'story'
           ? buildProductionStoryGraph(nextPlan)
           : buildProductionGraph(
-          nextPlan,
-          ['script', 'characters', 'storyboard'].includes(input.stage)
-            ? input.stage
-            : 'storyboard',
-          ),
+              nextPlan,
+              ['script', 'characters', 'storyboard'].includes(input.stage)
+                ? input.stage
+                : 'storyboard',
+            ),
         currentNodes,
         input.edges,
       );
@@ -801,30 +861,36 @@ export class ProductionService {
   async reviewCurrentStory(id: string) {
     const project = await this.find(id);
     const plan = JSON.parse(project.plan);
-    if (!plan.story) throw new BadRequestException('当前项目还没有可审查的故事');
+    if (!plan.story)
+      throw new BadRequestException('当前项目还没有可审查的故事');
     return this.reviewStory(id, project, plan);
   }
 
   async createPreviz(id: string, input: ConfirmProductionDto) {
     const project = await this.find(id);
-    if (project.status.endsWith('_running') || project.status.endsWith('_pending'))
+    if (
+      project.status.endsWith('_running') ||
+      project.status.endsWith('_pending')
+    )
       throw new BadRequestException('请等待当前任务结束后再创建草图故事板');
     const plan = JSON.parse(project.plan);
     if (!plan.scenes?.some((scene: any) => scene.shots?.length))
       throw new BadRequestException('请先生成并确认分镜表');
-    const currentById = new Map<string, ProductionNode>([
-      ...this.parseNodes(project.nodes),
-      ...(input.nodes as ProductionNode[]),
-    ].map((node) => [node.id, node]));
+    const currentById = new Map<string, ProductionNode>(
+      [
+        ...this.parseNodes(project.nodes),
+        ...(input.nodes as ProductionNode[]),
+      ].map((node) => [node.id, node]),
+    );
     const currentNodes = [...currentById.values()];
     const previz = buildProductionPrevizGraph(plan, currentNodes);
     if (!previz.nodes.length) return this.serialize(project);
     const nodes = [...currentNodes, ...previz.nodes];
-    const edgeById = new Map([
-      ...this.parseEdges(project.edges),
-      ...input.edges,
-      ...previz.edges,
-    ].map((edge) => [edge.id, edge]));
+    const edgeById = new Map(
+      [...this.parseEdges(project.edges), ...input.edges, ...previz.edges].map(
+        (edge) => [edge.id, edge],
+      ),
+    );
     const edges = [...edgeById.values()];
     const updated = await this.prisma.productionProject.update({
       where: { id },
@@ -833,7 +899,10 @@ export class ProductionService {
         edges: JSON.stringify(edges),
         events: JSON.stringify([
           ...this.parseEvents(project.events),
-          this.event('previz', `已创建 ${previz.nodes.length} 个草图节点，可逐镜手动生成`),
+          this.event(
+            'previz',
+            `已创建 ${previz.nodes.length} 个草图节点，可逐镜手动生成`,
+          ),
         ]),
       },
     });
@@ -841,11 +910,7 @@ export class ProductionService {
     return this.serialize(updated);
   }
 
-  async retry(
-    id: string,
-    nodeId: string,
-    input: RetryProductionNodeDto = {},
-  ) {
+  async retry(id: string, nodeId: string, input: RetryProductionNodeDto = {}) {
     const project = await this.find(id);
     if (
       !this.mediaStage(project.status) &&
@@ -952,25 +1017,123 @@ export class ProductionService {
     plan: any,
     onEvent?: (event: ProductionStreamEvent) => void,
   ) {
-    onEvent?.({ type: 'start', projectId: id, stage: 'storyReview' });
-    const events = [
-      ...this.parseEvents(project.events),
-      this.event('storyReview', '独立审查者正在检查故事完整性'),
-    ];
+    let currentProject = project;
+    let currentPlan = plan;
+    let storyReview = currentPlan.storyReview;
+    let repairCount = currentPlan.autoRepairCount ?? 0;
+    const events = this.parseEvents(project.events);
+    const brief = project.requirements
+      ? JSON.parse(project.requirements).brief
+      : project.idea;
+    const review = async () => {
+      onEvent?.({ type: 'start', projectId: id, stage: 'storyReview' });
+      events.push(this.event('storyReview', '正在自动审查故事'));
+      try {
+        return await this.planner.reviewStory(
+          `原始输入：${project.idea}\n已确认需求：${brief}`,
+          currentPlan,
+          project.modelId,
+        );
+      } catch {
+        events.push(this.event('storyReview', '审查连接中断，正在自动重试'));
+        return this.planner.reviewStory(
+          `原始输入：${project.idea}\n已确认需求：${brief}`,
+          currentPlan,
+          project.modelId,
+        );
+      }
+    };
     try {
-      const brief = project.requirements
-        ? JSON.parse(project.requirements).brief
-        : project.idea;
-      const storyReview = await this.planner.reviewStory(
-        `原始输入：${project.idea}\n已确认需求：${brief}`,
-        plan,
-        project.modelId,
-      );
-      events.push(this.event('storyReview', '故事审查已完成，等待用户确认'));
+      storyReview ??= await review();
+      while (
+        storyReview.issues.some((issue) => issue.severity === 'blocking')
+      ) {
+        if (repairCount >= 3) {
+          events.push(
+            this.event('storyReview', '自动优化暂未通过，请重新生成故事'),
+          );
+          const updated = await this.prisma.productionProject.update({
+            where: { id },
+            data: {
+              plan: JSON.stringify({
+                ...currentPlan,
+                storyReview,
+                autoRepairCount: repairCount,
+              }),
+              status: 'story_review',
+              events: JSON.stringify(events),
+              error: '自动优化暂未通过，请重新生成故事',
+            },
+          });
+          const result = this.serialize(updated);
+          onEvent?.({ type: 'result', project: result });
+          return result;
+        }
+        repairCount += 1;
+        const blockingIssues = storyReview.issues.filter(
+          (issue) => issue.severity === 'blocking',
+        );
+        events.push(
+          this.event('story', `正在自动优化故事（第 ${repairCount} 轮）`),
+        );
+        await this.prisma.productionProject.update({
+          where: { id },
+          data: { events: JSON.stringify(events), status: 'story_review' },
+        });
+        onEvent?.({ type: 'start', projectId: id, stage: 'story' });
+        const revised = this.withTargetDuration(
+          await this.planner.story(
+            `原始输入：${project.idea}\n已确认需求：${brief}\n当前故事：${JSON.stringify(currentPlan)}\n自动审查修订意见：${JSON.stringify(blockingIssues)}\n必须同步修改故事正文、storyArc、comedyDesign、表演节拍和时长预算，不能只修改结构字段。`,
+            project.modelId,
+            (data) =>
+              onEvent?.({ type: 'chunk', projectId: id, stage: 'story', data }),
+          ),
+          project.idea,
+        );
+        currentPlan = { ...revised, autoRepairCount: repairCount };
+        const graph = this.mergeLayout(
+          buildProductionStoryGraph(currentPlan),
+          this.parseNodes(currentProject.nodes),
+          this.parseEdges(currentProject.edges),
+        );
+        events.push(
+          this.event('story', `第 ${repairCount} 轮优化已生成，正在复审`),
+        );
+        currentProject = await this.prisma.productionProject.update({
+          where: { id },
+          data: {
+            plan: JSON.stringify(currentPlan),
+            nodes: JSON.stringify(graph.nodes),
+            edges: JSON.stringify(graph.edges),
+            status: 'story_review',
+            events: JSON.stringify(events),
+            history: JSON.stringify([
+              ...this.parseHistory(currentProject.history),
+              this.historyEntry(
+                'story',
+                currentPlan,
+                `自动优化第 ${repairCount} 轮`,
+              ),
+            ]),
+            error: null,
+          },
+        });
+        await this.syncCanvas(
+          currentProject.canvasId,
+          graph.nodes,
+          graph.edges,
+        );
+        storyReview = await review();
+      }
+      events.push(this.event('storyReview', '故事自动优化完成，等待用户确认'));
       const updated = await this.prisma.productionProject.update({
         where: { id },
         data: {
-          plan: JSON.stringify({ ...plan, storyReview }),
+          plan: JSON.stringify({
+            ...currentPlan,
+            storyReview,
+            autoRepairCount: repairCount,
+          }),
           status: 'story_review',
           events: JSON.stringify(events),
           error: null,
@@ -979,15 +1142,19 @@ export class ProductionService {
       const result = this.serialize(updated);
       onEvent?.({ type: 'result', project: result });
       return result;
-    } catch (error) {
-      events.push(this.event('storyReview', `审查失败：${error instanceof Error ? error.message : String(error)}`));
+    } catch {
+      events.push(this.event('storyReview', '自动优化暂时失败，请重新执行'));
+      const preservedPlan = { ...currentPlan, storyReview: undefined };
       const updated = await this.prisma.productionProject.update({
         where: { id },
         data: {
-          plan: JSON.stringify(plan),
+          plan: JSON.stringify({
+            ...preservedPlan,
+            autoRepairCount: repairCount,
+          }),
           status: 'story_review',
           events: JSON.stringify(events),
-          error: '故事已保存，审查未完成。请重试审查。',
+          error: '故事已保存，自动优化暂时失败，请重新执行',
         },
       });
       const result = this.serialize(updated);
@@ -1023,7 +1190,9 @@ export class ProductionService {
     const byId = new Map(nodes.map((node) => [node.id, node]));
     return {
       ...plan,
-      ...(plan.storyReview && !plan.scenes?.length && byId.get('production-story')?.data.production?.kind === 'story'
+      ...(plan.storyReview &&
+      !plan.scenes?.length &&
+      byId.get('production-story')?.data.production?.kind === 'story'
         ? { story: byId.get('production-story')?.data.text ?? plan.story }
         : {}),
       characters: (plan.characters ?? []).map((character: any) => ({
@@ -1047,57 +1216,65 @@ export class ProductionService {
   ) {
     const current = new Map(currentNodes.map((node) => [node.id, node]));
     const generatedIds = new Set(graph.nodes.map((node) => node.id));
-    const preserved = currentNodes.filter((node) =>
-      node.data.production?.kind === PRODUCTION_PHASE.previz && !generatedIds.has(node.id));
+    const preserved = currentNodes.filter(
+      (node) =>
+        node.data.production?.kind === PRODUCTION_PHASE.previz &&
+        !generatedIds.has(node.id),
+    );
     const preservedIds = new Set(preserved.map((node) => node.id));
     const availableIds = new Set([...generatedIds, ...preservedIds]);
     const edgeIds = new Set(graph.edges.map((edge) => edge.id));
-    const preservedEdges = currentEdges.filter((edge) =>
-      !edgeIds.has(edge.id) &&
-      (preservedIds.has(edge.source) || preservedIds.has(edge.target)) &&
-      availableIds.has(edge.source) && availableIds.has(edge.target));
+    const preservedEdges = currentEdges.filter(
+      (edge) =>
+        !edgeIds.has(edge.id) &&
+        (preservedIds.has(edge.source) || preservedIds.has(edge.target)) &&
+        availableIds.has(edge.source) &&
+        availableIds.has(edge.target),
+    );
     return {
       ...graph,
       edges: [...graph.edges, ...preservedEdges],
-      nodes: graph.nodes.map((node) => {
-        const existing = current.get(node.id);
-        if (!existing) return node;
-        if (node.data.production?.kind === 'story')
-          return { ...node, position: existing.position, data: node.data };
-        const prompt = node.data.production?.prompt;
-        const promptChanged = Boolean(
-          prompt &&
+      nodes: graph.nodes
+        .map((node) => {
+          const existing = current.get(node.id);
+          if (!existing) return node;
+          if (node.data.production?.kind === 'story')
+            return { ...node, position: existing.position, data: node.data };
+          const prompt = node.data.production?.prompt;
+          const promptChanged = Boolean(
+            prompt &&
             existing.data.production?.prompt &&
             existing.data.production.prompt !== prompt,
-        );
-        const data =
-          node.type === 'shotTableNode'
-            ? node.data
-            : prompt
-              ? {
-                  ...existing.data,
-                  title: node.data.title ?? existing.data.title,
-                  draftText: node.data.draftText ?? prompt,
-                  draftState: promptChanged
-                    ? undefined
-                    : existing.data.draftState,
-                  ...(promptChanged
-                    ? { url: '', status: undefined, error: null }
-                    : {}),
-                  production: {
-                    ...existing.data.production,
-                    ...node.data.production,
-                    prompt,
-                    stale: promptChanged || existing.data.production?.stale,
-                  },
-                }
-              : existing.data;
-        return {
-          ...node,
-          position: existing.position,
-          data,
-        };
-      }).concat(preserved),
+          );
+          const data =
+            node.type === 'shotTableNode'
+              ? node.data
+              : prompt
+                ? {
+                    ...existing.data,
+                    title: node.data.title ?? existing.data.title,
+                    draftText: node.data.draftText ?? prompt,
+                    draftState: promptChanged
+                      ? undefined
+                      : existing.data.draftState,
+                    ...(promptChanged
+                      ? { url: '', status: undefined, error: null }
+                      : {}),
+                    production: {
+                      ...existing.data.production,
+                      ...node.data.production,
+                      prompt,
+                      stale: promptChanged || existing.data.production?.stale,
+                    },
+                  }
+                : existing.data;
+          return {
+            ...node,
+            position: existing.position,
+            data,
+          };
+        })
+        .concat(preserved),
     };
   }
 
@@ -1123,7 +1300,11 @@ export class ProductionService {
 
   private phaseList(stage: string) {
     return stage === 'references'
-      ? [PRODUCTION_PHASE.character, PRODUCTION_PHASE.prop, PRODUCTION_PHASE.scene]
+      ? [
+          PRODUCTION_PHASE.character,
+          PRODUCTION_PHASE.prop,
+          PRODUCTION_PHASE.scene,
+        ]
       : stage === 'storyboards'
         ? [PRODUCTION_PHASE.storyboard]
         : [PRODUCTION_PHASE.video];
@@ -1259,22 +1440,27 @@ export class ProductionService {
     const nodes = this.parseNodes(project.nodes);
     const node = nodes.find((item) => item.id === nodeId);
     const incoming = this.parseEdges(project.edges)
-      .filter((edge) =>
-        edge.target === nodeId && edge.data?.kind !== 'sceneMembership',
+      .filter(
+        (edge) =>
+          edge.target === nodeId && edge.data?.kind !== 'sceneMembership',
       )
       .map((edge) => nodes.find((item) => item.id === edge.source))
       .filter(Boolean) as ProductionNode[];
     const sceneReference =
       node.data.production?.kind === PRODUCTION_PHASE.scene;
     const propReference = node.data.production?.kind === PRODUCTION_PHASE.prop;
-    const references = sceneReference || propReference
-      ? []
-      : incoming.filter(
-          (item, index, items) =>
-            this.isMediaNode(item) &&
-            item.data.url &&
-            items.findIndex((candidate) => candidate.id === item.id) === index,
-        ).slice(0, 8);
+    const references =
+      sceneReference || propReference
+        ? []
+        : incoming
+            .filter(
+              (item, index, items) =>
+                this.isMediaNode(item) &&
+                item.data.url &&
+                items.findIndex((candidate) => candidate.id === item.id) ===
+                  index,
+            )
+            .slice(0, 8);
     const context = incoming
       .flatMap((item) => {
         if (sceneReference) return [];
@@ -1297,13 +1483,21 @@ export class ProductionService {
       ...context,
       references.length
         ? `参考图映射（编号与后续图片一一对应，禁止互换身份或混合物体结构）：\n${references
-            .map((item, index) => `图片${index + 1}＝${item.data.title ?? item.id}`)
+            .map(
+              (item, index) =>
+                `图片${index + 1}＝${item.data.title ?? item.id}`,
+            )
             .join('\n')}`
         : '',
       `整体视觉风格：${plan.visualStyle}`,
-      !sceneReference && '保持所有参考角色外貌、年龄、服装、关键道具和场景风格一致。角色三视图是身份、面容、体型和服装结构的统一依据。关键道具三视图中的材质、形状、组成部件、尺寸比例、标记和已有文字不得重新设计。',
-      [PRODUCTION_PHASE.storyboard, PRODUCTION_PHASE.previz].includes(node.data.production?.kind) &&
-        references.some((item) => item.data.production?.kind === PRODUCTION_PHASE.scene)
+      !sceneReference &&
+        '保持所有参考角色外貌、年龄、服装、关键道具和场景风格一致。角色三视图是身份、面容、体型和服装结构的统一依据。关键道具三视图中的材质、形状、组成部件、尺寸比例、标记和已有文字不得重新设计。',
+      [PRODUCTION_PHASE.storyboard, PRODUCTION_PHASE.previz].includes(
+        node.data.production?.kind,
+      ) &&
+      references.some(
+        (item) => item.data.production?.kind === PRODUCTION_PHASE.scene,
+      )
         ? '场景参考图只提供地点、空间布局、材质、光线与色彩，不继承其无人空景状态、机位、构图或生成提示词；当前分镜的角色、动作、机位和构图以当前提示词为准。'
         : '',
       sceneReference
@@ -1311,7 +1505,9 @@ export class ProductionService {
         : propReference
           ? '这是独立道具资产：只绘制物体或固定连接组件，不合成任何角色、动物、人体局部、角色操作或剧情表演。'
           : '',
-    ].filter(Boolean).join('\n');
+    ]
+      .filter(Boolean)
+      .join('\n');
     const runtimeModel = await this.models.runtime(undefined, 'image');
     const imageInput = {
       runtimeModel,
@@ -1331,7 +1527,10 @@ export class ProductionService {
       },
     };
     const result = sceneReference
-      ? await genSceneReferenceImage(imageInput, await this.models.visionRuntime())
+      ? await genSceneReferenceImage(
+          imageInput,
+          await this.models.visionRuntime(),
+        )
       : await genImage(imageInput);
     const image = result.content[0]?.image;
     if (!image) throw new Error('图片生成接口未返回结果');
@@ -1401,7 +1600,10 @@ export class ProductionService {
     ]
       .filter(Boolean)
       .join('\n\n');
-    const runtimeModel = await this.models.runtime(node.data.config?.model, 'video');
+    const runtimeModel = await this.models.runtime(
+      node.data.config?.model,
+      'video',
+    );
     let taskId = node.data.production.taskId as string | undefined;
     await this.appendEvent(
       id,
@@ -1427,7 +1629,9 @@ export class ProductionService {
           ...node.data.config,
           firstFrameUrl,
           lastFrameUrl,
-          promptExtend: !(continuity || node.data.production.outgoingContinuity),
+          promptExtend: !(
+            continuity || node.data.production.outgoingContinuity
+          ),
           videoMode: 'imageToVideo',
         },
       });
@@ -1554,7 +1758,9 @@ export class ProductionService {
     const incomingNodes = new Map(nodes.map((node) => [node.id, node]));
     const managedNodeIds = new Set([
       ...incomingNodes.keys(),
-      ...currentNodes.filter((node) => node.data?.production).map((node) => node.id),
+      ...currentNodes
+        .filter((node) => node.data?.production)
+        .map((node) => node.id),
     ]);
     const currentNodeIds = new Set(currentNodes.map((node) => node.id));
     const mergedNodes = currentNodes
@@ -1562,29 +1768,30 @@ export class ProductionService {
       .map((node) => {
         const incoming = incomingNodes.get(node.id);
         if (!incoming) return node;
-      if (node.data?.url && 'url' in incoming.data && !incoming.data.url) {
-        return {
-          ...node,
-          ...incoming,
-          position: node.position,
-          data: {
-            ...incoming.data,
-            url: node.data.url,
-            status: node.data.status,
-            error: node.data.error,
-          },
-        };
-      }
+        if (node.data?.url && 'url' in incoming.data && !incoming.data.url) {
+          return {
+            ...node,
+            ...incoming,
+            position: node.position,
+            data: {
+              ...incoming.data,
+              url: node.data.url,
+              status: node.data.status,
+              error: node.data.error,
+            },
+          };
+        }
         return { ...node, ...incoming, position: node.position };
       });
     const mergedNodeIds = new Set([
       ...mergedNodes.map((node) => node.id),
       ...incomingNodes.keys(),
     ]);
-    const mergedEdges = currentEdges.filter((edge) =>
-      mergedNodeIds.has(edge.source) &&
-      mergedNodeIds.has(edge.target) &&
-      !(managedNodeIds.has(edge.source) && managedNodeIds.has(edge.target)),
+    const mergedEdges = currentEdges.filter(
+      (edge) =>
+        mergedNodeIds.has(edge.source) &&
+        mergedNodeIds.has(edge.target) &&
+        !(managedNodeIds.has(edge.source) && managedNodeIds.has(edge.target)),
     );
     const values = {
       nodes: JSON.stringify([
@@ -1611,15 +1818,17 @@ export class ProductionService {
     const node = nodes.find((item) => item.id === nodeId);
     if (!node) return '';
     const incoming = edges
-      .filter((edge) =>
-        edge.target === nodeId && edge.data?.kind !== 'sceneMembership',
+      .filter(
+        (edge) =>
+          edge.target === nodeId && edge.data?.kind !== 'sceneMembership',
       )
       .sort((left, right) => left.source.localeCompare(right.source))
       .map((edge) => {
         const source = nodes.find((item) => item.id === edge.source);
-        const continuationFrame = edge.data?.kind === 'continuity'
-          ? source?.data.production?.lastFrameUrl
-          : undefined;
+        const continuationFrame =
+          edge.data?.kind === 'continuity'
+            ? source?.data.production?.lastFrameUrl
+            : undefined;
         return `${this.sourceHash(edge.source, nodes, edges, new Set(seen))}:${continuationFrame ?? ''}`;
       });
     const config = { ...node.data.config };

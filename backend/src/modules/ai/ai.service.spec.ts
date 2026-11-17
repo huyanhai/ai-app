@@ -42,6 +42,15 @@ describe('AiService', () => {
           provide: require('../models/models.service').ModelsService,
           useValue: { runtime: jest.fn().mockResolvedValue({}) },
         },
+        {
+          provide: require('../canvas/agent-canvas.service').AgentCanvasService,
+          useValue: {},
+        },
+        {
+          provide: require('../canvas/image-storage.service')
+            .ImageStorageService,
+          useValue: {},
+        },
       ],
     }).compile();
 

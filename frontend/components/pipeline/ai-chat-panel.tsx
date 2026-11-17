@@ -22,6 +22,8 @@ import {
   SlidersHorizontal,
   Square,
   Trash2,
+  Undo2,
+  X,
 } from "lucide-react";
 import { Markdown } from "@/components/markdown";
 import { AttachmentFile } from "@/components/chat/attachments";
@@ -45,6 +47,7 @@ import VideoStylePicker, { getVideoStylePrompt, VIDEO_STYLES, type VideoStyleId 
 import type { Edge } from "@xyflow/react";
 import type { TAllNodes } from "./types";
 import { useCanvasId } from "./canvas-workspace-context";
+import { usePipelineStore } from "@/store/pipeline-store";
 
 const CREATION_MODES = [
   "全流程广告片导演",
@@ -72,6 +75,11 @@ interface AIChatPanelProps {
   onWidthChange: (width: number) => void;
   getProductionGraph: () => { nodes: TAllNodes[]; edges: Edge[] };
   applyProductionGraph: (nodes: TAllNodes[], edges: Edge[]) => void;
+  beforeAgentSend: () => Promise<number | undefined>;
+  onAgentCanvasChanged: () => Promise<void>;
+  onAgentBusyChange: (busy: boolean) => void;
+  onUndo: () => void;
+  canUndo: boolean;
 }
 
 type PendingAttachment = AttachmentFile & { tokenId: string };
@@ -105,7 +113,7 @@ const InputStatePreview = ({ state }: { state: string }) => (
   />
 );
 
-export default function AIChatPanel({ onClose, subjects, width, onWidthChange, getProductionGraph, applyProductionGraph }: AIChatPanelProps) {
+export default function AIChatPanel({ onClose, subjects, width, onWidthChange, getProductionGraph, applyProductionGraph, beforeAgentSend, onAgentCanvasChanged, onAgentBusyChange, onUndo, canUndo }: AIChatPanelProps) {
   const canvasId = useCanvasId();
   const [text, setText] = useState("");
   const [sessionMenuOpen, setSessionMenuOpen] = useState(false);
@@ -121,6 +129,7 @@ export default function AIChatPanel({ onClose, subjects, width, onWidthChange, g
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
   const [selectedSubjects, setSelectedSubjects] = useState<SubjectReference[]>([]);
+  const [excludedNodeId, setExcludedNodeId] = useState("");
   const [mode, setMode] = useState<"agent" | "chat">("agent");
   const [skillMenuOpen, setSkillMenuOpen] = useState(false);
   const [referenceMenuPosition, setReferenceMenuPosition] = useState<{ left: number; top: number } | null>(null);
@@ -134,6 +143,13 @@ export default function AIChatPanel({ onClose, subjects, width, onWidthChange, g
   const skillMenuRef = useRef<HTMLDivElement>(null);
   const models = useModelStore((state) => state.models);
   const loadModels = useModelStore((state) => state.loadModels);
+  const currentSelectNode = usePipelineStore((state) => state.currentSelectNode);
+  const currentNodeReference = subjects.find((subject) => subject.id === currentSelectNode?.id);
+  const includeCurrentNode = currentNodeReference && currentNodeReference.id !== excludedNodeId;
+  const agentSubjects = [
+    ...(includeCurrentNode ? [currentNodeReference] : []),
+    ...selectedSubjects.filter((subject) => subject.id !== currentNodeReference?.id),
+  ];
   const {
     sessions,
     currentSessionId,
@@ -146,7 +162,11 @@ export default function AIChatPanel({ onClose, subjects, width, onWidthChange, g
     createSession,
     renameSession,
     deleteSession,
-  } = useAgentChat(canvasId);
+  } = useAgentChat(canvasId, {
+    beforeSend: beforeAgentSend,
+    onCanvasChanged: onAgentCanvasChanged,
+    onBusyChange: onAgentBusyChange,
+  });
   const {
     project: production,
     isPlanning,
@@ -175,6 +195,10 @@ export default function AIChatPanel({ onClose, subjects, width, onWidthChange, g
   useEffect(() => {
     void loadModels();
   }, [loadModels]);
+
+  useEffect(() => {
+    setExcludedNodeId("");
+  }, [currentSelectNode?.id]);
 
   useEffect(() => {
     if (selectedModelId && textModels.some((model) => model.id === selectedModelId)) {
@@ -280,7 +304,7 @@ export default function AIChatPanel({ onClose, subjects, width, onWidthChange, g
       modelId: selectedModel.id,
       files,
       skillIds: selectedSkillIds,
-      subjects: selectedSubjects,
+      subjects: agentSubjects,
       mode,
     });
     editorRef.current?.clear();
@@ -553,6 +577,13 @@ export default function AIChatPanel({ onClose, subjects, width, onWidthChange, g
         </div>
         <div className="flex items-center gap-1">
           <IconButton
+            label="撤销本轮"
+            disabled={!canUndo || isLoading}
+            onClick={onUndo}
+          >
+            <Undo2 size={16} />
+          </IconButton>
+          <IconButton
             label="新建会话"
             onClick={() => void handleNewSession()}
           >
@@ -721,6 +752,16 @@ export default function AIChatPanel({ onClose, subjects, width, onWidthChange, g
 
       <div className="p-3">
         <div className="rounded-[22px] border border-white/10 bg-[#101010] p-3 shadow-[0_-12px_40px_rgba(0,0,0,0.12)]">
+          {includeCurrentNode && (
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              <span className="inline-flex max-w-full items-center gap-1.5 rounded-md bg-white/8 py-1 pl-2 pr-1 text-xs text-white/65">
+                <span className="truncate">当前节点 · {currentNodeReference.name}</span>
+                <button type="button" aria-label={`移除当前节点 ${currentNodeReference.name}`} onClick={() => setExcludedNodeId(currentNodeReference.id)} className="cursor-pointer rounded p-0.5 hover:bg-white/10 hover:text-white">
+                  <X size={12} />
+                </button>
+              </span>
+            </div>
+          )}
           <div className="relative max-h-40 min-h-[60px] cursor-text overflow-y-auto leading-6" onClick={(event) => {
             if (event.target === event.currentTarget) {
               editorRef.current?.focusEnd();

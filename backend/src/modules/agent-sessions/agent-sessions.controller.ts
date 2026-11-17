@@ -87,6 +87,7 @@ export class AgentSessionsController {
         body.subjects,
         body.mode,
         body.contentState,
+        body.canvasRevision,
       )) {
         if (abortController.signal.aborted || res.writableEnded) break;
         res.write(`data: ${JSON.stringify(event)}\n\n`);

@@ -124,6 +124,29 @@ export const ProductionStorySchema = z.object({
   ratio: z.enum(['16:9', '9:16', '1:1', '4:3', '3:4']),
 });
 
+export const ProductionScriptPlanSchema = z.object({
+  entryState: z.string().min(1),
+  goal: z.string().min(1),
+  opposition: z.string().min(1),
+  payoff: z.string().min(1),
+  exitState: z.string().min(1),
+  beats: z.array(z.object({
+    cause: z.string().min(1),
+    action: z.string().min(1),
+    result: z.string().min(1),
+    nextPressure: z.string().min(1),
+  })).min(1).max(10),
+  scenes: z.array(z.object({
+    id: z.string().min(1),
+    title: z.string().min(1),
+    location: z.string().min(1),
+    objective: z.string().min(1),
+    conflict: z.string().min(1),
+    turn: z.string().min(1),
+    exitState: z.string().min(1),
+  })).min(1).max(10),
+});
+
 export const ProductionScriptSchema = z.object({
   workflow: z.enum(['classical-poetry-live-action', 'animated-visual-comedy']).optional(),
   targetDuration: z.number().min(5).max(600).optional(),
@@ -136,6 +159,8 @@ export const ProductionScriptSchema = z.object({
   storyArc: ProductionStorySchema.shape.storyArc.optional(),
   comedyDesign: ProductionComedyDesignSchema.optional(),
   storyReview: ProductionStoryReviewSchema.optional(),
+  scriptPlan: ProductionScriptPlanSchema.optional(),
+  scriptAutoRepairCount: z.number().int().min(0).max(3).optional(),
   visualStyle: z.string(),
   ratio: z.enum(['16:9', '9:16', '1:1', '4:3', '3:4']),
   scenes: z

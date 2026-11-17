@@ -24,6 +24,7 @@ export type ProductionProject = {
     creativeAdditions?: string[];
     storyArc?: { goal: string; obstacle: string; action: string; result: string; change: string };
     storyReview?: { issues: { severity: "blocking" | "suggestion"; category: string; evidence: string; problem: string; suggestion: string }[] };
+    autoRepairCount?: number;
     characters?: { id: string; name: string; description: string }[];
     props?: { id: string; name: string; description: string; textContent?: string }[];
     scenes?: { id: string; title: string; script: string; location: string; shots?: { id: string; title: string; description: string; movement: string; propIds?: string[]; visualPrompt?: string; motionPrompt?: string; duration: number }[] }[];

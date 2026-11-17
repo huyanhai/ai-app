@@ -25,6 +25,10 @@ import { AIMessage, BaseMessage, HumanMessage } from 'langchain';
 import { createChatModel } from '@/common/llm';
 import { extractTextFromContent } from '@/common/utils/message-utils';
 import type { AgentSubjectDto } from '../agent-sessions/dto/agent-stream.dto';
+import { randomUUID } from 'crypto';
+import { AgentCanvasService } from '../canvas/agent-canvas.service';
+import { ImageStorageService } from '../canvas/image-storage.service';
+import { createCanvasTools } from '@/common/llm/tools/canvas-tools';
 
 export type AiHistoryMessage = {
   role: 'user' | 'assistant';
@@ -37,11 +41,16 @@ export type AiStreamOptions = {
   skillIds?: string[];
   subjects?: AgentSubjectDto[];
   mode?: 'agent' | 'chat';
+  canvas?: { canvasId: string; revision?: number };
 };
 
 @Injectable()
 export class AiService {
-  constructor(private readonly models: ModelsService) {}
+  constructor(
+    private readonly models: ModelsService,
+    private readonly agentCanvas: AgentCanvasService,
+    private readonly images: ImageStorageService,
+  ) {}
 
   /**
    * Stream an AI response for the given message, optionally with file attachments.
@@ -69,7 +78,7 @@ export class AiService {
         ? `参考以下画布内容：\n${subjects
             .map(
               (subject) =>
-                `- [${subject.kind ?? 'subject'}] ${subject.name}${subject.description ? `：${subject.description}` : ''}${subject.url ? `\n  资源地址：${subject.url}` : ''}`,
+                `- [${subject.kind ?? 'subject'}] ${subject.name}（节点 ID：${subject.id}）${subject.description ? `：${subject.description}` : ''}${subject.url ? `\n  资源地址：${subject.url}` : ''}`,
             )
             .join('\n')}\n\n${text}`
         : text;
@@ -89,10 +98,7 @@ export class AiService {
       return Array.isArray(input) ? input : [new HumanMessage(input)];
     });
     const inputMessages = historyMessages.length
-      ? [
-          ...historyMessages,
-          ...currentMessages,
-        ]
+      ? [...historyMessages, ...currentMessages]
       : currentInput;
     const model = await this.models.runtime(modelId, 'text');
     if (options.mode === 'chat') {
@@ -111,7 +117,13 @@ export class AiService {
       return;
     }
 
-    const agent = createAgentWithModel(model, options.skillIds);
+    const canvasTools = options.canvas
+      ? createCanvasTools(model, this.agentCanvas, this.images, {
+          ...options.canvas,
+          runId: randomUUID(),
+        })
+      : [];
+    const agent = createAgentWithModel(model, options.skillIds, canvasTools);
     const run = (await agent.streamEvents(
       { messages: inputMessages },
       { version: 'v3' },

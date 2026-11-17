@@ -6,12 +6,14 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
 export type CanvasSnapshot = {
   nodes: TAllNodes[];
   edges: Edge[];
+  agentRunId?: string;
 };
 
 export type StoredCanvas = CanvasSnapshot & {
   past: CanvasSnapshot[];
   future: CanvasSnapshot[];
   viewport?: Viewport;
+  revision?: number;
 };
 
 export type GenerationRecord = {
@@ -39,7 +41,10 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
     ...init,
     headers: { "Content-Type": "application/json", ...init?.headers },
   });
-  if (!response.ok) throw new Error("画布历史请求失败");
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.message ?? "画布历史请求失败");
+  }
   return response.json() as Promise<T>;
 };
 
@@ -107,7 +112,7 @@ export const canvasHistoryApi = {
   load: (canvasId: string) => request<StoredCanvas | null>(`/${canvasId}`),
   save: async (canvasId: string, snapshot: StoredCanvas) => {
     const externalized = await externalizeAssets(snapshot);
-    return request<{ success: boolean }>(`/${canvasId}`, {
+    return request<{ success: boolean; revision?: number }>(`/${canvasId}`, {
       method: "PUT",
       body: JSON.stringify(externalized),
     });

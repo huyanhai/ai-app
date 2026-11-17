@@ -1,0 +1,56 @@
+const TOOL_LABELS: Record<string, string> = {
+  canvas_get_state: "读取画布",
+  canvas_apply_ops: "修改画布",
+  canvas_arrange: "整理布局",
+  canvas_delete: "申请删除",
+  canvas_inspect_image: "查看图片",
+  plan_update: "更新计划",
+  show_card: "展示卡片",
+  ask_user: "向你提问",
+  model_list: "查看可用模型",
+  generate_media: "申请生成",
+  task_get: "查询任务",
+  skill_search: "搜索技能",
+  skill_read: "读取技能",
+  canvas_inspect_video: "查看视频",
+  canvas_capture_frame: "截取视频帧",
+  web_search: "搜索网页",
+  web_fetch: "读取网页",
+  codemode: "运行脚本",
+  drama_read: "读取短剧",
+  drama_update_outline: "修改大纲",
+  drama_update_episode: "修改剧本",
+  drama_update_segment: "修改片段",
+  drama_run_job: "提交任务",
+};
+
+const TOOL_VERBS: Record<string, string> = {
+  canvas_get_state: "读取",
+  canvas_apply_ops: "修改",
+  canvas_arrange: "整理",
+  canvas_delete: "删除",
+  canvas_inspect_image: "看图",
+  plan_update: "计划",
+  show_card: "展示",
+  ask_user: "提问",
+  model_list: "查模型",
+  generate_media: "生成",
+  task_get: "查任务",
+  skill_search: "技能",
+  skill_read: "技能",
+  canvas_inspect_video: "看视频",
+  canvas_capture_frame: "截帧",
+  web_search: "搜索",
+  web_fetch: "读网页",
+  codemode: "脚本",
+  drama_read: "读取",
+  drama_update_outline: "改大纲",
+  drama_update_episode: "改剧本",
+  drama_update_segment: "改片段",
+  drama_run_job: "提交",
+};
+
+export const toolLabel = (name: string, label?: string) => label || TOOL_LABELS[name] || name;
+
+export const toolVerb = (name: string, verb?: string, label?: string) =>
+  verb || TOOL_VERBS[name] || label || TOOL_LABELS[name] || name;

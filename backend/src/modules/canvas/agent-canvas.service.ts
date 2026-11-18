@@ -49,7 +49,10 @@ const nodeTypes = [
   'group',
 ] as const;
 
-const defaults: Record<string, Record<string, unknown>> = {
+const defaults: Record<string, {
+  config?: Record<string, unknown>;
+  [key: string]: unknown;
+}> = {
   textNode: { text: '' },
   imageNode: { url: '', config: { ratio: '1:1', resolution: '2K', count: 1 } },
   videoNode: {
@@ -236,6 +239,11 @@ export const normalizeAgentCanvas = (nodes: CanvasNode[], edges: CanvasEdge[]) =
     }
   }
   const normalizedNodes = nodes.map((node) => {
+    const defaultConfig = defaults[node.type]?.config;
+    return defaultConfig
+      ? { ...node, data: { ...node.data, config: { ...defaultConfig, ...node.data?.config } } }
+      : node;
+  }).map((node) => {
     const storyboard = node.parentId ? storyboards.get(node.parentId) : undefined;
     const title = String(node.data?.title || '');
     const isVideoPrompt = node.type === 'textNode' && title.includes('视频提示词');
@@ -378,6 +386,12 @@ export class AgentCanvasService {
                 ...structuredClone(defaults[type]),
                 title: `${labels[type]} ${count + 1}`,
                 ...operation.node.data,
+                ...(defaults[type].config || operation.node.data.config ? {
+                  config: {
+                    ...defaults[type].config,
+                    ...operation.node.data.config,
+                  },
+                } : {}),
               },
             });
           } else if (operation.action === 'update_node') {

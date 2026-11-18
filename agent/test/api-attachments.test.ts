@@ -28,17 +28,18 @@ const MODELS = [
 
 test("发起运行带附件：先问 Go 校验素材，通过的附件写进消息事件，图片交给模型", () =>
   withApi({ turns: [{ text: "看到了" }], models: MODELS }, async (api, e) => {
+    const uploadedId = "4c036141-d9d4-4f8e-a114-a76fbd1d07a1";
     await api.startRun("1", e.sessionId, {
       message: "照这张改",
       agent_model_key: "claude",
-      attachments: [{ asset_id: "11" }, { asset_id: "22" }],
+      attachments: [{ asset_id: "11" }, { asset_id: uploadedId }],
     });
     await e.engine.idle();
     const check = e.go.seen.find((s) => s.path.endsWith("/attachments/check"));
-    assert.deepEqual(check?.body, { user_id: "1", asset_ids: ["11", "22"] });
+    assert.deepEqual(check?.body, { user_id: "1", asset_ids: ["11", uploadedId] });
     assert.deepEqual(
       e.persisted("message.user")[0].attachments.map((a: any) => a.asset_id),
-      ["11", "22"],
+      ["11", uploadedId],
     );
     assert.match(
       JSON.stringify(e.go.modelRequests[0].body.messages),

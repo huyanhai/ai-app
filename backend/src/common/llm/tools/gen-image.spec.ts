@@ -56,10 +56,11 @@ describe('genImage', () => {
       },
     });
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock.mock.calls[1][0]).toBe('https://example.com/images/edits');
     expect(fetchMock.mock.calls[1][1]?.body).toBeInstanceOf(FormData);
     expect((fetchMock.mock.calls[1][1]?.body as FormData).get('size')).toBe('1024x1024');
+    expect(fetchMock.mock.calls[2][0]).toBe('result.png');
   });
 
   it('sends the configured portrait size to the generations endpoint', async () => {
@@ -153,5 +154,45 @@ describe('genImage', () => {
     expect(form.get('image')).toBeInstanceOf(Blob);
     expect(form.get('size')).toBe('1536x864');
     expect(form.get('prompt')).toContain('[图片1]');
+  });
+
+  it('retries when the generated image does not match the configured ratio', async () => {
+    const png = (width: number, height: number) => {
+      const buffer = Buffer.alloc(24);
+      buffer.write('PNG', 1);
+      buffer.writeUInt32BE(width, 16);
+      buffer.writeUInt32BE(height, 20);
+      return buffer;
+    };
+    const generated = (url: string) => ({
+      json: jest.fn().mockResolvedValue({ data: [{ url }] }),
+    }) as unknown as Response;
+    const image = (buffer: Buffer) => ({
+      ok: true,
+      headers: { get: () => 'image/png' },
+      arrayBuffer: jest.fn().mockResolvedValue(buffer.buffer),
+    }) as unknown as Response;
+    const fetchMock = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce(generated('portrait.png'))
+      .mockResolvedValueOnce(image(png(1024, 1536)))
+      .mockResolvedValueOnce(generated('landscape.png'))
+      .mockResolvedValueOnce(image(png(1536, 864)));
+
+    const result = await genImage({
+      message: [{ type: 'text', text: 'a tall palm tree' }],
+      config: { ratio: '16:9' },
+      runtimeModel: {
+        id: 'model-config-id', provider: 'test-provider', baseURL: 'https://example.com',
+        apiKey: 'test-key', modelId: 'image-model', params: '{}',
+      },
+    });
+
+    expect(result.content).toEqual([{ image: 'landscape.png' }]);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    for (const call of [fetchMock.mock.calls[0], fetchMock.mock.calls[2]]) {
+      const body = JSON.parse(call[1]?.body as string);
+      expect(body.size).toBe('1536x864');
+      expect(body.prompt).toContain('必须严格采用 16:9');
+    }
   });
 });

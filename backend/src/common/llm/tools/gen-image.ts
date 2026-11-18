@@ -2,6 +2,7 @@ import { StreamDto } from '@/modules/pipeline/dto/stream.dto';
 import { ContentBlock, tool } from 'langchain';
 import * as z from 'zod';
 import { RuntimeModel } from '..';
+import { imageDimensions } from '@/modules/agent-platform/image-dimensions';
 
 const PRESET_SIZES: Record<string, string> = {
   '21:9': '1536x658',
@@ -23,6 +24,34 @@ const outputSize = (config?: StreamDto['config']) => {
   const [width, height] = base.split('x').map(Number);
   const scale = longSide / Math.max(width, height);
   return `${Math.round(width * scale)}x${Math.round(height * scale)}`;
+};
+
+const hasWrongRatio = async (image: string | undefined, ratio: string) => {
+  if (!image) return false;
+  try {
+    const dataUrl = /^data:(image\/[a-z0-9.+-]+);base64,(.+)$/i.exec(image);
+    let buffer: Buffer;
+    let mimeType: string;
+    if (dataUrl) {
+      mimeType = dataUrl[1];
+      buffer = Buffer.from(dataUrl[2], 'base64');
+    } else {
+      const response = await fetch(image);
+      if (!response.ok) return false;
+      mimeType = response.headers.get('content-type')?.split(';')[0] || '';
+      buffer = Buffer.from(await response.arrayBuffer());
+    }
+    if (mimeType === 'image/jpg') mimeType = 'image/jpeg';
+    const { width, height } = imageDimensions(buffer, mimeType);
+    const [expectedWidth, expectedHeight] = ratio.split(':').map(Number);
+    if (!width || !height || !expectedWidth || !expectedHeight) return false;
+    const expected = expectedWidth / expectedHeight;
+    const wrong = Math.abs(width / height - expected) > expected * 0.02;
+    if (wrong) console.warn('image ratio mismatch', { expected: ratio, actual: `${width}x${height}` });
+    return wrong;
+  } catch {
+    return false;
+  }
 };
 
 export async function genImage({
@@ -52,6 +81,10 @@ export async function genImage({
     });
   }
 
+  if (config?.ratio) {
+    text += `输出图片必须严格采用 ${config.ratio} 画面比例，不得返回其他横向或纵向比例。\n`;
+  }
+
   messages.unshift({
     text,
   });
@@ -61,72 +94,78 @@ export async function genImage({
     const sourceImages = messages
       .filter((item) => 'image' in item)
       .map((item) => item.image as string);
-    let response: Response;
-    if (config?.edit && sourceImages.length > 0) {
-      const form = new FormData();
-      form.append('model', runtimeModel.modelId);
-      form.append('prompt', text.trim());
-      form.append('n', String(config?.count || 1));
-      let size: string;
-      if (config?.outpaint) {
-        const [width, height] = (config.ratio || '1:1').split(':').map(Number);
-        const ratio = width / height;
-        size = ratio > 1 ? '1536x1024' : ratio < 1 ? '1024x1536' : '1024x1024';
-      } else {
-        size = outputSize(config);
-      }
-      form.append('size', size);
-      console.log('image request', {
-        endpoint: 'edits',
-        model: runtimeModel.modelId,
-        size,
-        count: config?.count || 1,
-      });
-      for (const [index, sourceImage] of sourceImages.entries()) {
-        const imageResponse = await fetch(sourceImage);
-        if (!imageResponse.ok) {
-          throw new Error(`参考图片读取失败（${imageResponse.status}）`);
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      let response: Response;
+      if (config?.edit && sourceImages.length > 0) {
+        const form = new FormData();
+        form.append('model', runtimeModel.modelId);
+        form.append('prompt', text.trim());
+        form.append('n', String(config?.count || 1));
+        let size: string;
+        if (config?.outpaint) {
+          const [width, height] = (config.ratio || '1:1').split(':').map(Number);
+          const ratio = width / height;
+          size = ratio > 1 ? '1536x1024' : ratio < 1 ? '1024x1536' : '1024x1024';
+        } else {
+          size = outputSize(config);
         }
-        form.append('image', await imageResponse.blob(), `image-${index}.png`);
-      }
-      response = await fetch(`${runtimeModel.baseURL}/images/edits`, {
-        headers: { Authorization: `Bearer ${runtimeModel.apiKey}` },
-        method: 'POST',
-        body: form,
-      });
-    } else {
-      const size = outputSize(config);
-      console.log('image request', {
-        endpoint: 'generations',
-        model: runtimeModel.modelId,
-        size,
-        count: config?.count || 1,
-      });
-      response = await fetch(`${runtimeModel.baseURL}/images/generations`, {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${runtimeModel.apiKey}`,
-        },
-        method: 'POST',
-        body: JSON.stringify({
+        form.append('size', size);
+        console.log('image request', {
+          endpoint: 'edits',
           model: runtimeModel.modelId,
-          prompt: text.trim(),
-          n: config?.count || 1,
           size,
-        }),
-      });
-    }
-    const data = await response.json();
+          count: config?.count || 1,
+        });
+        for (const [index, sourceImage] of sourceImages.entries()) {
+          const imageResponse = await fetch(sourceImage);
+          if (!imageResponse.ok) {
+            throw new Error(`参考图片读取失败（${imageResponse.status}）`);
+          }
+          form.append('image', await imageResponse.blob(), `image-${index}.png`);
+        }
+        response = await fetch(`${runtimeModel.baseURL}/images/edits`, {
+          headers: { Authorization: `Bearer ${runtimeModel.apiKey}` },
+          method: 'POST',
+          body: form,
+        });
+      } else {
+        const size = outputSize(config);
+        console.log('image request', {
+          endpoint: 'generations',
+          model: runtimeModel.modelId,
+          size,
+          count: config?.count || 1,
+        });
+        response = await fetch(`${runtimeModel.baseURL}/images/generations`, {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${runtimeModel.apiKey}`,
+          },
+          method: 'POST',
+          body: JSON.stringify({
+            model: runtimeModel.modelId,
+            prompt: text.trim(),
+            n: config?.count || 1,
+            size,
+          }),
+        });
+      }
+      const data = await response.json();
 
-    if (!Array.isArray(data?.data)) {
-      throw new Error(data?.error?.message || data?.message || '图片生成失败');
-    }
+      if (!Array.isArray(data?.data)) {
+        throw new Error(data?.error?.message || data?.message || '图片生成失败');
+      }
 
-    return {
-      content: data.data.map((item) => ({
+      const content = data.data.map((item) => ({
         image: item.url || `data:image/png;base64,${item.b64_json}`,
-      })),
-    };
+      }));
+      if (config?.ratio && await hasWrongRatio(content[0]?.image, config.ratio)) {
+        if (attempt === 0) continue;
+        throw new Error(`图片生成接口两次返回了错误比例，请重试或更换模型（目标比例 ${config.ratio}）`);
+      }
+      return { content };
+    }
+    throw new Error('图片生成失败');
   } catch (error) {
     throw error;
   }

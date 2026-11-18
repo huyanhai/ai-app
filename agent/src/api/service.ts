@@ -497,7 +497,7 @@ export class AgentApiService {
         ? (a as { asset_id: string }).asset_id.trim()
         : "",
     );
-    if (ids.some((id) => !id || id.length > 32)) throw Err.invalidParams("附件格式不对");
+    if (ids.some((id) => !id || id.length > 128)) throw Err.invalidParams("附件格式不对");
     const checked = await this.#platform(() => this.#o.platform.checkAttachments(userId, ids));
     if (checked.some((a) => a.kind !== "document")) {
       const model = (await this.models()).find((m) => m.key === modelKey);

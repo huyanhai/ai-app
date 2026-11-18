@@ -213,6 +213,23 @@ describe('AgentCanvasService', () => {
     expect(JSON.parse(state.nodes)[0].data).toMatchObject({ status: 'processing', error: '生成失败' });
   });
 
+  it('preserves default media config when the agent only specifies a model', async () => {
+    const { prisma, state } = makePrisma();
+    const service = new AgentCanvasService(prisma as any);
+
+    await service.applyOps('canvas-1', 'run-config', [{
+      action: 'create_node',
+      node: {
+        id: 'image-config', type: 'imageNode',
+        data: { config: { model: 'gpt-image-2.5-sunburst-1' } },
+      },
+    }]);
+
+    expect(JSON.parse(state.nodes).find((node: any) => node.id === 'image-config').data.config).toEqual({
+      ratio: '1:1', resolution: '2K', count: 1, model: 'gpt-image-2.5-sunburst-1',
+    });
+  });
+
   it('persists subject media bindings', async () => {
     const { prisma, state } = makePrisma();
     const service = new AgentCanvasService(prisma as any);

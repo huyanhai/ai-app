@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { normalizeAgentCanvas } from './agent-canvas.service';
 
 export type CanvasSnapshot = {
   revision?: number;
@@ -88,9 +89,13 @@ export class CanvasService {
   async get(id = 'default') {
     const state = await this.prisma.canvasState.findUnique({ where: { id } });
     if (!state) return null;
+    const nodes = JSON.parse(state.nodes) as Parameters<typeof normalizeAgentCanvas>[0];
+    const edges = JSON.parse(state.edges) as Parameters<typeof normalizeAgentCanvas>[1];
+    const isAgentCanvas = nodes.some((node) => node.type === 'group');
+    const graph = isAgentCanvas ? normalizeAgentCanvas(nodes, edges) : { nodes, edges };
     return {
-      nodes: JSON.parse(state.nodes),
-      edges: JSON.parse(state.edges),
+      nodes: graph.nodes,
+      edges: graph.edges,
       past: JSON.parse(state.past),
       future: JSON.parse(state.future),
       revision: state.revision ?? 0,
@@ -245,6 +250,46 @@ export class CanvasService {
       orderBy: { createdAt: 'desc' },
       take: 200,
     });
+  }
+
+  async allGenerations() {
+    const [records, canvases] = await Promise.all([
+      this.prisma.generationRecord.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 500,
+      }),
+      this.prisma.canvasState.findMany({
+        select: { id: true, nodes: true },
+      }),
+    ]);
+    const nodeTitles = new Map(
+      canvases.map((canvas) => [
+        canvas.id,
+        new Map(
+          (JSON.parse(canvas.nodes) as { id?: string; data?: { title?: string } }[])
+            .filter((node) => node.id && node.data?.title)
+            .map((node) => [node.id, node.data!.title!]),
+        ),
+      ]),
+    );
+    return records.map((record) => ({
+      ...record,
+      title: nodeTitles.get(record.canvasId)?.get(record.nodeId) || record.title,
+    }));
+  }
+
+  async deleteGenerations(ids: string[]) {
+    if (!Array.isArray(ids) || !ids.length || ids.length > 500 || ids.some((id) => typeof id !== 'string')) {
+      throw new BadRequestException('请选择要删除的生成记录');
+    }
+    const uniqueIds = [...new Set(ids.map((id) => id.trim()))];
+    if (uniqueIds.some((id) => !id)) {
+      throw new BadRequestException('生成记录 ID 无效');
+    }
+    const result = await this.prisma.generationRecord.deleteMany({
+      where: { id: { in: uniqueIds } },
+    });
+    return { success: true, deleted: result.count };
   }
 
   createGeneration(canvasId: string, body: GenerationInput) {

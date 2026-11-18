@@ -80,4 +80,39 @@ describe('GenerationService', () => {
       },
     });
   });
+
+  it('sends all reference images without leaking internal config to the pipeline', async () => {
+    const referencedRecord = {
+      ...record,
+      referenceUrl: '/character.png',
+      config: JSON.stringify({
+        ratio: '16:9',
+        referenceUrls: ['/character.png', 'https://cdn/scene.png'],
+      }),
+    };
+    const prisma = {
+      generationJob: {
+        findUnique: jest.fn().mockResolvedValue(referencedRecord),
+        update: jest.fn().mockResolvedValue(referencedRecord),
+      },
+    };
+    const pipeline = {
+      image: jest.fn().mockImplementation(async function* () {
+        yield { type: 'msg_end' };
+      }),
+    };
+    const service = new GenerationService(prisma as any, pipeline as any);
+
+    for await (const _event of service.run(record.id)) {
+    }
+
+    expect(pipeline.image).toHaveBeenCalledWith(expect.objectContaining({
+      message: [
+        { type: 'image_url', image_url: 'http://127.0.0.1:3000/character.png' },
+        { type: 'image_url', image_url: 'https://cdn/scene.png' },
+        { type: 'text', text: '一只猫' },
+      ],
+      config: { ratio: '16:9', edit: true },
+    }));
+  });
 });

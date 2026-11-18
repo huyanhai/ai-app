@@ -386,7 +386,7 @@ export default function AIChatPanel({ onClose, subjects, width, onWidthChange, g
   const selectReference = (reference: SubjectReference) => {
     if (!selectedSubjects.some((item) => item.id === reference.id)) {
       setSelectedSubjects((current) => [...current, reference]);
-      editorRef.current?.insertToken({ id: reference.id, kind: "subject", label: reference.name, url: reference.url, referenceKind: reference.kind });
+      editorRef.current?.insertToken({ id: reference.id, kind: "subject", label: reference.name, description: reference.description, url: reference.url, referenceKind: reference.kind });
     }
   };
 

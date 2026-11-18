@@ -2,11 +2,13 @@
 
 import { useRef } from "react";
 import { FileText, ImagePlus, Paperclip, Plus } from "lucide-react";
-import type { AgentAttachments } from "./use-agent-attachments";
 import { AgentMenuButton, AgentPopover } from "./ui";
 import { AGENT_ICON_BTN } from "./styles";
 
-export function AttachPopover({ attachments, vision }: { attachments: AgentAttachments; vision: boolean }) {
+export function AttachPopover({ onAdd, vision }: {
+  onAdd: (files: ArrayLike<File> | null | undefined, kind: "image" | "document") => void;
+  vision: boolean;
+}) {
   const images = useRef<HTMLInputElement>(null);
   const documents = useRef<HTMLInputElement>(null);
   return (
@@ -17,8 +19,8 @@ export function AttachPopover({ attachments, vision }: { attachments: AgentAttac
           <AgentMenuButton onClick={() => { documents.current?.click(); close(); }}><FileText className="size-4" />上传故事或剧本<span className="ml-auto text-[11px] text-zinc-400">TXT / MD</span></AgentMenuButton>
         </>}
       </AgentPopover>
-      <input ref={images} type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple className="hidden" onChange={(event) => { attachments.add(event.target.files); event.target.value = ""; }} />
-      <input ref={documents} type="file" accept=".txt,.md,text/plain,text/markdown" multiple className="hidden" onChange={(event) => { attachments.addDocuments(event.target.files); event.target.value = ""; }} />
+      <input ref={images} type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple className="hidden" onChange={(event) => { onAdd(event.target.files, "image"); event.target.value = ""; }} />
+      <input ref={documents} type="file" accept=".txt,.md,text/plain,text/markdown" multiple className="hidden" onChange={(event) => { onAdd(event.target.files, "document"); event.target.value = ""; }} />
       <span className="hidden"><Paperclip /></span>
     </>
   );

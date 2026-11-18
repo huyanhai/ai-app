@@ -5,9 +5,9 @@ import {
   PromptInputButton,
   PromptInputFooter,
   PromptInputSubmit,
-  PromptInputTextarea,
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
+import Editor, { type IEditorRef } from "@/components/pipeline/editor";
 import { Paperclip, Square } from "lucide-react";
 import Attachments, { AttachmentFile } from "./attachments";
 
@@ -29,7 +29,8 @@ export function ChatInput({
 }: ChatInputProps) {
   const [text, setText] = useState("");
   const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<IEditorRef>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const controlsDisabled = disabled || isLoading;
 
@@ -64,10 +65,11 @@ export function ChatInput({
     e.target.value = "";
   };
 
-  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
     if (e.clipboardData.files && e.clipboardData.files.length > 0) {
       // Prevent default to avoid pasting the file name or path as text, if applicable
       e.preventDefault();
+      e.stopPropagation();
       processFiles(Array.from(e.clipboardData.files));
     }
   };
@@ -96,9 +98,7 @@ export function ChatInput({
     onSend(trimmed, filesPayload);
     setText("");
     setAttachments([]);
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-    }
+    editorRef.current?.clear();
   };
 
   return (
@@ -110,26 +110,29 @@ export function ChatInput({
         />
       )}
       <PromptInput
+        ref={formRef}
         status={isLoading ? "streaming" : "ready"}
         onSubmit={handleSubmit}
         className="overflow-hidden"
       >
-        <PromptInputBody>
-          <PromptInputTextarea
-            ref={textareaRef}
-            disabled={controlsDisabled}
-            placeholder="Ask a question, upload images or files..."
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                if (!controlsDisabled) {
-                  e.currentTarget.form?.requestSubmit();
-                }
-              }
+        <PromptInputBody className="relative">
+          <input type="hidden" name="prompt" value={text} readOnly />
+          <Editor
+            ref={editorRef}
+            onSubmit={() => {
+              if (!controlsDisabled) formRef.current?.requestSubmit();
             }}
+            images={[]}
+            initialState=""
+            noImageMention
+            autoFocus={false}
+            readOnly={controlsDisabled}
+            placeholder="Ask a question, upload images or files..."
+            ariaLabel="Chat message"
+            onTextChange={(value) => setText(value)}
             onPaste={handlePaste}
+            className="max-h-56 min-h-18 w-full overflow-y-auto bg-transparent px-2 py-2 text-[15px] leading-7 text-slate-900 caret-slate-900 outline-none dark:text-slate-100 dark:caret-slate-100 [&_p]:m-0 [&_p]:min-h-7 [&_p]:whitespace-pre-wrap"
+            placeholderClassName="pointer-events-none absolute left-6 top-5 text-[15px] leading-7 text-slate-400 dark:text-slate-500"
           />
         </PromptInputBody>
 

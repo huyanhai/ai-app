@@ -79,3 +79,10 @@ export async function agentRequest<T>(
 }
 
 export const agentUrl = (path: string) => `${API_BASE}/agent${path}`;
+
+export function agentWebSocketUrl(canvasId: string): string {
+  const url = new URL(agentUrl("/events"), window.location.origin);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  url.searchParams.set("canvasId", canvasId);
+  return url.toString();
+}

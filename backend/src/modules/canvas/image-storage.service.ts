@@ -8,7 +8,7 @@ import ImageKit from '@imagekit/nodejs';
 
 const ffmpegPath = require('ffmpeg-static') as string | null;
 
-const DATA_URL = /^data:(image\/(?:png|jpe?g|webp|gif)|video\/(?:webm|mp4|quicktime));base64,([A-Za-z0-9+/=\r\n]+)$/;
+const DATA_URL = /^data:(image\/(?:png|jpe?g|webp|gif)|video\/(?:webm|mp4|quicktime)|audio\/(?:mpeg|wav|x-wav|mp4|ogg|webm));base64,([A-Za-z0-9+/=\r\n]+)$/;
 
 @Injectable()
 export class ImageStorageService {
@@ -44,7 +44,11 @@ export class ImageStorageService {
     if (!privateKey) throw new Error('ImageKit is not configured');
 
     const mimeType = match[1] === 'video/webm' ? 'video/mp4' : match[1];
-    const extension = mimeType === 'image/jpeg' ? 'jpg' : mimeType === 'video/quicktime' ? 'mov' : mimeType.split('/')[1];
+    const extension = mimeType === 'image/jpeg' ? 'jpg'
+      : mimeType === 'video/quicktime' ? 'mov'
+        : mimeType === 'audio/mpeg' ? 'mp3'
+          : mimeType === 'audio/x-wav' ? 'wav'
+            : mimeType.split('/')[1];
     const file = match[1] === 'video/webm' ? await this.transcodeWebm(match[2]) : match[2];
     const client = new ImageKit({ privateKey });
     const result = await client.files.upload({

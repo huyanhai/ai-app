@@ -176,6 +176,8 @@ export interface EngineOptions {
   watchGraceMs?: number;
   /** 后台等待生成：整批结束但没交付成（画布被占、Go 暂时不可用）后隔多久再试（默认 60 秒） */
   watchPollMs?: number;
+  /** 整批生成结束后另开一轮验收（默认关）；当前轮仍在运行时，结果始终插回当前轮 */
+  autoTaskFollowUp?: boolean;
   /** 传给 Pi Harness 的时钟和定时器；生产不用传，测试用它控制「睡一会儿」的任务 */
   harness?: { now?: () => number; setTimer?: SetTimer };
   /** Agent 自己管理联网 MCP；未传时兼容旧的平台联网工具。 */
@@ -2000,6 +2002,10 @@ export class AgentEngine {
     ready: Array<[string, WatchBatch]>,
     o: WakeOptions,
   ): Promise<void> {
+    if (this.#o.autoTaskFollowUp !== true) {
+      await this.#markBatches(sess, ready.map(([id]) => id), "delivered", undefined, o);
+      return;
+    }
     if (!sess.modelKey) return; // 会话没有选过模型，没法开新一轮
     const msg = await this.#wakeMessage(sess, ready);
     if (!msg) return;
@@ -2364,6 +2370,20 @@ export class AgentEngine {
       if (!call.parentId) {
         a.steps++;
         this.#o.store.addRunUsage(run.id, 1, 0);
+      }
+      if (call.name === "task_get" && Array.isArray(event.task_states)) {
+        const entries = event.task_states.flatMap((state) => {
+          if (!state || typeof state !== "object") return [];
+          const { task_id, status } = state as { task_id?: unknown; status?: unknown };
+          return typeof task_id === "string" && typeof status === "string" &&
+            (TERMINAL_TASK_STATUSES as readonly string[]).includes(status)
+            ? [{ taskId: task_id, status }]
+            : [];
+        });
+        if (entries.length > 0) {
+          const sess = this.#session(a.run.userId, a.run.sessionId);
+          if (await this.#recordSettled(sess, entries)) await this.#tryWake(sess);
+        }
       }
     },
     plan: async (run, steps) =>

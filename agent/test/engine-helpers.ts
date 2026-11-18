@@ -37,6 +37,7 @@ export async function withEngine(
     piClock?: boolean;
     watchGraceMs?: number;
     watchPollMs?: number;
+    autoTaskFollowUp?: boolean;
     web?: WebTools;
   } = {},
 ) {
@@ -73,6 +74,7 @@ export async function withEngine(
     ...(opts.piClock && { harness: { now: clock, setTimer } }),
     watchGraceMs: opts.watchGraceMs,
     watchPollMs: opts.watchPollMs,
+    autoTaskFollowUp: opts.autoTaskFollowUp ?? true,
     autoTitle: opts.autoTitle ?? false, // 默认不命名：命名多一次模型调用，会改变别的用例数的调用次数和用量；要测命名的用例自己打开
     activitySummary: opts.activitySummary ?? false, // 同理：活动说明也是额外的模型调用，要测的用例自己打开
   });

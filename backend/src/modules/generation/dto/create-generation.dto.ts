@@ -17,7 +17,7 @@ export class CreateGenerationDto {
   modelName: string;
 
   @IsObject()
-  config: Record<string, string | number | undefined>;
+  config: Record<string, unknown>;
 
   @IsString()
   @IsOptional()

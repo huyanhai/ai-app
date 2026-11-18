@@ -68,6 +68,35 @@ describe('CanvasService', () => {
     ]);
   });
 
+  it('normalizes existing edges when loading an agent canvas', async () => {
+    const nodes = [
+      { id: 'shot-group', type: 'group', position: { x: 400, y: 0 }, data: { title: '镜头 01' } },
+      { id: 'script', type: 'textNode', position: { x: 0, y: 0 }, data: { title: '剧本' } },
+      { id: 'asset', type: 'imageNode', position: { x: 0, y: 100 }, data: { title: '角色三视图' } },
+      { id: 'storyboard', type: 'imageNode', position: { x: 400, y: 100 }, data: { title: '镜头 01 · 分镜图' } },
+    ];
+    const service = new CanvasService({
+      canvasState: {
+        findUnique: jest.fn().mockResolvedValue({
+          nodes: JSON.stringify(nodes),
+          edges: JSON.stringify([
+            { id: 'reverse', source: 'storyboard', target: 'asset' },
+            { id: 'script-edge', source: 'storyboard', target: 'script' },
+          ]),
+          past: '[]', future: '[]', revision: 7,
+        }),
+      },
+    } as any);
+
+    await expect(service.get('canvas-1')).resolves.toMatchObject({
+      revision: 7,
+      edges: [{
+        id: 'reverse', source: 'asset', target: 'storyboard',
+        sourceHandle: 'source-anchor', targetHandle: 'target-anchor',
+      }],
+    });
+  });
+
   it('restores and limits persisted canvas history', async () => {
     const prisma = {
       canvasState: {
@@ -263,5 +292,48 @@ describe('CanvasService', () => {
     expect(transaction.canvasState.delete).toHaveBeenCalledWith({
       where: { id: 'canvas-1' },
     });
+  });
+
+  it('lists and bulk deletes generation assets', async () => {
+    const record = {
+      id: 'asset-1',
+      nodeId: 'node-1',
+      nodeType: 'imageNode',
+      title: 'Agent image',
+      url: 'image.png',
+      canvasId: 'canvas-1',
+      createdAt: new Date('2026-11-17T00:00:00Z'),
+    };
+    const prisma = {
+      generationRecord: {
+        findMany: jest.fn().mockResolvedValue([record]),
+        deleteMany: jest.fn().mockResolvedValue({ count: 2 }),
+      },
+      canvasState: {
+        findMany: jest.fn().mockResolvedValue([{
+          id: 'canvas-1',
+          nodes: JSON.stringify([{ id: 'node-1', data: { title: '分镜-场景1 海滨步道' } }]),
+        }]),
+      },
+    };
+    const service = new CanvasService(prisma as any);
+
+    await expect(service.allGenerations()).resolves.toEqual([{
+      ...record,
+      title: '分镜-场景1 海滨步道',
+    }]);
+    expect(prisma.generationRecord.findMany).toHaveBeenCalledWith({
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    });
+    await expect(service.deleteGenerations(['asset-1', 'asset-2', 'asset-1'])).resolves.toEqual({
+      success: true,
+      deleted: 2,
+    });
+    expect(prisma.generationRecord.deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ['asset-1', 'asset-2'] } },
+    });
+    await expect(service.deleteGenerations([])).rejects.toMatchObject({ status: 400 });
+    await expect(service.deleteGenerations([null as any])).rejects.toMatchObject({ status: 400 });
   });
 });

@@ -7,13 +7,16 @@ jest.mock('@imagekit/nodejs', () => ({
 }));
 
 describe('ImageStorageService', () => {
-  it('uploads images, transcodes WebM to MP4 and rejects other content', async () => {
+  it('uploads images and audio, transcodes WebM to MP4 and rejects other content', async () => {
     process.env.UPLOAD_IMAGE_PRIVATE_KEY = 'test-key';
     const service = new ImageStorageService();
     const dataUrl = `data:image/png;base64,${Buffer.from('image').toString('base64')}`;
 
     await expect(service.upload(dataUrl)).resolves.toBe('https://ik.imagekit.io/demo/canvas/image.png');
     expect(upload).toHaveBeenCalledWith(expect.objectContaining({ fileName: expect.stringMatching(/\.png$/) }));
+    const audioUrl = `data:audio/mpeg;base64,${Buffer.from('audio').toString('base64')}`;
+    await expect(service.upload(audioUrl)).resolves.toBe('https://ik.imagekit.io/demo/canvas/image.png');
+    expect(upload).toHaveBeenCalledWith(expect.objectContaining({ fileName: expect.stringMatching(/\.mp3$/) }));
     const videoUrl = `data:video/webm;base64,${Buffer.from('video').toString('base64')}`;
     const transcode = jest.spyOn(service as any, 'transcodeWebm').mockResolvedValue(Buffer.from('mp4').toString('base64'));
     await expect(service.upload(videoUrl)).resolves.toBe('https://ik.imagekit.io/demo/canvas/image.png');

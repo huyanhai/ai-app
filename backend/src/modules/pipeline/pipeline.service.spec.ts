@@ -1,8 +1,12 @@
 import { PipelineService } from './pipeline.service';
 import { genSceneReferenceImage } from '@/common/llm/tools/gen-scene-reference';
 import { ChunkStatus } from '@/common/utils/ai-stream-utils';
+import { createChatModel } from '@/common/llm';
+import { genAudio } from '@/common/llm/tools/gen-audio';
 
 jest.mock('@/common/llm/tools/gen-scene-reference', () => ({ genSceneReferenceImage: jest.fn() }));
+jest.mock('@/common/llm', () => ({ createChatModel: jest.fn() }));
+jest.mock('@/common/llm/tools/gen-audio', () => ({ genAudio: jest.fn() }));
 
 describe('PipelineService scene reference', () => {
   beforeEach(() => jest.clearAllMocks());
@@ -91,5 +95,43 @@ describe('PipelineService scene reference', () => {
       type: 'msg_chunk',
       content: expect.objectContaining({ status: ChunkStatus.SUCCESS }),
     }));
+  });
+});
+
+describe('PipelineService dubbing', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('creates a script from the subject image and description before generating audio', async () => {
+    const audioModel = { id: 'audio-model', params: '{}' };
+    const textModel = { id: 'vision-model', params: '{}' };
+    const models = {
+      runtime: jest.fn().mockResolvedValue(audioModel),
+      visionRuntime: jest.fn().mockResolvedValue(textModel),
+    };
+    const invoke = jest.fn().mockResolvedValue({ text: '你好，我是小企鹅。' });
+    (createChatModel as jest.Mock).mockReturnValue({ invoke });
+    (genAudio as jest.Mock).mockResolvedValue('voice.wav');
+    const service = new PipelineService(models as any, {} as any);
+    const message = [
+      { type: 'image_url', image_url: 'subject.png' },
+      { type: 'text', text: '一只开朗的小企鹅' },
+    ];
+    const events = [];
+
+    for await (const event of service.dubbing({ modelId: 'audio-model', message } as any)) {
+      events.push(event);
+    }
+
+    expect(models.visionRuntime).toHaveBeenCalledTimes(1);
+    expect(models.runtime).toHaveBeenCalledWith('audio-model', 'audio');
+    expect(invoke.mock.calls[0][0][0].content.slice(0, 2)).toEqual(message);
+    expect(genAudio).toHaveBeenCalledWith({
+      message: [{ type: 'text', text: '你好，我是小企鹅。' }],
+      runtimeModel: audioModel,
+    });
+    expect(events).toContainEqual({
+      type: 'msg_chunk',
+      content: { status: ChunkStatus.SUCCESS, url: 'voice.wav' },
+    });
   });
 });

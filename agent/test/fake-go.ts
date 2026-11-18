@@ -116,6 +116,7 @@ const LABELS: Record<string, [string, string]> = {
   plan_update: ["更新计划", "计划"],
   show_card: ["展示卡片", "展示"],
   model_list: ["查看可用模型", "查模型"],
+  task_get: ["查询任务", "查任务"],
 };
 
 export const DECLS: ToolDecl[] = Object.keys(LABELS).map((name) => ({

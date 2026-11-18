@@ -10,6 +10,7 @@ import { PlatformAuthGuard } from './platform-auth.guard';
 import { PlatformFilter } from './platform.filter';
 import { decodeRunContext, idKey, ok } from './platform.types';
 import { encodeAgentId } from './id-codec';
+import { AgentEventsGateway, AgentRelayEvent } from './agent-events.gateway';
 
 @Controller('internal/platform/v1')
 @UseGuards(PlatformAuthGuard)
@@ -18,6 +19,7 @@ export class PlatformController {
   constructor(
     private readonly platform: AgentPlatformService,
     private readonly model: ModelPlatformService,
+    private readonly eventGateway: AgentEventsGateway,
   ) {}
 
   @Get('agent/models')
@@ -84,7 +86,11 @@ export class PlatformController {
   async tasks(@Body() body: Record<string, unknown>) { return ok(await this.platform.taskStates(body)); }
 
   @Post('events')
-  events(@Body('events') events: unknown) { return ok(this.platform.receiveEvents(events)); }
+  events(@Body('events') events: unknown) {
+    const result = this.platform.receiveEvents(events);
+    this.eventGateway.publish(events as AgentRelayEvent[]);
+    return ok(result);
+  }
 
   @Post('approvals/propose')
   async propose(@Headers('x-agent-context') context: string, @Body() body: Record<string, any>) {

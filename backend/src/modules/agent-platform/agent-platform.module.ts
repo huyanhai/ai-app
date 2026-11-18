@@ -15,6 +15,7 @@ import { AgentAssetController } from './agent-asset.controller';
 import { AgentAssetService } from './agent-asset.service';
 import { AgentSkillController } from './agent-skill.controller';
 import { AgentSkillService } from './agent-skill.service';
+import { AgentEventsGateway } from './agent-events.gateway';
 
 @Module({
   imports: [ModelsModule, CanvasModule, PipelineModule],
@@ -29,6 +30,7 @@ import { AgentSkillService } from './agent-skill.service';
     PlatformAuthGuard,
     AgentAssetService,
     AgentSkillService,
+    AgentEventsGateway,
   ],
   exports: [AgentPlatformService, AgentProxyService],
 })

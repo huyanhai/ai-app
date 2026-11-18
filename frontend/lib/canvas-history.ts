@@ -23,6 +23,7 @@ export type GenerationRecord = {
   title: string;
   model?: string;
   url: string;
+  canvasId?: string;
   createdAt: string;
 };
 
@@ -123,6 +124,11 @@ export const canvasHistoryApi = {
     keepalive: true,
   }),
   generations: (canvasId: string) => request<GenerationRecord[]>(`/${canvasId}/generations`),
+  allGenerations: () => request<GenerationRecord[]>('/generations'),
+  deleteGenerations: (ids: string[]) => request<{ success: boolean; deleted: number }>('/generations', {
+    method: 'DELETE',
+    body: JSON.stringify({ ids }),
+  }),
   recordGeneration: async (canvasId: string, record: Omit<GenerationRecord, "id" | "createdAt">) => {
     const externalized = await externalizeAssets(record);
     return request<GenerationRecord>(`/${canvasId}/generations`, {

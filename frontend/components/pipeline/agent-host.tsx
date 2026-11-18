@@ -32,7 +32,7 @@ export default function AgentHost({
   onClose,
   beforeSend,
 }: AgentHostProps) {
-  const { getViewport } = useReactFlow();
+  const { getViewport, setNodes } = useReactFlow();
   const models = useAgentModels();
   const controller = useAgentController({
     canvasId,
@@ -45,22 +45,28 @@ export default function AgentHost({
       send: async (...args: Parameters<typeof controller.send>) => {
         try {
           await beforeSend();
-          return await controller.send(...args);
+          const sent = await controller.send(...args);
+          if (sent) {
+            setNodes((current) =>
+              current.map((node) => node.selected ? { ...node, selected: false } : node),
+            );
+          }
+          return sent;
         } catch {
           return false;
         }
       },
     }),
-    [beforeSend, controller],
+    [beforeSend, controller, setNodes],
   );
 
   const options = useMemo(() => {
     const referable = nodes.flatMap((node) => {
       const kind = REFERENCE_KINDS[node.type as NodeType];
       if (!kind) return [];
-      const data = node.data as TNodeBase & { name?: string };
+      const data = node.data as TNodeBase & { name?: string; url?: string };
       const label = data.title || data.name || NODE_TYPE_LABEL[node.type as NodeType] || node.id;
-      return [{ node, option: { id: node.id, label, kind } as NodeOption }];
+      return [{ node, option: { id: node.id, label, kind, url: data.url } as NodeOption }];
     });
     return {
       nodes: referable.map((item) => item.option),

@@ -8,7 +8,7 @@
     "backend": "pnpm --filter backend run start:dev",
     "frontend": "pnpm --filter frontend run dev",
     "agent": "pnpm --filter video-canvas-agent-runtime run serve",
-    "dev": "pnpm --parallel --filter backend --filter frontend --filter agents --filter video-canvas-agent-runtime run dev"
+    "dev": "pnpm --parallel --filter backend --filter frontend --filter video-canvas-agent-runtime run dev"
   },
   "keywords": [],
   "author": "",
@@ -16,7 +16,6 @@
   "packageManager": "pnpm@10.13.1",
   "dependencies": {
     "@langchain/openai": "^1.4.7",
-    "agents": "workspace:*",
     "backend": "workspace:*",
     "cloakbrowser": "^0.3.28",
     "eslint": "^10.4.0",

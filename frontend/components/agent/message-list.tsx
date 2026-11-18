@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import type { AgentController } from "@/hooks/use-agent-controller";
 import type { TimelineItem } from "@/lib/agent/timeline";
-import { parseMessage } from "@/lib/agent/chips";
+import { parseMessage, type Chip } from "@/lib/agent/chips";
 import { contextUsage, formatTokens } from "@/lib/agent/context-usage";
 import {
   anchoredScrollTop,
@@ -31,6 +31,7 @@ import { withRunFooters, type FlowEntry } from "@/lib/agent/run-footer";
 import type { RefNode } from "@/lib/agent/selection-refs";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { ActivityGroup } from "./activity-group";
 import type { NodeOption } from "./agent-editor";
 import { ApprovalRow } from "./approval-row";
@@ -49,27 +50,49 @@ import { focusAgentNodes } from "./canvas";
 const STICK_PX = 48;
 const LOAD_MORE_PX = 160;
 
-export function MessageText({ text }: { text: string }) {
+function MessageChip({ chip, node }: { chip: Chip; node?: RefNode }) {
+  const imageUrl = node?.kind === "image" ? node.url : undefined;
+  const content = (
+    <span
+      title={`${chip.type}:${chip.id}`}
+      className={cn(
+        "group mx-0.5 my-0.5 inline-flex h-5 max-w-40 items-center gap-1 rounded-md px-1.5 align-middle text-xs ring-1 ring-zinc-200",
+        chip.type === "model"
+          ? "bg-blue-50 text-blue-700"
+          : chip.type === "skill"
+            ? "bg-violet-50 text-violet-700"
+            : "bg-zinc-100",
+      )}
+    >
+      {imageUrl && <img src={imageUrl} alt="" className="size-4 shrink-0 rounded object-cover" />}
+      {imageUrl && <span className="shrink-0 text-zinc-400">图片</span>}
+      <span className="truncate">{chip.name}</span>
+    </span>
+  );
+  if (!imageUrl) return content;
+  return (
+    <HoverCard>
+      <HoverCardTrigger render={content} delay={120} closeDelay={100} />
+      <HoverCardContent side="top" align="start" sideOffset={8} className="w-64 border-white/10 bg-[#202020] p-2 text-white shadow-2xl">
+        <img src={imageUrl} alt={chip.name} className="max-h-64 w-full rounded-lg object-contain" />
+        <div className="mt-1.5 truncate px-0.5 text-xs text-white/60">{chip.name}</div>
+      </HoverCardContent>
+    </HoverCard>
+  );
+}
+
+export function MessageText({ text, refNodes = [] }: { text: string; refNodes?: readonly RefNode[] }) {
   return (
     <>
       {parseMessage(text).map((part, index) =>
         part.kind === "text" ? (
           <span key={index}>{part.text}</span>
         ) : (
-          <span
+          <MessageChip
             key={index}
-            title={`${part.chip.type}:${part.chip.id}`}
-            className={cn(
-              "mx-0.5 inline-flex h-5 max-w-40 items-center rounded-md px-1.5 align-middle text-xs ring-1 ring-zinc-200",
-              part.chip.type === "model"
-                ? "bg-blue-50 text-blue-700"
-                : part.chip.type === "skill"
-                  ? "bg-violet-50 text-violet-700"
-                  : "bg-zinc-100",
-            )}
-          >
-            <span className="truncate">{part.chip.name}</span>
-          </span>
+            chip={part.chip}
+            node={part.chip.type === "node" ? refNodes.find((node) => node.id === part.chip.id) : undefined}
+          />
         ),
       )}
     </>
@@ -134,6 +157,17 @@ export function MessageList({
     previousFirstKey.current = firstKey;
   });
   useLayoutEffect(follow);
+  const lastUserKey = ctl.timeline.findLast((item) => item.type === "user")?.key;
+  const previousLastUserKey = useRef<string | undefined>(undefined);
+  useLayoutEffect(() => {
+    if (lastUserKey === previousLastUserKey.current) return;
+    if (previousLastUserKey.current !== undefined) {
+      stuck.current = true;
+      setShowJump(false);
+      follow();
+    }
+    previousLastUserKey.current = lastUserKey;
+  });
   const canLoadOlder =
     ctl.hasMoreOlder && !ctl.loadingOlder && !ctl.olderFailed;
   useEffect(() => {
@@ -229,7 +263,9 @@ export function MessageList({
           })}
           <AnimatePresence mode="popLayout">
             {ctl.statusLine && (
-              <StatusLine key={ctl.statusLine.runId} line={ctl.statusLine} />
+              <div className="pt-2">
+                <StatusLine key={ctl.statusLine.runId} line={ctl.statusLine} />
+              </div>
             )}
           </AnimatePresence>
         </div>
@@ -345,9 +381,9 @@ function Item({
 }) {
   switch (item.type) {
     case "user":
-      if (item.steerId) return <Steer item={item} ctl={ctl} />;
+      if (item.steerId) return <Steer item={item} ctl={ctl} refNodes={refNodes} />;
       return (
-        <div className="flex flex-col items-end gap-1">
+        <div className="flex flex-col items-end gap-1 py-2">
           {item.steer && (
             <span className="text-[11px] text-zinc-400">插话</span>
           )}
@@ -366,7 +402,7 @@ function Item({
           />
           <MessageAttachments items={item.attachments} />
           <div className="max-w-[88%] whitespace-pre-wrap break-words rounded-2xl rounded-br-sm border border-zinc-200/70 bg-zinc-100 p-2 text-[13.5px] leading-[1.7]">
-            <MessageText text={item.text} />
+            <MessageText text={item.text} refNodes={refNodes} />
           </div>
         </div>
       );
@@ -391,7 +427,7 @@ function Item({
           className="flex items-center gap-2.5 text-[11.5px] text-zinc-500 my-2"
         >
           <span className="h-px flex-1 bg-zinc-200" />
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-0.5">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-50 px-2.5 py-0.5">
             <Sparkles className="size-3" />
             {item.text}
           </span>
@@ -551,9 +587,11 @@ function CompactionDivider({
 function Steer({
   item,
   ctl,
+  refNodes,
 }: {
   item: Extract<TimelineItem, { type: "user" }>;
   ctl: AgentController;
+  refNodes: readonly RefNode[];
 }) {
   const missed = item.queued === "missed";
   return (
@@ -594,7 +632,7 @@ function Steer({
             : "border border-zinc-200/70 bg-zinc-100",
         )}
       >
-        <MessageText text={item.text} />
+        <MessageText text={item.text} refNodes={refNodes} />
       </motion.div>
     </div>
   );

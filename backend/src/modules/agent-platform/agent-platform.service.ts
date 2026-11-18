@@ -8,6 +8,7 @@ import { CanvasService } from '../canvas/canvas.service';
 import { ImageStorageService } from '../canvas/image-storage.service';
 import { AgentFilesService } from '../agent-sessions/agent-files.service';
 import { GenerationService } from '../generation/generation.service';
+import { ChunkStatus } from '@/common/utils/ai-stream-utils';
 import { AgentAssetService } from './agent-asset.service';
 import { AgentSkillService } from './agent-skill.service';
 import { RunContext, ToolDeclaration } from './platform.types';
@@ -31,6 +32,10 @@ const requiredString = (value: unknown, name: string) => {
 const nodeKind = (type: string): 'image' | 'video' | 'audio' | undefined =>
   ({ imageNode: 'image', videoNode: 'video', audioNode: 'audio' })[type] as 'image' | 'video' | 'audio' | undefined;
 const mediaType = (kind: string) => kind === 'music' ? 'audio' : kind;
+const referenceLabel = (node: JsonObject) => String(node.data?.title || '')
+  .replace(/\s*(?:·\s*)?(?:角色|道具)?三视图.*$/, '')
+  .replace(/\s*(?:·\s*)?场景参考图.*$/, '')
+  .trim();
 const contextTokens = (params: JsonObject) => {
   const value = Number(params?.contextWindow ?? params?.context_window ?? 128000);
   return value > 0 && value <= 1024 ? value * 1024 : value;
@@ -422,6 +427,7 @@ export class AgentPlatformService {
         ...((data as JsonObject).created !== undefined ? { created: (data as JsonObject).created } : {}),
         ...((data as JsonObject).updated !== undefined ? { updated: (data as JsonObject).updated } : {}),
         ...((data as JsonObject).changes ? { summary: `应用 ${(data as JsonObject).changes} 项操作` } : {}),
+        ...(declaration.name === 'task_get' && Array.isArray((data as JsonObject).items) ? { task_states: (data as JsonObject).items } : {}),
       } : {};
       return this.toolResult(declaration, text(data), false, data, callId, extra);
     } catch (error) {
@@ -450,8 +456,9 @@ export class AgentPlatformService {
           created: normalized.created, updated: normalized.updated, node_ids: normalized.nodeIds,
         };
       }
+      const { layout, ...options } = args;
       const result = await this.canvas.arrange(rc.canvas_id, rc.run_id, {
-        ...args, mode: args.layout || args.mode,
+        ...options, mode: layout || options.mode,
       }, context.revision);
       context.revision = result.revision;
       return result;
@@ -469,7 +476,7 @@ export class AgentPlatformService {
     if (!Array.isArray(input)) return { operations: input, idMap, created: [], updated: [], nodeIds: [] };
     const resolve = (value: unknown) => typeof value === 'string' ? idMap[value] || value : value;
     const types: Record<string, string> = {
-      script: 'textNode', image: 'imageNode', video: 'videoNode', audio: 'audioNode', character: 'subjectNode',
+      script: 'textNode', image: 'imageNode', video: 'videoNode', audio: 'audioNode', character: 'subjectNode', group: 'group',
     };
     const created = new Set<string>();
     const updated = new Set<string>();
@@ -502,7 +509,12 @@ export class AgentPlatformService {
         nodeIds.add(id);
         return {
           action: 'create_node',
-          node: { id, type: types[raw.kind] || raw.type, position: raw.position, data },
+          node: {
+            id, type: types[raw.kind] || raw.type, position: raw.position, data,
+            ...(raw.parentId ? { parentId: resolve(raw.parentId) } : {}),
+            ...(raw.kind === 'group' && raw.width ? { width: raw.width } : {}),
+            ...(raw.kind === 'group' && raw.height ? { height: raw.height } : {}),
+          },
         };
       }
       const id = resolve(raw.id);
@@ -661,23 +673,69 @@ export class AgentPlatformService {
     for (const item of outcome.items || []) {
       for (let index = 0; index < item.count; index++) {
         try {
-          const state = await this.canvas.getState(rc.canvas_id, [item.node_id]);
-          const node = state.nodes[0] as JsonObject;
+          const state = await this.canvas.getState(rc.canvas_id);
+          const node = state.nodes.find((itemNode) => itemNode.id === item.node_id) as JsonObject;
           if (!node || node.data?.url) throw new BadRequestException('节点已不存在或已有产物');
           const kind = nodeKind(node.type);
           if (!kind) throw new BadRequestException('节点类型不支持生成');
           const runtime = await this.modelsService.runtime(item.model_key, kind);
           const config = { ...(node.data?.config || {}) };
-          const prompt = node.data?.text || node.data?.draftText || node.data?.description || node.data?.prompt || node.data?.title;
-          if (!prompt) throw new BadRequestException('节点缺少生成提示词');
-          const referenceUrl = config.referenceUrl || config.image || undefined;
+          const basePrompt = node.data?.draftText || node.data?.text || node.data?.description || node.data?.prompt || node.data?.title;
+          if (!basePrompt) throw new BadRequestException('节点缺少生成提示词');
+          const nodes = new Map<string, JsonObject>(state.nodes.map((stateNode): [string, JsonObject] => [stateNode.id, stateNode]));
+          const connectedReferences = state.edges
+            .filter((edge) => edge.target === item.node_id && !['continuity', 'sceneMembership'].includes(edge.data?.kind))
+            .map((edge) => nodes.get(edge.source))
+            .filter((reference): reference is JsonObject => reference?.type === 'imageNode' && typeof reference.data?.url === 'string' && reference.data.url);
+          const connectedIds = new Set(connectedReferences.map((reference) => reference.id));
+          const characterIds = new Set<string>(node.data?.production?.characterIds || []);
+          const isStoryboard = ['storyboard', 'storyboardPreviz'].includes(node.data?.production?.kind) ||
+            /分镜|故事板/.test(String(node.data?.title || ''));
+          const inferredByIdentity = new Map<string, JsonObject>();
+          if (isStoryboard) {
+            for (const reference of state.nodes as JsonObject[]) {
+              if (connectedIds.has(reference.id) || reference.type !== 'imageNode' || !reference.data?.url) continue;
+              const label = referenceLabel(reference);
+              const characterId = reference.data?.production?.characterId;
+              if (!characterIds.has(characterId) && (!label || !String(basePrompt).includes(label))) continue;
+              inferredByIdentity.set(characterId || label, reference);
+            }
+          }
+          const inferredReferences = [...inferredByIdentity.values()];
+          if (inferredReferences.length) {
+            await this.canvas.applyOps(rc.canvas_id, rc.run_id, inferredReferences.map((reference) => ({
+              action: 'connect', source: reference.id, target: item.node_id,
+            })));
+          }
+          const configuredReferenceUrl = config.referenceUrl || config.image || undefined;
+          const referencesByUrl = new Map<string, JsonObject>();
+          for (const reference of [...connectedReferences, ...inferredReferences]) {
+            const url = reference.data.url as string;
+            if (!referencesByUrl.has(url)) referencesByUrl.set(url, reference);
+          }
+          const references = [...referencesByUrl.values()];
+          const referenceUrls = [
+            ...referencesByUrl.keys(),
+            ...(typeof configuredReferenceUrl === 'string' && configuredReferenceUrl ? [configuredReferenceUrl] : []),
+          ].filter((url, index, urls) => urls.indexOf(url) === index);
+          const referenceUrl = referenceUrls[0];
+          const prompt = [
+            String(basePrompt),
+            ...(isStoryboard && references.length ? [
+              '分镜参考要求：将参考图中的角色放入本镜场景，严格保持各角色的脸型、体型、配色、服装和辨识特征。角色三视图仅用于提取身份外观，禁止复制三视图排版，禁止生成角色设定表、白底或多格拼图；场景图只参考环境与美术风格，不得替换或融合角色身份。',
+            ] : []),
+            ...(references.length ? [`参考图映射（编号与后续图片一一对应，禁止互换身份或混合物体结构）：\n${references
+              .map((reference, index) => `图片${index + 1}＝${reference.data?.title ?? reference.id}`)
+              .join('\n')}`] : []),
+          ].join('\n\n');
           const job = await this.generation.create({
             kind, prompt: String(prompt), modelId: runtime.id, modelName: runtime.name,
-            config, ...(referenceUrl ? { referenceUrl } : {}),
+            config: { ...config, ...(referenceUrls.length ? { referenceUrls } : {}) },
+            ...(referenceUrl ? { referenceUrl } : {}),
           });
           this.taskNodes.set(job.id, item.node_id);
-          tasks.push({ node_id: item.node_id, task_id: job.id, credits: 0 });
           await this.updateTaskNode(rc, item.node_id, job.id, 'running');
+          tasks.push({ node_id: item.node_id, task_id: job.id, credits: 0 });
           void this.runGeneration(rc, job.id, item.node_id, kind);
         } catch (error) {
           failed.push({ node_id: item.node_id, error: error instanceof Error ? error.message : String(error) });
@@ -718,6 +776,8 @@ export class AgentPlatformService {
       action: 'update_node', id: nodeId,
       data: {
         ...(url ? { url } : {}),
+        status: status === 'succeeded' ? ChunkStatus.SUCCESS : status === 'failed' ? ChunkStatus.FAILED : ChunkStatus.PROCESSING,
+        ...(error ? { error } : {}),
         config: { ...(node.data?.config || {}), taskId, status, ...(error ? { error } : {}) },
       },
     }]);

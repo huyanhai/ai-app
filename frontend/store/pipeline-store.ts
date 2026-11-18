@@ -6,6 +6,12 @@ export type ImageEditorState = {
   mode: "edit" | "outpaint" | "upscale" | "cutout";
 } | null;
 
+export type SubjectAssetTarget = {
+  nodeId: string;
+  slot: "import" | "main" | "voice";
+  source: "subjects" | "canvas" | "assets";
+};
+
 // 节点上 + 按钮 / 连线拖拽结束时请求打开节点创建菜单
 export type TMenuRequest = {
   position: { x: number; y: number };
@@ -27,6 +33,8 @@ type TPipelineStore = {
   toggleEdges: () => void;
   assetModalOpen: boolean;
   setAssetModalOpen: (open: boolean) => void;
+  subjectAssetTarget: SubjectAssetTarget | null;
+  openSubjectAssets: (target: SubjectAssetTarget) => void;
   imageEditor: ImageEditorState;
   setImageEditor: (editor: ImageEditorState) => void;
 };
@@ -52,7 +60,15 @@ export const usePipelineStore = create<TPipelineStore>((set) => ({
   showEdges: true,
   toggleEdges: () => set((s) => ({ showEdges: !s.showEdges })),
   assetModalOpen: false,
-  setAssetModalOpen: (open) => set({ assetModalOpen: open }),
+  setAssetModalOpen: (open) => set({
+    assetModalOpen: open,
+    ...(open ? {} : { subjectAssetTarget: null }),
+  }),
+  subjectAssetTarget: null,
+  openSubjectAssets: (subjectAssetTarget) => set({
+    assetModalOpen: true,
+    subjectAssetTarget,
+  }),
   imageEditor: null,
   setImageEditor: (imageEditor) => set({ imageEditor }),
 }));

@@ -17,8 +17,11 @@ const dataSchema = z
     title: z.string().max(200).optional(),
     text: z.string().max(100_000).optional(),
     url: z.string().max(2_000_000).optional(),
+    voiceUrl: z.string().max(2_000_000).optional(),
     name: z.string().max(200).optional(),
     description: z.string().max(20_000).optional(),
+    status: z.string().max(100).optional(),
+    error: z.string().max(20_000).optional(),
     draftText: z.string().max(100_000).optional(),
     draftState: z.string().max(200_000).optional(),
     bg: z.string().max(100).optional(),
@@ -43,6 +46,7 @@ const nodeTypes = [
   'movementNode',
   'stageNode',
   'shotTableNode',
+  'group',
 ] as const;
 
 const defaults: Record<string, Record<string, unknown>> = {
@@ -67,6 +71,7 @@ const defaults: Record<string, Record<string, unknown>> = {
   movementNode: {},
   stageNode: {},
   shotTableNode: { shots: [] },
+  group: {},
 };
 
 const labels: Record<string, string> = {
@@ -82,6 +87,7 @@ const labels: Record<string, string> = {
   movementNode: '运镜',
   stageNode: '导演台',
   shotTableNode: '分镜表',
+  group: '节点组',
 };
 
 const operationSchema = z.discriminatedUnion('action', [
@@ -93,6 +99,10 @@ const operationSchema = z.discriminatedUnion('action', [
           id: z.string().min(1).max(100).optional(),
           type: z.enum(nodeTypes),
           position: positionSchema.optional(),
+          parentId: z.string().min(1).max(100).optional(),
+          width: z.number().positive().max(20_000).optional(),
+          height: z.number().positive().max(20_000).optional(),
+          zIndex: z.number().int().min(-10_000).max(10_000).optional(),
           data: dataSchema.default({}),
         })
         .strict(),
@@ -187,6 +197,103 @@ const snapshotNodes = (nodes: CanvasNode[]) =>
     measured: undefined,
   }));
 
+export const normalizeAgentEdges = (nodes: CanvasNode[], edges: CanvasEdge[]) => {
+  const scriptIds = new Set(nodes.filter((node) => node.type === 'textNode').map((node) => node.id));
+  const nodeMap = new Map(nodes.map((node) => [node.id, node]));
+  const flowRank = (node?: CanvasNode) => {
+    if (!node) return 0;
+    const kind = node.data?.production?.kind;
+    if (node.type === 'videoNode' || kind === 'video') return 3;
+    if (
+      kind === 'storyboard' ||
+      kind === 'storyboardPreviz' ||
+      String(node.data?.title || '').includes('分镜图')
+    ) return 2;
+    if (['imageNode', 'subjectNode', 'audioNode'].includes(node.type)) return 1;
+    return 0;
+  };
+  return edges
+    .filter((edge) => !scriptIds.has(edge.source) && !scriptIds.has(edge.target))
+    .map((edge) => {
+      const sourceRank = flowRank(nodeMap.get(edge.source));
+      const targetRank = flowRank(nodeMap.get(edge.target));
+      const reversed = targetRank > 0 && sourceRank > targetRank;
+      return {
+        ...edge,
+        source: reversed ? edge.target : edge.source,
+        target: reversed ? edge.source : edge.target,
+        sourceHandle: 'source-anchor',
+        targetHandle: 'target-anchor',
+      };
+    });
+};
+
+export const normalizeAgentCanvas = (nodes: CanvasNode[], edges: CanvasEdge[]) => {
+  const storyboards = new Map<string, CanvasNode>();
+  for (const node of nodes) {
+    if (node.parentId && String(node.data?.title || '').includes('分镜图')) {
+      storyboards.set(node.parentId, node);
+    }
+  }
+  const normalizedNodes = nodes.map((node) => {
+    const storyboard = node.parentId ? storyboards.get(node.parentId) : undefined;
+    const title = String(node.data?.title || '');
+    const isVideoPrompt = node.type === 'textNode' && title.includes('视频提示词');
+    const isGroupedVideo = node.type === 'videoNode' && title.includes('视频');
+    if (!storyboard || (!isVideoPrompt && !isGroupedVideo)) return node;
+    const storyboardTitle = String(storyboard.data?.title || '分镜图');
+    const prompt = String(node.data?.draftText || node.data?.text || '');
+    const promptWithoutFirstFramePrefix = prompt.replace(/^(?:参考首帧画面[^，,]*[，,]?\s*)+/, '');
+    const nextPrompt = prompt
+      ? `参考首帧画面${storyboardTitle}，${promptWithoutFirstFramePrefix}`
+      : prompt;
+    if (isVideoPrompt) {
+      return {
+        ...node,
+        type: 'videoNode',
+        data: {
+          ...node.data,
+          title: title.replace('视频提示词', '视频'),
+          text: nextPrompt,
+          draftText: nextPrompt,
+          draftState: undefined,
+          url: node.data?.url || '',
+          config: {
+            videoMode: 'imageToVideo',
+            ratio: '1:1',
+            duration: 4,
+            resolution: '720P',
+            count: 1,
+            ...node.data?.config,
+          },
+        },
+      };
+    }
+    if (nextPrompt === prompt) return node;
+    return {
+      ...node,
+      data: { ...node.data, text: nextPrompt, draftText: nextPrompt, draftState: undefined },
+    };
+  });
+  const normalizedEdges = normalizeAgentEdges(normalizedNodes, edges);
+  for (const node of normalizedNodes) {
+    if (node.type !== 'videoNode' || !node.parentId) continue;
+    const storyboard = storyboards.get(node.parentId);
+    if (!storyboard || normalizedEdges.some((edge) =>
+      (edge.source === storyboard.id && edge.target === node.id) ||
+      (edge.source === node.id && edge.target === storyboard.id),
+    )) continue;
+    normalizedEdges.push({
+      id: `agent-shot-video-${storyboard.id}-${node.id}`,
+      source: storyboard.id,
+      target: node.id,
+      sourceHandle: 'source-anchor',
+      targetHandle: 'target-anchor',
+    });
+  }
+  return { nodes: normalizedNodes, edges: normalizedEdges };
+};
+
 @Injectable()
 export class AgentCanvasService {
   constructor(private readonly prisma: PrismaService) {}
@@ -204,7 +311,11 @@ export class AgentCanvasService {
         selectedNodeIds: [],
       };
     }
-    const allNodes = parse<CanvasNode[]>(state.nodes, []);
+    const graph = normalizeAgentCanvas(
+      parse<CanvasNode[]>(state.nodes, []),
+      parse<CanvasEdge[]>(state.edges, []),
+    );
+    const allNodes = graph.nodes;
     const requested = new Set(nodeIds);
     const nodes = allNodes
       .filter((node) => !requested.size || requested.has(node.id))
@@ -212,6 +323,10 @@ export class AgentCanvasService {
         id: node.id,
         type: node.type,
         position: node.position,
+        ...(node.parentId ? { parentId: node.parentId } : {}),
+        ...(node.width ? { width: node.width } : {}),
+        ...(node.height ? { height: node.height } : {}),
+        ...(node.zIndex !== undefined ? { zIndex: node.zIndex } : {}),
         data: node.data,
       }));
     const visibleIds = new Set(nodes.map((node) => node.id));
@@ -220,7 +335,7 @@ export class AgentCanvasService {
       revision: state.revision ?? 0,
       viewport: parse(state.viewport, undefined),
       nodes,
-      edges: parse<CanvasEdge[]>(state.edges, []).filter(
+      edges: graph.edges.filter(
         (edge) =>
           !requested.size ||
           (visibleIds.has(edge.source) && visibleIds.has(edge.target)),
@@ -253,6 +368,12 @@ export class AgentCanvasService {
               id,
               type,
               position: operation.node.position ?? { x: 0, y: 0 },
+              ...(operation.node.parentId ? { parentId: operation.node.parentId } : {}),
+              ...(type === 'group' ? {
+                width: operation.node.width ?? 1240,
+                height: operation.node.height ?? 560,
+                zIndex: operation.node.zIndex ?? -2000,
+              } : {}),
               data: {
                 ...structuredClone(defaults[type]),
                 title: `${labels[type]} ${count + 1}`,
@@ -298,7 +419,11 @@ export class AgentCanvasService {
             edges = edges.filter((item) => item.id !== operation.id);
           }
         }
-        return { nodes, edges, changed: operations.length };
+        return {
+          nodes: [...nodes.filter((node) => node.type === 'group'), ...nodes.filter((node) => node.type !== 'group')],
+          edges,
+          changed: operations.length,
+        };
       },
       expectedRevision,
     );
@@ -394,8 +519,12 @@ export class AgentCanvasService {
           },
         })) as StoredState;
       }
-      const nodes = parse<CanvasNode[]>(state.nodes, []);
-      const edges = parse<CanvasEdge[]>(state.edges, []);
+      const graph = normalizeAgentCanvas(
+        parse<CanvasNode[]>(state.nodes, []),
+        parse<CanvasEdge[]>(state.edges, []),
+      );
+      const nodes = graph.nodes;
+      const edges = graph.edges;
       const past = parse<Record<string, unknown>[]>(state.past, []);
       if (
         expectedRevision !== undefined &&
@@ -407,6 +536,7 @@ export class AgentCanvasService {
         );
       }
       const result = change(structuredClone(nodes), structuredClone(edges));
+      const resultGraph = normalizeAgentCanvas(result.nodes, result.edges);
       if (past.at(-1)?.agentRunId !== runId) {
         past.push({ nodes: snapshotNodes(nodes), edges, agentRunId: runId });
       }
@@ -414,8 +544,8 @@ export class AgentCanvasService {
       const updated = await transaction.canvasState.updateMany({
         where: { id: canvasId, revision },
         data: {
-          nodes: JSON.stringify(result.nodes),
-          edges: JSON.stringify(result.edges),
+          nodes: JSON.stringify(resultGraph.nodes),
+          edges: JSON.stringify(resultGraph.edges),
           past: JSON.stringify(past.slice(-50)),
           future: '[]',
           revision: { increment: 1 },

@@ -1,4 +1,4 @@
 interface:
   display_name: "动漫视觉喜剧"
-  short_description: "用机关连锁、反差、夸张动作和角色反应创作有画面笑点的原创动漫"
-  default_prompt: "使用 $animated-visual-comedy 创作一部以画面笑点为核心的原创动漫，并逐阶段完成剧本、分镜和生成提示词。"
+  short_description: "用微观反差、物理互坑和荒诞反转创作一分钟无声喜剧"
+  default_prompt: "使用 $animated-visual-comedy，根据我的输入自动补全设定，创作一部一分钟无声微观喜剧，并输出四段式分镜剧本表格。"

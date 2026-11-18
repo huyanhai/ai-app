@@ -79,9 +79,10 @@ export function useAgentAttachments(uploader: AttachmentUploader = defaultUpload
         progress: 0,
       };
     });
-    if (!added.length) return;
+    if (!added.length) return [];
     commit([...latest.current, ...added]);
     added.forEach((item) => void upload(item.id, files.current.get(item.id)!));
+    return added;
   }, [commit, upload]);
 
   const remove = useCallback((id: string) => {

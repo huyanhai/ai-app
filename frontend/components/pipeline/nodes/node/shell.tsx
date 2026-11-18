@@ -38,6 +38,7 @@ interface INodeShellProps {
   children: ReactNode;
   chromeVisible?: boolean;
   connectable?: boolean;
+  overflowVisible?: boolean;
 }
 
 const LABEL_COLORS = ["#22d3ee", "#6366f1", "#a855f7", "#f97316", "#eab308"];
@@ -179,6 +180,7 @@ const NodeShell = ({
   children,
   chromeVisible = true,
   connectable = true,
+  overflowVisible = false,
 }: INodeShellProps) => {
   // 创建菜单打开期间，作为连线起点的节点保持 + 手柄可见
   const menuOpen = usePipelineStore((s) => s.menuRequest?.nodeId === id);
@@ -200,7 +202,7 @@ const NodeShell = ({
   const handlesVisible = selected || menuOpen || connecting;
 
   return (
-    <div className="group/node relative">
+    <div className="group/node relative w-fit">
       {nodeData?.production?.stale && !("status" in nodeData && nodeData.status) && (
         <span className="absolute -top-2 right-3 z-10 rounded-full bg-amber-400/15 px-2 py-0.5 text-[10px] text-amber-200">
           待更新
@@ -230,7 +232,7 @@ const NodeShell = ({
       </>}
 
       <div
-        className={`relative rounded-2xl transition-shadow cursor-grab active:cursor-grabbing ${chromeVisible ? "overflow-hidden" : "overflow-visible"} ${
+        className={`relative rounded-2xl transition-shadow cursor-grab active:cursor-grabbing ${chromeVisible && !overflowVisible ? "overflow-hidden" : "overflow-visible"} ${
           selected && chromeVisible ? "ring-2 ring-white/40" : ""
         }`}
       >

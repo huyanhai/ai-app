@@ -3,7 +3,6 @@
 import { Check, CornerDownRight, FilePen, Hand, MessageCircleQuestion, Sparkles, Trash2 } from "lucide-react";
 import type { AgentController } from "@/hooks/use-agent-controller";
 import { askAnsweredRows } from "@/lib/agent/ask";
-import { ApprovalCard } from "./approval-card";
 import { approvalTitle } from "./approval-title";
 
 export { approvalTitle, deletePayload } from "./approval-title";
@@ -11,7 +10,7 @@ export { approvalTitle, deletePayload } from "./approval-title";
 export function ApprovalRow({ approvalId, ctl }: { approvalId: string; ctl: AgentController }) {
   const approval = ctl.state.approvals[approvalId];
   if (!approval) return null;
-  if (approval.status === "pending" && ctl.pending?.id === approval.id) return <ApprovalCard approval={approval} ctl={ctl} />;
+  if (approval.status === "pending" && ctl.pending?.id === approval.id) return null;
   const pending = approval.status === "pending";
   const ask = approval.kind === "ask";
   const rejected = approval.status === "rejected";

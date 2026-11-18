@@ -41,6 +41,7 @@ export enum NodeType {
   MovementNode = "movementNode",
   StageNode = "stageNode",
   ShotTableNode = "shotTableNode",
+  Group = "group",
 }
 
 export enum VideoModeType {
@@ -143,6 +144,8 @@ export type TNodeTimelineData = TNodeBase;
 export type TNodeSubjectData = {
   name: string;
   description?: string;
+  url?: string;
+  voiceUrl?: string;
 } & TNodeBase;
 
 export type TNodeToolboxData = TNodeBase;
@@ -173,6 +176,8 @@ export type TNodeShotTableData = {
   }[];
 } & TNodeBase;
 
+export type TNodeGroupData = TNodeBase;
+
 // 文本生成节点
 export type TNodeText = Node<TNodeTextData>;
 
@@ -195,6 +200,8 @@ export type TNodeStage = Node<TNodeStageData>;
 
 export type TNodeShotTable = Node<TNodeShotTableData>;
 
+export type TNodeGroup = Node<TNodeGroupData>;
+
 export type TAllNodes =
   | TNodeText
   | TNodeImage
@@ -203,6 +210,7 @@ export type TAllNodes =
   | TNodeSubject
   | TDirectorNode
   | TNodeStage
-  | TNodeShotTable;
+  | TNodeShotTable
+  | TNodeGroup;
 
 export type TSendMessageContent = HumanMessage["content"][0];

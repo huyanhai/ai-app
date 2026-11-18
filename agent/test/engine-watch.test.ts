@@ -111,6 +111,68 @@ test("没有 wait 或 wait=false（用户说提交就行）：不登记监听，
     ),
   ).then(() => undefined));
 
+test("task_get 查到终态：立即结算并交付等待批，不留后台等待条", () =>
+  withEngine(
+    {
+      turns: [
+        GEN_TURN,
+        { text: "已提交" },
+        { tools: [{ id: "c_query", name: "task_get", args: { task_ids: ["101", "102"] } }] },
+        { text: "两张图都已生成" },
+      ],
+      propose: propose(true),
+      execute,
+      tools: {
+        task_get: {
+          tool_end: {
+            id: "c_query",
+            name: "task_get",
+            is_error: false,
+            summary: "查任务完成",
+            task_states: [
+              { task_id: "101", status: "succeeded" },
+              { task_id: "102", status: "succeeded" },
+            ],
+          },
+        },
+      },
+    },
+    async (e) => {
+      await approved(e);
+      assert.equal((await watchesOf(e)).length, 1);
+      const run = await e.engine.startRun({
+        userId: "1",
+        sessionId: e.sessionId,
+        message: "查询生成结果",
+        modelKey: "claude",
+      });
+      await e.engine.idle();
+
+      assert.deepEqual(await watchesOf(e), []);
+      assert.equal(e.persisted("watch.updated").at(-1)!.state, "delivered");
+      assert.equal(wakes(e).length, 1);
+      assert.equal(wakes(e)[0].runId, run.id);
+    },
+    { piClock: true },
+  ));
+
+test("整批结束：交付任务状态但不自动新开验收轮", () =>
+  withEngine(
+    { turns: [GEN_TURN, { text: "已提交" }], propose: propose(true), execute },
+    async (e) => {
+      const { run } = await approved(e);
+      await e.engine.taskSettled(run.id, "101", "succeeded");
+      await e.engine.taskSettled(run.id, "102", "succeeded");
+      await until(async () => (await watchesOf(e)).length === 0, "任务批交付完成");
+
+      assert.equal(wakes(e).length, 0);
+      assert.equal(e.go.modelRequests.length, 2, "没有额外的模型调用");
+      assert.equal(e.store.activeRun("7"), undefined);
+      assert.equal(e.persisted("watch.updated").at(-1)!.state, "delivered");
+    },
+    { piClock: true, autoTaskFollowUp: false },
+  ));
+
 test("提交失败（没有创建任务）的批准：没有东西可等，不登记", () =>
   withEngine(
     {

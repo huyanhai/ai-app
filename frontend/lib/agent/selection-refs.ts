@@ -1,7 +1,7 @@
 export type RefNodeKind = "script" | "image" | "video" | "audio" | "character";
 
 /** 画布上能被消息引用的东西：普通节点，或者组（输入框里 @ 的候选不含组，这里要含） */
-export type RefNode = { id: string; label: string; kind: RefNodeKind | "group" };
+export type RefNode = { id: string; label: string; kind: RefNodeKind | "group"; url?: string };
 
 /**
  * 这种节点能不能被引用（@ 候选、选中后的浅色占位）：导演台 Agent 读不懂，不引用；

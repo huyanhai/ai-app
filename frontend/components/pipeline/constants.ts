@@ -23,6 +23,7 @@ export const NODE_TYPE_LABEL: Record<NodeType, string> = {
   [NodeType.MovementNode]: "运镜",
   [NodeType.StageNode]: "导演台",
   [NodeType.ShotTableNode]: "分镜表",
+  [NodeType.Group]: "镜头组",
 };
 
 // 生成类节点提示词占位文案（对齐即梦）
@@ -83,4 +84,5 @@ export const NODE_DEFAULT_DATA: Record<NodeType, TAllNodes["data"]> = {
   [NodeType.MovementNode]: {},
   [NodeType.StageNode]: {},
   [NodeType.ShotTableNode]: { shots: [] },
+  [NodeType.Group]: {},
 };

@@ -10,7 +10,7 @@ import {
   type MergeOptions,
 } from "@/lib/agent/graph-changes";
 import { subscribeCanvasPatch } from "@/lib/agent/patch-bus";
-import { startAgentCanvasPolling } from "@/lib/agent/polling";
+import { startAgentCanvasEvents } from "@/lib/agent/websocket";
 import { activeRunId } from "@/lib/agent/session-state";
 import { useAgentStore } from "@/store/agent";
 import { useAgentHighlight } from "@/store/agent-highlight";
@@ -79,7 +79,7 @@ export function useAgentCanvasSync<N extends MergeNode, E extends MergeEdge>(
     [args.canvas.id, sync],
   );
 
-  useEffect(() => startAgentCanvasPolling(args.canvas.id), [args.canvas.id]);
+  useEffect(() => startAgentCanvasEvents(args.canvas.id), [args.canvas.id]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {

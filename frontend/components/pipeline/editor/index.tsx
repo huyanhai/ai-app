@@ -1,15 +1,28 @@
-import { forwardRef, useImperativeHandle, useRef, ForwardedRef } from "react";
 import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  type ClipboardEvent,
+  type DragEvent,
+  type ForwardedRef,
+  type KeyboardEvent,
+} from "react";
+import {
+  $createLineBreakNode,
   $createParagraphNode,
   $createTextNode,
   $getNodeByKey,
   $getSelection,
   $getRoot,
+  $isElementNode,
+  $isLineBreakNode,
   $isRangeSelection,
   $isTextNode,
   $insertNodes,
   SerializedEditorState,
   LexicalEditor,
+  LexicalNode,
 } from "lexical";
 import superjson from "superjson";
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
@@ -23,6 +36,7 @@ import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
 import { PlainTextPlugin } from "@lexical/react/LexicalPlainTextPlugin";
 import { EditorRefPlugin } from "@lexical/react/LexicalEditorRefPlugin";
+import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $dfs } from "@lexical/utils";
 
 import { TNodeImage, TSendMessageContent } from "../types";
@@ -52,20 +66,64 @@ interface IEditorProps {
   onTrigger?: (trigger: "/" | "@") => void;
   onTokenRemove?: (token: EditorToken) => void;
   onBlur?: () => void;
+  onFocus?: () => void;
+  onPaste?: (event: ClipboardEvent<HTMLDivElement>) => void;
+  onDrop?: (event: DragEvent<HTMLDivElement>) => void;
+  onKeyDown?: (event: KeyboardEvent<HTMLDivElement>) => void;
   readOnly?: boolean;
+  className?: string;
+  placeholderClassName?: string;
+  ariaLabel?: string;
+  submitOnEnter?: boolean;
+  onTriggerQueryChange?: (value: { trigger: "/" | "@"; query: string } | null) => void;
+  serializeToken?: (token: EditorToken) => string;
+  onSerializedTextChange?: (text: string) => void;
 }
+
+type InsertPlacement = "current" | "start" | "end";
 
 export interface IEditorRef {
   getEditor: () => Promise<TSendMessageContent[]>;
   clear: () => void;
   replaceText: (text: string) => void;
-  insertText: (text: string) => void;
+  replaceContent: (content: Array<string | EditorToken>) => void;
+  insertText: (text: string, placement?: InsertPlacement) => void;
   focusEnd: () => void;
-  insertToken: (token: EditorToken, placement?: "start" | "end") => void;
+  focus: () => void;
+  blur: () => void;
+  insertToken: (token: EditorToken, placement?: InsertPlacement, trigger?: "/" | "@") => void;
   removeToken: (id: string) => void;
-  syncTokens: (tokens: EditorToken[]) => void;
+  syncTokens: (tokens: EditorToken[], kind?: EditorToken["kind"], trailingSpace?: boolean, preserveSelection?: boolean) => void;
+  getSerializedText: () => string;
   getContent: () => { text: string; tokens: EditorToken[] };
   getCaretRect: () => { left: number; top: number } | null;
+}
+
+function $getTriggerQuery() {
+  const selection = $getSelection();
+  if (!$isRangeSelection(selection) || !selection.isCollapsed()) return null;
+  const node = selection.anchor.getNode();
+  if (!$isTextNode(node)) return null;
+  const beforeCaret = node.getTextContent().slice(0, selection.anchor.offset);
+  const match = beforeCaret.match(/(?:^|\s)([@\/])([\p{L}\p{N}_-]*)$/u);
+  return match ? { trigger: match[1] as "/" | "@", query: match[2] } : null;
+}
+
+function $serializeText(serializeToken: (token: EditorToken) => string) {
+  const visit = (node: LexicalNode): string => {
+    if ($isTextNode(node)) return node.getTextContent();
+    if ($isLineBreakNode(node)) return "\n";
+    if ($isInlineTokenNode(node)) return serializeToken(node.getToken());
+    if ($isElementNode(node)) return node.getChildren().map(visit).join("");
+    return "";
+  };
+  return $getRoot().getChildren().map(visit).join("\n");
+}
+
+function EditablePlugin({ editable }: { editable: boolean }) {
+  const [editor] = useLexicalComposerContext();
+  useEffect(() => editor.setEditable(editable), [editable, editor]);
+  return null;
 }
 
 const Editor = (
@@ -82,7 +140,18 @@ const Editor = (
     onTrigger,
     onTokenRemove,
     onBlur,
+    onFocus,
+    onPaste,
+    onDrop,
+    onKeyDown,
     readOnly = false,
+    className,
+    placeholderClassName,
+    ariaLabel,
+    submitOnEnter = true,
+    onTriggerQueryChange,
+    serializeToken,
+    onSerializedTextChange,
   }: IEditorProps,
   ref: ForwardedRef<IEditorRef>,
 ) => {
@@ -148,12 +217,17 @@ const Editor = (
             if ($isInlineTokenNode(node)) {
               const token = node.getToken();
               if (token.referenceKind === "image" && token.url) {
+                messages.push({ type: "text", text: `参考图「${token.label}」：` });
                 messages.push({ type: "image_url", image_url: token.url });
               } else if (token.kind === "subject") {
                 messages.push({
                   type: "text",
                   text: token.description || token.label,
                 });
+                if (token.url) {
+                  messages.push({ type: "text", text: `主体「${token.label}」的视觉参考：` });
+                  messages.push({ type: "image_url", image_url: token.url });
+                }
               }
             }
           });
@@ -179,9 +253,34 @@ const Editor = (
         root.append(paragraph);
       });
     },
-    insertText: (text) => {
+    replaceContent: (content) => {
+      referenceSelectionRef.current = null;
       editorRef.current?.update(() => {
-        $getRoot().selectEnd();
+        const root = $getRoot();
+        root.clear();
+        const paragraph = $createParagraphNode();
+        content.forEach((item) => {
+          if (typeof item !== "string") {
+            paragraph.append($createInlineTokenNode(item, editorRef), $createTextNode(" "));
+            return;
+          }
+          item.split("\n").forEach((text, index) => {
+            if (index > 0) paragraph.append($createLineBreakNode());
+            if (text) paragraph.append($createTextNode(text));
+          });
+        });
+        root.append(paragraph);
+        root.selectEnd();
+      });
+    },
+    insertText: (text, placement = "end") => {
+      editorRef.current?.update(() => {
+        const root = $getRoot();
+        if (placement === "current") {
+          if (!$isRangeSelection($getSelection())) root.selectEnd();
+        } else {
+          root.selectEnd();
+        }
         $insertNodes([$createTextNode(text)]);
       });
       editorRef.current?.focus();
@@ -192,9 +291,30 @@ const Editor = (
       });
       editorRef.current?.focus();
     },
-    insertToken: (token, placement = "end") => {
+    focus: () => editorRef.current?.focus(),
+    blur: () => editorRef.current?.getRootElement()?.blur(),
+    insertToken: (token, placement = "end", trigger) => {
       editorRef.current?.update(() => {
         const root = $getRoot();
+        const selection = $getSelection();
+        if (trigger && $isRangeSelection(selection) && selection.isCollapsed()) {
+          const triggerNode = selection.anchor.getNode();
+          if ($isTextNode(triggerNode)) {
+            const text = triggerNode.getTextContent();
+            const beforeCaret = text.slice(0, selection.anchor.offset);
+            const match = beforeCaret.match(/(?:^|\s)([@\/])([\p{L}\p{N}_-]*)$/u);
+            if (match?.[1] === trigger) {
+              const triggerStart = selection.anchor.offset - match[0].length + (match[0].startsWith(" ") || match[0].startsWith("\n") ? 1 : 0);
+              triggerNode.setTextContent(text.slice(0, triggerStart) + text.slice(selection.anchor.offset));
+              triggerNode.select(triggerStart, triggerStart);
+              const spaceNode = $createTextNode(" ");
+              $insertNodes([$createInlineTokenNode(token, editorRef), spaceNode]);
+              spaceNode.select(1, 1);
+              referenceSelectionRef.current = null;
+              return;
+            }
+          }
+        }
         const referenceSelection = referenceSelectionRef.current;
         const referenceNode = referenceSelection
           ? $getNodeByKey(referenceSelection.key)
@@ -218,12 +338,12 @@ const Editor = (
         }
         referenceSelectionRef.current = null;
         if (placement === "start") root.selectStart();
-        else root.selectEnd();
+        else if (placement === "end" || !$isRangeSelection($getSelection())) root.selectEnd();
         const textNodes = root.getAllTextNodes();
         const lastTextNode = textNodes.at(-1);
         const lastText = lastTextNode?.getTextContent() ?? "";
-        const triggerPattern = token.kind === "subject" ? /@[^\s@]*$/ : /\/[^\s/]*$/;
-        if (lastTextNode && triggerPattern.test(lastText)) {
+        const triggerPattern = placement === "current" ? null : token.kind === "subject" ? /@[^\s@]*$/ : /\/[^\s/]*$/;
+        if (lastTextNode && triggerPattern?.test(lastText)) {
           lastTextNode.setTextContent(lastText.replace(triggerPattern, ""));
         }
         const tokenNode = $createInlineTokenNode(token, editorRef);
@@ -240,11 +360,11 @@ const Editor = (
         });
       });
     },
-    syncTokens: (tokens) => {
+    syncTokens: (tokens, kind, trailingSpace = true, preserveSelection = false) => {
       editorRef.current?.update(() => {
         const tokenNodes = $dfs()
           .map(({ node }) => node)
-          .filter($isInlineTokenNode);
+          .filter((node): node is InlineTokenNode => $isInlineTokenNode(node) && (!kind || node.getToken().kind === kind));
         tokenNodes.forEach((node) => {
           const token = tokens.find((item) => item.id === node.getToken().id);
           if (token) node.setToken(token);
@@ -252,11 +372,26 @@ const Editor = (
         });
         tokens.forEach((token) => {
           if (!tokenNodes.some((node) => node.getToken().id === token.id)) {
-            $getRoot().selectEnd();
-            $insertNodes([$createInlineTokenNode(token, editorRef), $createTextNode(" ")]);
+            const nodes = [$createInlineTokenNode(token, editorRef), ...(trailingSpace ? [$createTextNode(" ")] : [])];
+            if (preserveSelection) {
+              const root = $getRoot();
+              const lastChild = root.getLastChild();
+              if ($isElementNode(lastChild)) lastChild.append(...nodes);
+              else root.append($createParagraphNode().append(...nodes));
+            } else {
+              $getRoot().selectEnd();
+              $insertNodes(nodes);
+            }
           }
         });
       });
+    },
+    getSerializedText: () => {
+      let text = "";
+      editorRef.current?.read(() => {
+        text = serializeToken ? $serializeText(serializeToken) : $getRoot().getTextContent();
+      });
+      return text;
     },
     getContent: () => {
       let content = { text: "", tokens: [] as EditorToken[] };
@@ -286,15 +421,30 @@ const Editor = (
     },
   }));
 
+  const updateTriggerQuery = () => {
+    if (!onTriggerQueryChange) return;
+    editorRef.current?.read(() => onTriggerQueryChange($getTriggerQuery()));
+  };
+
   return (
     <LexicalComposer initialConfig={initialConfig}>
       <PlainTextPlugin
         contentEditable={
-          <ContentEditable onBlur={onBlur} className="max-h-30 w-full flex-1 overflow-y-auto border-0 bg-transparent text-sm leading-5 text-white/90 caret-white outline-none [&_p]:m-0 [&_p]:min-h-5 [&_p]:whitespace-pre-wrap [&_[data-lexical-text='true']]:align-middle" />
+          <ContentEditable
+            onBlur={onBlur}
+            onFocus={() => { onFocus?.(); updateTriggerQuery(); }}
+            onPasteCapture={onPaste}
+            onDropCapture={onDrop}
+            onKeyDownCapture={onKeyDown}
+            onKeyUp={updateTriggerQuery}
+            onClick={updateTriggerQuery}
+            aria-label={ariaLabel}
+            className={className ?? "max-h-30 w-full flex-1 overflow-y-auto border-0 bg-transparent text-sm leading-5 text-white/90 caret-white outline-none [&_p]:m-0 [&_p]:min-h-5 [&_p]:whitespace-pre-wrap [&_[data-lexical-text='true']]:align-middle"}
+          />
         }
         placeholder={
-          <div className="pointer-events-none absolute left-0 top-0 text-sm leading-5 text-white/40">
-            {placeholder || "描述你的想法"}
+          <div className={placeholderClassName ?? "pointer-events-none absolute left-0 top-0 text-sm leading-5 text-white/40"}>
+            {placeholder ?? "描述你的想法"}
           </div>
         }
         ErrorBoundary={LexicalErrorBoundary}
@@ -320,6 +470,10 @@ const Editor = (
               };
             }
             onTextChange?.(text, referenceQuery);
+            onTriggerQueryChange?.($getTriggerQuery());
+            if (serializeToken && onSerializedTextChange) {
+              onSerializedTextChange($serializeText(serializeToken));
+            }
             if (text.endsWith("/") || text.endsWith("@")) {
               onTrigger?.(text.at(-1) as "/" | "@");
             }
@@ -330,7 +484,8 @@ const Editor = (
           onStateChange?.(superjson.stringify(editorState.toJSON()));
         }}
       />
-      <SubmitOnEnterPlugin onSubmit={onSubmit} />
+      {submitOnEnter && <SubmitOnEnterPlugin onSubmit={onSubmit} />}
+      <EditablePlugin editable={!readOnly} />
       {!noImageMention && <ImageMentionPlugin images={images} />}
       <HistoryPlugin />
       <TokenRemovePlugin onRemove={onTokenRemove} />

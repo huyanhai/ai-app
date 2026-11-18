@@ -7,6 +7,7 @@ import {
   Camera,
   History,
   Image,
+  LayoutGrid,
   ListVideo,
   Paintbrush,
   ScanFace,
@@ -47,6 +48,7 @@ const NODE_ICONS: Record<NodeType, React.ReactNode> = {
   [NodeType.MovementNode]: <Video size={22} />,
   [NodeType.StageNode]: <Box size={22} />,
   [NodeType.ShotTableNode]: <Table2 size={22} />,
+  [NodeType.Group]: <LayoutGrid size={22} />,
 };
 
 const nodeTitle = (node: TAllNodes) => {

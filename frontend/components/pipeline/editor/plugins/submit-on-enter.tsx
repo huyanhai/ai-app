@@ -9,7 +9,7 @@ function SubmitOnEnterPlugin({ onSubmit }: { onSubmit: () => void }) {
     return editor.registerCommand(
       KEY_ENTER_COMMAND,
       (event) => {
-        if (event?.shiftKey) {
+        if (event?.shiftKey || event?.isComposing) {
           return false;
         }
 

@@ -8,15 +8,16 @@ import { FileCard } from "./file-card";
 export function MessageAttachments({ items }: { items: AgentAttachmentDto[] }) {
   const [preview, setPreview] = useState<AgentAttachmentDto | null>(null);
   if (!items?.length) return null;
-  const images = items.filter((item) => item.kind !== "document");
-  const documents = items.filter((item) => item.kind === "document");
   return (
-    <div className="flex max-w-[88%] flex-col items-end gap-1.5">
-      {images.length > 0 && <div className="grid max-w-full grid-cols-3 gap-1.5">{images.map((item) => <button key={item.asset_id} type="button" onClick={() => setPreview(item)} className="overflow-hidden rounded-xl border border-zinc-200 bg-zinc-100">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={item.url} alt={item.name} className="size-24 object-cover transition-transform hover:scale-105" />
-      </button>)}</div>}
-      {documents.map((item) => <a key={item.asset_id} href={item.url} target="_blank" rel="noreferrer" className="w-56 rounded-xl border border-zinc-200 bg-white p-2 hover:bg-zinc-50"><FileCard name={item.name} size={item.byte_size} /></a>)}
+    <div className="flex max-w-[88%] flex-wrap justify-end gap-1.5">
+      {items.map((item) => item.kind === "document" ? (
+        <a key={item.asset_id} href={item.url} target="_blank" rel="noreferrer" aria-label={`打开文件：${item.name}`} className="rounded-xl outline-none hover:bg-white/[0.08] focus-visible:ring-2 focus-visible:ring-[#33a3ff]/60"><FileCard name={item.name} size={item.byte_size} className="pr-2.5" /></a>
+      ) : (
+        <button key={item.asset_id} type="button" aria-label={`查看大图：${item.name}`} title={item.name} onClick={() => setPreview(item)} className="cursor-zoom-in overflow-hidden rounded-lg ring-1 ring-white/10 outline-none focus-visible:ring-2 focus-visible:ring-[#33a3ff]/60">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={item.url} alt={item.name} draggable={false} className="size-12 object-cover" />
+        </button>
+      ))}
       {preview && <div role="dialog" aria-label={preview.name} className="fixed inset-0 z-[120] grid place-items-center bg-zinc-950/80 p-6" onClick={() => setPreview(null)}>
         <button type="button" aria-label="关闭预览" className="absolute right-5 top-5 grid size-9 place-items-center rounded-full bg-white/10 text-white"><X /></button>
         {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNodeConnections, useReactFlow } from "@xyflow/react";
+import { useNodeConnections, useNodes, useReactFlow } from "@xyflow/react";
 import { sseFetch } from "@/lib/sse";
 import {
   ChunkStatus,
@@ -13,7 +13,7 @@ import {
   getVideoModel,
   isModelReady,
 } from "@/store/model-store";
-import { NodeType, TAllNodes, TNodeImage, TNodeStage, TNodeText } from "../types";
+import { NodeType, TAllNodes, TNodeImage, TNodeStage, TNodeSubject, TNodeText } from "../types";
 import { IEditorRef } from "../editor";
 import { usePipelineStore } from "@/store/pipeline-store";
 import { getImagePreset } from "../nodes/node/image/presets";
@@ -58,6 +58,7 @@ export const useGenerate = (
   const isOutpainting = imageEditorMode === "outpaint";
   const isUpscaling = imageEditorMode === "upscale";
   const { getNode, getEdges, setNodes } = useReactFlow<TAllNodes>();
+  const nodes = useNodes<TAllNodes>();
 
   // 左侧上游节点是当前节点的参考素材，右侧子节点不参与当前节点生成。
   const incomingConnections = useNodeConnections({
@@ -80,11 +81,12 @@ export const useGenerate = (
     ...sceneMembershipEdges,
   ].map((edge) => `${edge.source}:${edge.target}`));
 
-  const { textNodes, imageNodes, videoNodes, stageNodes } = useMemo(() => {
+  const { textNodes, imageNodes, videoNodes, stageNodes, subjectNodes } = useMemo(() => {
     const textNodes: TNodeText[] = [];
     const imageNodes: TNodeImage[] = [];
     const videoNodes: TNodeImage[] = [];
     const stageNodes: TNodeStage[] = [];
+    const subjectNodes: TNodeSubject[] = [];
     const referenceIds = incomingConnections
       .filter((connection) => !ignoredConnectionKeys.has(`${connection.source}:${connection.target}`))
       .map((connection) => connection.source);
@@ -94,7 +96,7 @@ export const useGenerate = (
       }
     });
     new Set(referenceIds).forEach((referenceId) => {
-      const node = getNode(referenceId);
+      const node = nodes.find((item) => item.id === referenceId);
       if (node?.type === NodeType.TextNode) {
         textNodes.push(node as TNodeText);
       }
@@ -104,12 +106,15 @@ export const useGenerate = (
       if (node?.type === NodeType.StageNode) {
         stageNodes.push(node as TNodeStage);
       }
+      if (node?.type === NodeType.SubjectNode) {
+        subjectNodes.push(node as TNodeSubject);
+      }
       if (node?.type === NodeType.VideoNode) {
         videoNodes.push(node as TNodeImage);
       }
     });
-    return { textNodes, imageNodes, videoNodes, stageNodes };
-  }, [incomingConnections, outgoingConnections, getNode, continuityEdges, sceneMembershipEdges]);
+    return { textNodes, imageNodes, videoNodes, stageNodes, subjectNodes };
+  }, [incomingConnections, outgoingConnections, nodes, continuityEdges, sceneMembershipEdges]);
 
   const disabled = useMemo(() => {
     const hasStageReference = nodeType === NodeType.VideoNode && stageNodes.length > 0;
@@ -568,6 +573,7 @@ export const useGenerate = (
     setIsOptimizing(true);
     setOptimizationError("");
     let optimized = "";
+    let streamError = "";
     try {
       await sseFetch({
         url: "/pipeline/chat",
@@ -586,10 +592,14 @@ export const useGenerate = (
             editorRef.current?.replaceText(optimized);
           }
           if (event.type === "msg_error") {
-            setOptimizationError(String(event.error || "提示词优化失败"));
+            streamError = String(event.error || "提示词优化失败");
+            setOptimizationError(streamError);
           }
         },
       });
+      if (!optimized.trim() && !streamError) {
+        setOptimizationError("模型未返回优化结果，请重试");
+      }
     } catch (error) {
       if (!abortController.signal.aborted) {
         setOptimizationError(error instanceof Error ? error.message : String(error));
@@ -604,5 +614,5 @@ export const useGenerate = (
 
   useEffect(() => () => optimizeAbortRef.current?.abort(), []);
 
-  return { editorRef, submit, stop, disabled, setIsEmpty, imageNodes, videoNodes, optimizePrompt, isOptimizing, optimizationError };
+  return { editorRef, submit, stop, disabled, setIsEmpty, imageNodes, videoNodes, subjectNodes, optimizePrompt, isOptimizing, optimizationError };
 };

@@ -30,7 +30,7 @@ import {
 import Link from "next/link";
 import { nanoid } from "nanoid";
 import "@xyflow/react/dist/style.css";
-import { History, Home, Redo2, Search, Sparkles, Undo2 } from "lucide-react";
+import { Check, CloudAlert, History, Home, LoaderCircle, Redo2, Search, Sparkles, Undo2 } from "lucide-react";
 import { shallow } from "zustand/shallow";
 import nodeTypes from "@/components/pipeline/nodes";
 import edgeTypes from "@/components/pipeline/edges";
@@ -53,6 +53,7 @@ import { TMenuRequest, usePipelineStore } from "@/store/pipeline-store";
 import { NodeType, TAllNodes, TNodeShotTable } from "@/components/pipeline/types";
 import { DOCK_WIDTH, useAgentSettings } from "@/store/agent-settings";
 import { useAgentCanvasSync } from "@/hooks/use-agent-canvas-sync";
+import { unflatten } from "@/lib/agent/graph-changes";
 import {
   NODE_DEFAULT_DATA,
   NODE_TYPE_LABEL,
@@ -140,6 +141,18 @@ const AlignmentGuides = ({ guides }: { guides: { x: number | null; y: number | n
 
 const Flow = () => {
   const canvasId = useCanvasId();
+  useEffect(() => {
+    const root = document.documentElement;
+    const body = document.body;
+    const previousRootValue = root.style.overscrollBehaviorX;
+    const previousBodyValue = body.style.overscrollBehaviorX;
+    root.style.overscrollBehaviorX = "contain";
+    body.style.overscrollBehaviorX = "contain";
+    return () => {
+      root.style.overscrollBehaviorX = previousRootValue;
+      body.style.overscrollBehaviorX = previousBodyValue;
+    };
+  }, []);
   const [aiChatOpen, setAIChatOpen] = useState(false);
   const agentDockWidth = useAgentSettings((state) => state.dockWidth);
   const agentPanelWidth = Math.max(DOCK_WIDTH.min, Math.min(DOCK_WIDTH.max, agentDockWidth));
@@ -165,6 +178,8 @@ const Flow = () => {
   const [canvases, setCanvases] = useState<CanvasSummary[]>([]);
   const [clipboardNode, setClipboardNode] = useState<TAllNodes | null>(null);
   const [canvasLoaded, setCanvasLoaded] = useState(false);
+  const [canvasTitle, setCanvasTitle] = useState("未命名画布");
+  const [saveStatus, setSaveStatus] = useState<"loading" | "saving" | "saved" | "error">("loading");
   const [hasStoredViewport, setHasStoredViewport] = useState(false);
   const currentSnapshot = useMemo(
     () => makeSnapshot(nodes, edges),
@@ -175,6 +190,7 @@ const Flow = () => {
   const pendingSnapshotRef = useRef<CanvasSnapshot | null>(null);
   const historyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveVersionRef = useRef(0);
   const canvasRevisionRef = useRef(0);
   const restoringRef = useRef(false);
   const agentRemoteRef = useRef(false);
@@ -199,9 +215,10 @@ const Flow = () => {
   const currentSelectNode = usePipelineStore(
     (state) => state.currentSelectNode,
   );
+  const isBoxSelecting = useStore((state) => state.userSelectionActive);
   const liveSelectedNode =
     nodes.find((node) => node.id === currentSelectNode?.id) ?? null;
-  const selectedGeneratorNode = liveSelectedNode &&
+  const selectedGeneratorNode = !isBoxSelecting && liveSelectedNode &&
     GENERATOR_TYPES.includes(liveSelectedNode.type as NodeType)
     ? liveSelectedNode
     : null;
@@ -261,24 +278,61 @@ const Flow = () => {
     skipNextSave: () => { restoringRef.current = true; agentRemoteRef.current = true; },
     markTasksKnown: () => {},
     resetHistory: () => { setPast((items) => items.filter((item) => item.agentRunId)); setFuture([]); },
+    merge: {
+      makeNode: (fields) => unflatten(fields) as TAllNodes,
+      makeEdge: (fields) => fields as Edge,
+      normalize: (items) => {
+        const ids = new Set(items.map((node) => node.id));
+        const normalized = items.map((node) => node.parentId && !ids.has(node.parentId)
+          ? { ...node, parentId: undefined }
+          : node);
+        return [
+          ...normalized.filter((node) => node.type === NodeType.Group),
+          ...normalized.filter((node) => node.type !== NodeType.Group),
+        ];
+      },
+    },
   });
 
-  const persistCanvas = useCallback(async (snapshot: StoredCanvas) => {
-    let next = snapshot;
-    let result;
+  const persistCanvas = useCallback(async (snapshot: StoredCanvas, saveVersion: number) => {
+    setSaveStatus("saving");
     try {
-      result = await canvasHistoryApi.save(canvasId, next);
+      let next = snapshot;
+      let result;
+      try {
+        result = await canvasHistoryApi.save(canvasId, next);
+      } catch (error) {
+        const revision = await agentSync.autoMerge();
+        if (revision === null) throw error;
+        canvasRevisionRef.current = revision;
+        next = { ...snapshot, nodes: nodesRef.current, edges: edgesRef.current, revision };
+        result = await canvasHistoryApi.save(canvasId, next);
+      }
+      if (result.revision !== undefined) canvasRevisionRef.current = result.revision;
+      agentSync.saved(next, result.revision ?? next.revision ?? canvasRevisionRef.current);
+      if (saveVersion === saveVersionRef.current) setSaveStatus("saved");
+      return result;
     } catch (error) {
-      const revision = await agentSync.autoMerge();
-      if (revision === null) throw error;
-      canvasRevisionRef.current = revision;
-      next = { ...snapshot, nodes: nodesRef.current, edges: edgesRef.current, revision };
-      result = await canvasHistoryApi.save(canvasId, next);
+      if (saveVersion === saveVersionRef.current) setSaveStatus("error");
+      throw error;
     }
-    if (result.revision !== undefined) canvasRevisionRef.current = result.revision;
-    agentSync.saved(next, result.revision ?? next.revision ?? canvasRevisionRef.current);
-    return result;
   }, [agentSync, canvasId]);
+
+  const markCanvasSaving = useCallback(() => {
+    saveVersionRef.current += 1;
+    setSaveStatus("saving");
+    return saveVersionRef.current;
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    void canvasHistoryApi.list()
+      .then((items) => {
+        if (active) setCanvasTitle(items.find((item) => item.id === canvasId)?.title ?? "未命名画布");
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [canvasId]);
 
   useEffect(() => {
     let active = true;
@@ -308,9 +362,13 @@ const Flow = () => {
           }
         }
         setCanvasLoaded(true);
+        setSaveStatus("saved");
       })
       .catch(() => {
-        if (active) setCanvasLoaded(true);
+        if (active) {
+          setCanvasLoaded(true);
+          setSaveStatus("error");
+        }
       });
     return () => {
       active = false;
@@ -354,12 +412,13 @@ const Flow = () => {
       return;
     }
     lastSavedRef.current = { snapshot: currentSnapshot, past, future };
+    const saveVersion = markCanvasSaving();
     saveTimerRef.current = setTimeout(() => {
       saveTimerRef.current = null;
       const snapshot = { ...currentSnapshot, past, future, revision: canvasRevisionRef.current };
       saveQueueRef.current = saveQueueRef.current
         .catch(() => undefined)
-        .then(() => persistCanvas(snapshot))
+        .then(() => persistCanvas(snapshot, saveVersion))
         .then(() => undefined)
         .catch(() => undefined);
     }, 600);
@@ -367,7 +426,7 @@ const Flow = () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
     };
-  }, [canvasId, canvasLoaded, currentSnapshot, future, past, persistCanvas]);
+  }, [canvasId, canvasLoaded, currentSnapshot, future, markCanvasSaving, past, persistCanvas]);
 
   useEffect(() => {
     if (!canvasLoaded) return;
@@ -425,6 +484,7 @@ const Flow = () => {
       await saveQueueRef.current;
       return canvasRevisionRef.current;
     }
+    const saveVersion = markCanvasSaving();
     saveQueueRef.current = saveQueueRef.current
       .catch(() => undefined)
       .then(() => persistCanvas({
@@ -432,7 +492,7 @@ const Flow = () => {
         past: nextPast,
         future: nextFuture,
         revision: canvasRevisionRef.current,
-      }))
+      }, saveVersion))
       .then(() => undefined);
     await saveQueueRef.current;
     lastSavedRef.current = { snapshot: currentSnapshot, past: nextPast, future: nextFuture };
@@ -441,7 +501,7 @@ const Flow = () => {
       setFuture(nextFuture);
     }
     return canvasRevisionRef.current;
-  }, [canvasLoaded, currentSnapshot, future, past, persistCanvas]);
+  }, [canvasLoaded, currentSnapshot, future, markCanvasSaving, past, persistCanvas]);
 
   const restoreHistory = useCallback(
     (index: number) => {
@@ -481,31 +541,32 @@ const Flow = () => {
       const nodeEl = document.querySelector<HTMLElement>(
         `.react-flow__node[data-id="${nodeId}"]`,
       );
-      const node = getNode(nodeId);
-      if (!nodeEl || !node) return;
+      if (!nodeEl) return;
       const toolbarEl = document.querySelector<HTMLElement>(
         `.react-flow__node-toolbar[data-id="${nodeId}"]`,
       );
+      const nodeRect = nodeEl.getBoundingClientRect();
+      const toolbarRect = toolbarEl?.getBoundingClientRect();
+      const top = Math.min(nodeRect.top, toolbarRect?.top ?? nodeRect.top);
       const bottom = Math.max(
-        nodeEl.getBoundingClientRect().bottom,
-        toolbarEl?.getBoundingClientRect().bottom ?? 0,
+        nodeRect.bottom,
+        toolbarRect?.bottom ?? 0,
       );
       if (bottom > window.innerHeight - 16) {
         const zoom = getZoom();
         // 保持水平方向不变，仅垂直居中
-        const { x } = screenToFlowPosition({
+        const { x, y } = screenToFlowPosition({
           x: window.innerWidth / 2,
-          y: window.innerHeight / 2,
+          y: (top + bottom) / 2,
         });
-        const nodeHeight = node.measured?.height ?? 0;
-        setCenter(x, node.position.y + nodeHeight / 2, {
+        setCenter(x, y, {
           zoom,
           duration: 300,
         });
       }
     }));
     return () => cancelAnimationFrame(frame);
-  }, [getNode, getZoom, screenToFlowPosition, setCenter]);
+  }, [getZoom, screenToFlowPosition, setCenter]);
 
   const onConnect = useCallback(
     (params: Connection) => {
@@ -574,7 +635,7 @@ const Flow = () => {
 
   const onSelectionChange = useCallback(
     ({ nodes }: OnSelectionChangeParams<TAllNodes, Edge>) => {
-      setCurrentSelectNode(nodes.length > 0 ? nodes[0] : null);
+      setCurrentSelectNode(nodes.length === 1 ? nodes[0] : null);
     },
     [setCurrentSelectNode],
   );
@@ -603,8 +664,8 @@ const Flow = () => {
   const onNodeContextMenu = useCallback((event: ReactMouseEvent, node: TAllNodes) => {
     event.preventDefault();
     closeMenu();
-    setNodes((items) => items.map((item) => ({ ...item, selected: item.id === node.id })));
-    setCurrentSelectNode(node);
+    setNodes((items) => items.map((item) => item.selected ? { ...item, selected: false } : item));
+    setCurrentSelectNode(null);
     setContextMenu({ kind: "node", nodeId: node.id, x: event.clientX, y: event.clientY });
   }, [closeMenu, setCurrentSelectNode, setNodes]);
 
@@ -645,8 +706,13 @@ const Flow = () => {
   }, [closeMenu]);
 
   const onNodeDrag = useCallback((_: ReactMouseEvent, draggedNode: TAllNodes) => {
-    const alignment = getNodeAlignment(draggedNode, nodes, 8 / getZoom());
-    setAlignmentGuides({ x: alignment.x, y: alignment.y });
+    const candidates = nodes.filter((node) => node.parentId === draggedNode.parentId);
+    const alignment = getNodeAlignment(draggedNode, candidates, 8 / getZoom());
+    const parent = draggedNode.parentId ? nodes.find((node) => node.id === draggedNode.parentId) : undefined;
+    setAlignmentGuides({
+      x: alignment.x === null ? null : alignment.x + (parent?.position.x ?? 0),
+      y: alignment.y === null ? null : alignment.y + (parent?.position.y ?? 0),
+    });
     if (alignment.deltaX === 0 && alignment.deltaY === 0) return;
     setNodes((currentNodes) => currentNodes.map((node) => node.id === draggedNode.id ? {
       ...node,
@@ -658,7 +724,8 @@ const Flow = () => {
   }, [getZoom, nodes, setNodes]);
 
   const onNodeDragStop = useCallback((_: ReactMouseEvent, draggedNode: TAllNodes) => {
-    const alignment = getNodeAlignment(draggedNode, nodes, 8 / getZoom());
+    const candidates = nodes.filter((node) => node.parentId === draggedNode.parentId);
+    const alignment = getNodeAlignment(draggedNode, candidates, 8 / getZoom());
     if (alignment.deltaX !== 0 || alignment.deltaY !== 0) {
       setNodes((currentNodes) => currentNodes.map((node) => node.id === draggedNode.id ? {
         ...node,
@@ -877,7 +944,6 @@ const Flow = () => {
       subjectLibrary.add({
         id: nanoid(),
         name: node.data.title || "未命名主体",
-        description: node.data.draftText,
         url: node.data.url,
       });
     }
@@ -940,11 +1006,19 @@ const Flow = () => {
   }, [clipboardNode, copyImage, copyNode, currentSelectNode, duplicateNode, getNode, pasteNode]);
 
   return (
-    <div className="w-full h-full relative bg-[#0a0a0a]">
-      <Link href="/home" className="absolute left-4 top-4 z-40 flex p-1 h-9 items-center gap-2 rounded-xl border border-white/10 bg-[#1c1c1e]/95 px-3 text-xs text-white/65 shadow-2xl transition-colors hover:bg-white/10 hover:text-white">
-        <Home size={15} />
-        首页
-      </Link>
+    <div className="relative h-svh w-svw overflow-hidden bg-[#0a0a0a]">
+      <div className="absolute left-4 top-4 z-40 flex h-9 max-w-[calc(100vw-2rem)] items-center gap-2 rounded-xl border border-white/10 bg-[#1c1c1e]/95 px-1.5 text-xs text-white/65 shadow-2xl">
+        <Link href="/home" aria-label="返回首页" title="返回首页" className="grid size-7 shrink-0 place-items-center rounded-lg transition-colors hover:bg-white/10 hover:text-white">
+          <Home size={15} />
+        </Link>
+        <span className="h-4 w-px shrink-0 bg-white/10" />
+        <span className="max-w-56 truncate px-1 text-sm font-medium text-white/90" title={canvasTitle}>{canvasTitle}</span>
+        <span className="shrink-0 text-white/35">节点 {nodes.length}</span>
+        <span role="status" aria-live="polite" className={`flex shrink-0 items-center gap-1 pr-1.5 ${saveStatus === "error" ? "text-red-300" : "text-white/40"}`}>
+          {saveStatus === "loading" || saveStatus === "saving" ? <LoaderCircle size={13} className="animate-spin" /> : saveStatus === "error" ? <CloudAlert size={13} /> : <Check size={13} />}
+          {saveStatus === "loading" ? "加载中" : saveStatus === "saving" ? "保存中" : saveStatus === "error" ? "保存失败" : "已保存"}
+        </span>
+      </div>
       <ReactFlow
         onlyRenderVisibleElements={true}
         colorMode="dark"
@@ -953,6 +1027,7 @@ const Flow = () => {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeClick={(_, node) => {
+          window.dispatchEvent(new Event("agent:canvas-node-click"));
           if (GENERATOR_TYPES.includes(node.type as NodeType)) centerGeneratorNode(node.id);
         }}
         onEdgeClick={onEdgeClick}
@@ -978,6 +1053,9 @@ const Flow = () => {
         edgeTypes={edgeTypes}
         edgesFocusable={true}
         deleteKeyCode={["Backspace", "Delete"]}
+        selectionOnDrag={true}
+        panOnDrag={[1, 2]}
+        panActivationKeyCode="Space"
         panOnScroll={true}
         zoomOnDoubleClick={false}
         fitView={!hasStoredViewport}
@@ -1004,7 +1082,7 @@ const Flow = () => {
           />
         )}
 
-        {liveSelectedNode && liveSelectedNode.type === NodeType.TextNode && (
+        {!isBoxSelecting && liveSelectedNode && liveSelectedNode.type === NodeType.TextNode && (
           <NodeToolbar
             nodeId={liveSelectedNode.id}
             position={Position.Top}
@@ -1014,7 +1092,7 @@ const Flow = () => {
             <TextToolbar node={liveSelectedNode} />
           </NodeToolbar>
         )}
-        {liveSelectedNode &&
+        {!contextMenu && !isBoxSelecting && liveSelectedNode &&
           [NodeType.ImageNode, NodeType.VideoNode, NodeType.AudioNode].includes(
             liveSelectedNode.type as NodeType,
           ) && (
@@ -1034,9 +1112,9 @@ const Flow = () => {
             isVisible={true}
             offset={16}
             className="pointer-events-none"
-            style={{ visibility: selectedGeneratorNode ? "visible" : "hidden" }}
+            style={{ visibility: selectedGeneratorNode && !contextMenu ? "visible" : "hidden" }}
           >
-            <GeneratorCard node={generatorNode} active={selectedGeneratorNode !== null} />
+            <GeneratorCard node={generatorNode} active={selectedGeneratorNode !== null && !contextMenu} />
           </NodeToolbar>
         )}
       </ReactFlow>
@@ -1058,7 +1136,7 @@ const Flow = () => {
 
       <Toolbar />
       <Controls />
-      <AssetModal />
+      <AssetModal canvasId={canvasId} />
 
       <StoryboardPrevizModal
         open={previzOpen}

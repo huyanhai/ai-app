@@ -24,6 +24,16 @@ export class CanvasController {
     return this.canvas.create(body.title);
   }
 
+  @Get('generations')
+  allGenerations() {
+    return this.canvas.allGenerations();
+  }
+
+  @Delete('generations')
+  removeGenerations(@Body() body: { ids: string[] }) {
+    return this.canvas.deleteGenerations(body.ids);
+  }
+
   @Get(':id')
   get(@Param('id') id: string) {
     return this.canvas.get(id);

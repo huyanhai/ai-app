@@ -18,9 +18,7 @@
     "forceConsistentCasingInFileNames": false,
     "noFallthroughCasesInSwitch": false,
     "paths": {
-      "@/*": ["./src/*"],
-      "agents": ["../agents/index.ts"],
-      "agents/*": ["../agents/*"]
+      "@/*": ["./src/*"]
     }
   }
 }

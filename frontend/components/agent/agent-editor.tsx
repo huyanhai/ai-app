@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -10,64 +11,97 @@ import {
   type KeyboardEvent,
   type Ref,
 } from "react";
-import { Clapperboard, FileText, Group, Image as ImageIcon, Lightbulb, Music, UserRound } from "lucide-react";
+import { FileText, Lightbulb } from "lucide-react";
+import Editor, { type IEditorRef } from "@/components/pipeline/editor";
+import type { EditorToken } from "@/components/pipeline/editor/nodes";
+import { InlineTokenActionsContext } from "@/components/pipeline/editor/nodes";
+import ReferencePicker from "@/components/pipeline/reference-picker";
+import type { SubjectReference } from "@/components/chat/types";
 import type { Chip } from "@/lib/agent/chips";
 import { parseMessage, serializeChip } from "@/lib/agent/chips";
+import type { TrayItem } from "@/lib/agent/attachments";
 import type { RefNode, RefNodeKind } from "@/lib/agent/selection-refs";
 import { filterSkills, skillMenuNotice } from "@/lib/agent/skills";
 import { cn } from "@/lib/utils";
 import { SuggestionMenu } from "./suggestion-menu";
+import type { AgentAttachments } from "./use-agent-attachments";
 import { useSkillCatalog } from "./use-skill-catalog";
 
-export type NodeOption = { id: string; label: string; kind: RefNodeKind };
+export type NodeOption = {
+  id: string;
+  label: string;
+  kind: RefNodeKind;
+  url?: string;
+};
 export type AgentEditorHandle = {
   insertChip: (chip: Chip) => void;
   insertText: (text: string) => void;
+  addAttachments: (
+    files: ArrayLike<File> | null | undefined,
+    kind: "image" | "document",
+  ) => void;
+  commitSelection: () => string;
   setText: (text: string) => void;
   clear: () => void;
   focus: () => void;
 };
 
-type MenuState = { type: "node" | "skill"; query: string; range: Range };
-const KIND_ICON = { script: FileText, image: ImageIcon, video: Clapperboard, audio: Music, character: UserRound, group: Group } as const;
-const CHIP_CLASS = "mx-0.5 inline-flex h-6 max-w-44 items-center rounded-md bg-white/8 px-1.5 align-middle text-xs text-white/65 ring-1 ring-white/10";
+type MenuState =
+  | { type: "node"; query: string; trigger: "@"; position: { left: number; top: number } }
+  | { type: "skill"; query: string; trigger: "/" };
+const CHIP_CLASS =
+  "mx-0.5 inline-flex h-6 max-w-44 items-center rounded-md bg-white/8 px-1.5 align-middle text-xs text-white/65 ring-1 ring-white/10";
 
-function chipElement(chip: Chip) {
-  const element = document.createElement("span");
-  element.contentEditable = "false";
-  element.dataset.chipType = chip.type;
-  element.dataset.chipId = chip.id;
-  element.dataset.chipName = chip.name;
-  element.className = cn(CHIP_CLASS, (chip.type === "model" || chip.type === "skill") && "bg-[#33a3ff]/15 text-[#8ccfff] ring-[#33a3ff]/20");
-  element.textContent = chip.name;
-  element.title = `${chip.type}:${chip.id}`;
-  return element;
+function nodeReferenceKind(kind: RefNode["kind"]): SubjectReference["kind"] {
+  if (kind === "script") return "text";
+  if (kind === "character") return "subject";
+  return kind === "group" ? undefined : kind;
 }
 
-function insertNodeAtCaret(node: Node, range?: Range | null) {
-  const selection = window.getSelection();
-  const target = range ?? (selection?.rangeCount ? selection.getRangeAt(0) : null);
-  if (!target) return false;
-  target.deleteContents();
-  target.insertNode(node);
-  target.setStartAfter(node);
-  target.collapse(true);
-  selection?.removeAllRanges();
-  selection?.addRange(target);
-  return true;
-}
-
-function serialize(root: HTMLElement) {
-  const visit = (node: Node): string => {
-    if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? "";
-    if (!(node instanceof HTMLElement)) return "";
-    if (node.tagName === "BR") return "\n";
-    if (node.dataset.chipType) return serializeChip({ type: node.dataset.chipType as Chip["type"], id: node.dataset.chipId ?? "", name: node.dataset.chipName ?? "" });
-    let value = Array.from(node.childNodes).map(visit).join("");
-    if (node !== root && ["DIV", "P"].includes(node.tagName) && value && !value.endsWith("\n")) value += "\n";
-    return value;
+function chipToken(chip: Chip, refNodes: readonly RefNode[] = []): EditorToken {
+  const node =
+    chip.type === "node"
+      ? refNodes.find((item) => item.id === chip.id)
+      : undefined;
+  const referenceKind = node ? nodeReferenceKind(node.kind) : undefined;
+  return {
+    id: chip.id,
+    kind: chip.type,
+    label: chip.name,
+    className: cn(
+      CHIP_CLASS,
+      (chip.type === "model" || chip.type === "skill") &&
+        "bg-white/10 text-zinc-200 ring-white/15",
+    ),
+    showIcon: node?.kind === "image",
+    url: node?.url,
+    referenceKind,
+    title: `${chip.type}:${chip.id}`,
   };
-  return visit(root).replace(/\n$/, "").replace(/\u00a0/g, " ");
+}
+
+function tokenText(token: EditorToken) {
+  if (token.kind === "attachment" || token.kind === "pending") return "";
+  return serializeChip({
+    type: token.kind as Chip["type"],
+    id: token.id,
+    name: token.label,
+  });
+}
+
+function attachmentToken(item: TrayItem): EditorToken {
+  return {
+    id: item.id,
+    kind: "attachment",
+    label: item.name,
+    className: CHIP_CLASS,
+    url: item.previewUrl || item.asset?.url,
+    attachmentKind: item.kind === "document" ? "document" : "image",
+    status: item.status,
+    progress: item.progress,
+    error: item.error,
+    size: item.size,
+  };
 }
 
 export function AgentEditor({
@@ -79,6 +113,7 @@ export function AgentEditor({
   onChange,
   onSubmit,
   onImages,
+  attachments,
   mentions = true,
   skills = true,
 }: {
@@ -90,173 +125,344 @@ export function AgentEditor({
   onChange: (text: string) => void;
   onSubmit: () => void;
   onImages?: (files: ArrayLike<File> | null | undefined) => void;
+  attachments?: AgentAttachments;
   mentions?: boolean;
   skills?: boolean;
 }) {
+  const editor = useRef<IEditorRef>(null);
   const root = useRef<HTMLDivElement>(null);
-  const savedRange = useRef<Range | null>(null);
-  const [empty, setEmpty] = useState(true);
-  const [focused, setFocused] = useState(false);
+  const dismissedMenu = useRef<string | null>(null);
+  const committing = useRef(false);
+  const pendingRef = useRef<RefNode[]>([]);
+  const ghostPosition = useRef({ left: 0, top: 0 });
+  const [value, setValue] = useState("");
+  const [dismissed, setDismissed] = useState<string[]>([]);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [active, setActive] = useState(0);
+  const selectionKey = selection.join("\u0000");
   const catalog = useSkillCatalog(menu?.type === "skill");
-  const nodeItems = useMemo(() => {
-    const query = menu?.type === "node" ? menu.query.toLowerCase() : "";
-    return nodes.filter((node) => !query || node.label.toLowerCase().includes(query)).slice(0, 20);
-  }, [menu, nodes]);
-  const skillItems = useMemo(() => menu?.type === "skill" ? filterSkills(catalog.skills, menu.query).slice(0, 20) : [], [catalog.skills, menu]);
-  const itemCount = menu?.type === "node" ? nodeItems.length : skillItems.length;
+  const references = useMemo<SubjectReference[]>(
+    () => nodes.map((node) => ({
+      id: node.id,
+      name: node.label || "未命名节点",
+      kind: nodeReferenceKind(node.kind),
+      url: node.url,
+    })),
+    [nodes],
+  );
+  const skillItems = useMemo(
+    () =>
+      menu?.type === "skill"
+        ? filterSkills(catalog.skills, menu.query).slice(0, 20)
+        : [],
+    [catalog.skills, menu],
+  );
+  const itemCount = menu?.type === "skill" ? skillItems.length : 0;
 
-  const update = () => {
-    if (!root.current) return;
-    const value = serialize(root.current);
-    setEmpty(!value.trim());
-    onChange(value);
+  useEffect(() => setActive(0), [menu?.type, menu?.query]);
+
+  const updateValue = (next: string) => {
+    setValue(next);
+    onChange(next);
   };
 
-  const detectMenu = () => {
-    const selectionObject = window.getSelection();
-    if (!selectionObject?.rangeCount || !root.current?.contains(selectionObject.anchorNode)) return setMenu(null);
-    const range = selectionObject.getRangeAt(0);
-    if (!range.collapsed || range.startContainer.nodeType !== Node.TEXT_NODE) return setMenu(null);
-    const before = (range.startContainer.textContent ?? "").slice(0, range.startOffset);
-    const match = before.match(/(?:^|\s)([@\/])([\p{L}\p{N}_-]*)$/u);
-    if (!match || (match[1] === "@" ? !mentions : !skills)) return setMenu(null);
-    const start = range.startOffset - match[0].length + (match[0].startsWith(" ") || match[0].startsWith("\n") ? 1 : 0);
-    const trigger = range.cloneRange();
-    trigger.setStart(range.startContainer, start);
-    trigger.setEnd(range.startContainer, range.startOffset);
-    setActive(0);
-    setMenu({ type: match[1] === "@" ? "node" : "skill", query: match[2], range: trigger });
-  };
-
-  const insertChip = (chip: Chip, range?: Range | null) => {
-    root.current?.focus();
-    const element = chipElement(chip);
-    if (!insertNodeAtCaret(element, range ?? savedRange.current) && root.current) root.current.append(element);
-    insertNodeAtCaret(document.createTextNode("\u00a0"));
+  const insertChip = (chip: Chip, trigger?: "/" | "@") => {
+    dismissedMenu.current = null;
+    editor.current?.insertToken(chipToken(chip, refNodes), "current", trigger);
     setMenu(null);
-    update();
   };
 
-  const renderText = (text: string) => {
-    if (!root.current) return;
-    root.current.replaceChildren();
-    for (const part of parseMessage(text)) {
-      if (part.kind === "chip") root.current.append(chipElement(part.chip), document.createTextNode("\u00a0"));
-      else root.current.append(document.createTextNode(part.text));
-    }
-    const range = document.createRange();
-    range.selectNodeContents(root.current);
-    range.collapse(false);
-    const selectionObject = window.getSelection();
-    selectionObject?.removeAllRanges();
-    selectionObject?.addRange(range);
-    update();
+  const addAttachments = (
+    files: ArrayLike<File> | null | undefined,
+    kind: "image" | "document",
+  ) => {
+    attachments
+      ?.add(files, kind)
+      .forEach((item) =>
+        editor.current?.insertToken(attachmentToken(item), "current"),
+      );
   };
+
+  const attachmentItems = attachments?.items;
+  useEffect(() => {
+    if (attachmentItems)
+      editor.current?.syncTokens(
+        attachmentItems.map(attachmentToken),
+        "attachment",
+      );
+  }, [attachmentItems]);
 
   useImperativeHandle(handleRef, () => ({
     insertChip: (chip) => insertChip(chip),
-    insertText: (text) => {
-      root.current?.focus();
-      if (!insertNodeAtCaret(document.createTextNode(text), savedRange.current) && root.current) root.current.append(document.createTextNode(text));
-      update();
+    insertText: (text) => editor.current?.insertText(text, "current"),
+    addAttachments,
+    commitSelection: () => commitSelection(),
+    setText: (text) => {
+      setMenu(null);
+      editor.current?.replaceContent(
+        parseMessage(text).map((part) =>
+          part.kind === "chip" ? chipToken(part.chip, refNodes) : part.text,
+        ),
+      );
     },
-    setText: renderText,
-    clear: () => { root.current?.replaceChildren(); setMenu(null); update(); },
-    focus: () => root.current?.focus(),
+    clear: () => {
+      setMenu(null);
+      editor.current?.clear();
+    },
+    focus: () => {
+      editor.current?.focus();
+    },
   }));
 
-  const committedIds = new Set(Array.from(root.current?.querySelectorAll<HTMLElement>("[data-chip-id]") ?? []).map((element) => element.dataset.chipId));
-  const pending = focused ? [] : refNodes.filter((node) => selection.includes(node.id) && !committedIds.has(node.id));
-  const commitSelection = () => {
-    window.requestAnimationFrame(() => {
-      if (!root.current) return;
-      const committed = new Set(Array.from(root.current.querySelectorAll<HTMLElement>("[data-chip-id]")).map((element) => element.dataset.chipId));
-      refNodes.filter((node) => selection.includes(node.id) && !committed.has(node.id)).forEach((node) => insertChip({ type: "node", id: node.id, name: node.label || "未命名节点" }));
+  const committedIds = useMemo(
+    () =>
+      new Set(
+        parseMessage(value).flatMap((part) =>
+          part.kind === "chip" && part.chip.type === "node"
+            ? [part.chip.id]
+            : [],
+        ),
+      ),
+    [value],
+  );
+  useEffect(() => {
+    setDismissed((current) => {
+      const next = current.filter((id) => selection.includes(id));
+      return next.length === current.length ? current : next;
     });
+  }, [selection]);
+  useEffect(() => {
+    editor.current?.blur();
+  }, [selectionKey]);
+  useEffect(() => {
+    const blur = () => editor.current?.blur();
+    window.addEventListener("agent:canvas-node-click", blur);
+    return () => window.removeEventListener("agent:canvas-node-click", blur);
+  }, []);
+  const pending = useMemo(
+    () =>
+      refNodes.filter(
+        (node) => selection.includes(node.id) && !committedIds.has(node.id) && !dismissed.includes(node.id),
+      ),
+    [committedIds, dismissed, refNodes, selection],
+  );
+  pendingRef.current = pending;
+  const commitSelection = () => {
+    if (committing.current) return editor.current?.getSerializedText() ?? "";
+    const selected = pendingRef.current;
+    pendingRef.current = [];
+    committing.current = true;
+    selected.forEach((node) =>
+        insertChip({
+          type: "node",
+          id: node.id,
+          name: node.label || "未命名节点",
+        }),
+      );
+    committing.current = false;
+    return editor.current?.getSerializedText() ?? "";
   };
 
   const paste = (event: ClipboardEvent<HTMLDivElement>) => {
-    const files = Array.from(event.clipboardData.files).filter((file) => file.type.startsWith("image/"));
+    const files = Array.from(event.clipboardData.files).filter((file) =>
+      file.type.startsWith("image/"),
+    );
     if (files.length && onImages) {
       event.preventDefault();
+      event.stopPropagation();
       onImages(files);
-      return;
     }
-    event.preventDefault();
-    insertNodeAtCaret(document.createTextNode(event.clipboardData.getData("text/plain")));
-    update();
   };
 
   const drop = (event: DragEvent<HTMLDivElement>) => {
-    const files = Array.from(event.dataTransfer.files).filter((file) => file.type.startsWith("image/"));
+    const files = Array.from(event.dataTransfer.files).filter((file) =>
+      file.type.startsWith("image/"),
+    );
     if (files.length && onImages) {
       event.preventDefault();
+      event.stopPropagation();
       onImages(files);
     }
   };
 
   const keyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (menu && itemCount > 0) {
+    if (
+      (event.key.length === 1 &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey) ||
+      event.key === "Enter"
+    )
+      commitSelection();
+    if (menu?.type === "skill" && itemCount > 0) {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault();
-        setActive((current) => (current + (event.key === "ArrowDown" ? 1 : -1) + itemCount) % itemCount);
+        event.stopPropagation();
+        setActive(
+          (current) =>
+            (current + (event.key === "ArrowDown" ? 1 : -1) + itemCount) %
+            itemCount,
+        );
         return;
       }
       if (event.key === "Enter" || event.key === "Tab") {
         event.preventDefault();
-        if (menu.type === "node") {
-          const node = nodeItems[active];
-          if (node) insertChip({ type: "node", id: node.id, name: node.label }, menu.range);
-        } else {
-          const skill = skillItems[active];
-          if (skill) insertChip({ type: "skill", id: skill.name, name: skill.title }, menu.range);
-        }
+        event.stopPropagation();
+        const skill = skillItems[active];
+        if (skill)
+          insertChip(
+            { type: "skill", id: skill.name, name: skill.title },
+            menu.trigger,
+          );
         return;
       }
     }
     if (event.key === "Escape" && menu) {
       event.preventDefault();
+      event.stopPropagation();
+      dismissedMenu.current = `${menu.trigger}${menu.query}`;
       setMenu(null);
       return;
     }
-    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+    if (
+      event.key === "Enter" &&
+      !event.shiftKey &&
+      !event.nativeEvent.isComposing
+    ) {
       event.preventDefault();
+      event.stopPropagation();
       onSubmit();
     }
   };
 
   return (
-    <div className="relative px-1">
-      {empty && !focused && pending.length > 0 && <div className="pointer-events-none absolute left-2 top-0 flex max-w-[calc(100%-16px)] flex-wrap gap-1">{pending.map((node) => <span key={node.id} className="inline-flex h-6 max-w-36 items-center gap-1 rounded-md border border-dashed border-zinc-300 px-1.5 text-xs text-zinc-400">{node.kind === "group" ? <Group className="size-3" /> : <FileText className="size-3" />}<span className="truncate">{node.label}</span></span>)}</div>}
-      {empty && pending.length === 0 && <span className="pointer-events-none absolute left-2 top-0 text-[13.5px] leading-[1.75] text-white/30">{placeholder}</span>}
-      <div
-        ref={root}
-        role="textbox"
-        aria-label="Agent 消息"
-        aria-multiline
-        contentEditable
-        suppressContentEditableWarning
-        spellCheck
-        onInput={() => { update(); detectMenu(); }}
-        onKeyUp={detectMenu}
-        onClick={detectMenu}
-        onKeyDown={keyDown}
-        onFocus={() => { setFocused(true); commitSelection(); }}
-        onBlur={() => {
-          setFocused(false);
-          const selectionObject = window.getSelection();
-          if (selectionObject?.rangeCount) savedRange.current = selectionObject.getRangeAt(0).cloneRange();
-          setMenu(null);
+    <div ref={root} className="relative">
+      <InlineTokenActionsContext.Provider
+        value={{
+          onRemove: (id) => attachments?.remove(id),
+          onRetry: (id) => attachments?.retry(id),
         }}
-        onPaste={paste}
-        onDrop={drop}
-        className="agent-scroll max-h-40 min-h-[60px] overflow-y-auto whitespace-pre-wrap break-words rounded-lg px-1 py-0 text-[13.5px] leading-6 text-white/90 outline-none empty:before:content-none"
-      />
-      {menu?.type === "node" && <SuggestionMenu label="引用节点" items={nodeItems.map((node) => ({ key: node.id, icon: KIND_ICON[node.kind], title: node.label || "未命名节点" }))} active={active} onActive={setActive} notice={nodeItems.length ? null : "没有匹配的节点"} onPick={(index) => { const node = nodeItems[index]; if (node) insertChip({ type: "node", id: node.id, name: node.label }, menu.range); }} />}
-      {menu?.type === "skill" && <SuggestionMenu label="插入技能" items={skillItems.map((skill) => ({ key: skill.name, icon: Lightbulb, title: skill.title, hint: skill.description }))} active={active} onActive={setActive} notice={skillMenuNotice(catalog.status, catalog.skills.length, skillItems.length)} onPick={(index) => { const skill = skillItems[index]; if (skill) insertChip({ type: "skill", id: skill.name, name: skill.title }, menu.range); }} />}
+      >
+        <Editor
+          ref={editor}
+          onSubmit={onSubmit}
+          images={[]}
+          initialState=""
+          noImageMention
+          autoFocus={false}
+          submitOnEnter={false}
+          ariaLabel="Agent 消息"
+          placeholder={pending.length ? "" : placeholder}
+          className="agent-scroll max-h-40 min-h-[60px] overflow-y-auto whitespace-pre-wrap break-words rounded-lg py-0 text-[13.5px] leading-6 text-white/90 caret-white outline-none [&_p]:m-0 [&_p]:min-h-6 [&_p]:whitespace-pre-wrap [&_[data-lexical-text='true']]:align-middle"
+          placeholderClassName="pointer-events-none absolute left-0 top-0 text-[13.5px] leading-[1.75] text-white/30"
+          onFocus={() => requestAnimationFrame(() => commitSelection())}
+          serializeToken={tokenText}
+          onSerializedTextChange={updateValue}
+          onTriggerQueryChange={(next) => {
+            if (!next) {
+              dismissedMenu.current = null;
+              setMenu(null);
+              return;
+            }
+            const menuKey = `${next.trigger}${next.query}`;
+            if (
+              dismissedMenu.current === menuKey ||
+              (next.trigger === "@" ? !mentions : !skills)
+            )
+              setMenu(null);
+            else {
+              dismissedMenu.current = null;
+              if (next.trigger === "@") {
+                const caret = editor.current?.getCaretRect();
+                setMenu(caret ? {
+                  type: "node",
+                  query: next.query,
+                  trigger: "@",
+                  position: {
+                    left: Math.min(window.innerWidth - 272, Math.max(16, caret.left - 128)),
+                    top: caret.top,
+                  },
+                } : null);
+              } else {
+                setMenu({ type: "skill", query: next.query, trigger: "/" });
+              }
+            }
+          }}
+          onBlur={() => {
+            const rootRect = root.current?.getBoundingClientRect();
+            const caret = editor.current?.getCaretRect();
+            if (rootRect && caret) {
+              ghostPosition.current = { left: caret.left - rootRect.left, top: caret.top - rootRect.top };
+            }
+            dismissedMenu.current = null;
+            setMenu(null);
+          }}
+          onPaste={paste}
+          onDrop={drop}
+          onKeyDown={keyDown}
+          onTokenRemove={(token) => {
+            if (token.kind === "attachment") attachments?.remove(token.id);
+            if (token.kind === "node") {
+              setDismissed((current) => current.includes(token.id) ? current : [...current, token.id]);
+            }
+          }}
+        />
+        {pending.length > 0 && (
+          <div
+            className="pointer-events-none absolute z-10 flex max-w-full select-none flex-wrap items-center"
+            style={ghostPosition.current}
+          >
+            {pending.map((node) => (
+              <span
+                key={node.id}
+                title="聚焦输入框后引用此节点"
+                className="mx-0.5 inline-flex h-6 max-w-36 items-center gap-1 rounded-md border border-dashed border-zinc-300 px-1.5 align-middle text-xs text-zinc-400"
+              >
+                <FileText className="size-3 shrink-0 opacity-50" />
+                <span className="truncate">{node.label || "未命名节点"}</span>
+              </span>
+            ))}
+          </div>
+        )}
+      </InlineTokenActionsContext.Provider>
+      {menu?.type === "node" && (
+        <ReferencePicker
+          references={references}
+          position={menu.position}
+          query={menu.query}
+          onSelect={(reference) => {
+            const node = nodes.find((item) => item.id === reference.id);
+            if (node) insertChip({ type: "node", id: node.id, name: node.label }, menu.trigger);
+          }}
+          onClose={() => setMenu(null)}
+        />
+      )}
+      {menu?.type === "skill" && (
+        <SuggestionMenu
+          label="插入技能"
+          items={skillItems.map((skill) => ({
+            key: skill.name,
+            icon: Lightbulb,
+            title: skill.title,
+            hint: skill.description,
+          }))}
+          active={active}
+          onActive={setActive}
+          notice={skillMenuNotice(
+            catalog.status,
+            catalog.skills.length,
+            skillItems.length,
+          )}
+          onPick={(index) => {
+            const skill = skillItems[index];
+            if (skill)
+              insertChip(
+                { type: "skill", id: skill.name, name: skill.title },
+                menu.trigger,
+              );
+          }}
+        />
+      )}
     </div>
   );
 }
-

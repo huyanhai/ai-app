@@ -2,29 +2,15 @@ import { createChatModel } from '@/common/llm';
 import { genImage } from '@/common/llm/tools/gen-image';
 import { genSceneReferenceImage } from '@/common/llm/tools/gen-scene-reference';
 import { ChunkStatus, StreamEvent } from '@/common/utils/ai-stream-utils';
-import { AsyncQueue } from '@/common/utils/async-queue';
 import { SSE_EVENT, SSE_ROLE } from '@/common/utils/stream-constants';
 
 import { Injectable } from '@nestjs/common';
-import { ContentBlock, HumanMessage } from 'langchain';
+import { ContentBlock } from 'langchain';
 import { StreamDto } from './dto/stream.dto';
 import { ChatDto } from './dto/chat.dto';
 import { textScenePrompt } from '@/common/llm/prompts/text-scene';
 import { genVideo, queryVideoTask } from '@/common/llm/tools/gen-video';
 import { videoErrorMessage } from '@/common/llm/video-providers/http';
-import {
-  decomposeVisualDescription,
-  designStoryboard,
-  extractCharacters,
-  genFramePrompt,
-  genTurnaroundPrompt,
-  imagePrompt,
-  optimizeScene,
-  serializeStoryboardRow,
-  story,
-  TShotBriefDescription,
-  writeScriptBasedOnStory,
-} from 'agents';
 import { ModelsService } from '../models/models.service';
 import { genAudio } from '@/common/llm/tools/gen-audio';
 import { ImageStorageService } from '../canvas/image-storage.service';
@@ -71,34 +57,6 @@ export class PipelineService {
       return;
     }
     yield { type: SSE_EVENT.MSG_END };
-  }
-
-  async *text({ message, textList }: StreamDto) {
-    const model = await this.models.runtime(undefined, 'text');
-    const senModel = createChatModel(model);
-    const messages = [
-      new HumanMessage({
-        content: message as ContentBlock.Text[],
-      }),
-    ];
-    if (textList) {
-      textList.forEach((item) => {
-        messages.push(
-          new HumanMessage({
-            content: [{ type: 'text', text: item.action_input }],
-          }),
-        );
-      });
-    }
-    const queue = new AsyncQueue<StreamEvent>();
-    queue.push({ type: SSE_EVENT.MSG_START, role: SSE_ROLE.ASSISTANT });
-    const response = await senModel.invoke([...imagePrompt(), ...messages], {
-      response_format: { type: 'text' },
-    });
-    queue.push({ type: SSE_EVENT.MSG_CHUNK, content: response.text });
-    queue.push({ type: SSE_EVENT.MSG_END });
-
-    yield* queue.generator();
   }
 
   async *image(messages: StreamDto) {
@@ -222,76 +180,48 @@ export class PipelineService {
     yield { type: SSE_EVENT.MSG_END };
   }
 
-  async *story({ message }: StreamDto) {
-    const model = await this.models.runtime(undefined, 'text');
-    const senModel = createChatModel(model);
-    const queue = new AsyncQueue<StreamEvent>();
-    queue.push({ type: SSE_EVENT.MSG_START, role: SSE_ROLE.ASSISTANT });
-    queue.push({
+  async *dubbing(messages: StreamDto) {
+    const audioModel = await this.models.runtime(messages.modelId, 'audio');
+    yield { type: SSE_EVENT.MSG_START, role: SSE_ROLE.ASSISTANT };
+    yield {
       type: SSE_EVENT.MSG_CHUNK,
       content: { status: ChunkStatus.PROCESSING, url: null },
-    });
-
-    const firstMessage = message[0];
-    const idea = firstMessage?.type === 'text' ? String(firstMessage.text) : '';
-
-    // 1. 生成故事
-    const { text } = await story(senModel, idea);
-    queue.push({ type: SSE_EVENT.MSG_CHUNK, content: text });
-
-    // 2. 按场景拆分剧本
-    const { script } = await writeScriptBasedOnStory(senModel, text);
-
-    for (let s = 0; s < script.length; s++) {
-      // 3a. 场景润色
-      const { enhancedScript } = await optimizeScene(senModel, script[s]);
-
-      console.log('enhancedScript', enhancedScript);
-
-      //   // 3b. 角色提取
-      //   const { characters } = await extractCharacters(senModel, enhancedScript);
-
-      //   // 3c. 角色三视图生成（可选，只生成 prompt）
-      //   for (const character of characters) {
-      //     const rolePrompt = genTurnaroundPrompt(character, '真实');
-      //     const { actionInput } = await genFramePrompt(senModel, rolePrompt);
-      //   }
-
-      //   // 3d. 生成分镜
-      //   const storyboard = await designStoryboard(
-      //     senModel,
-      //     enhancedScript,
-      //     characters,
-      //   );
-
-      //   // 3e. 逐个镜头拆解 + 输出
-      //   for (let i = 0; i < storyboard.storyboard.length; i++) {
-      //     const shot = storyboard.storyboard[i] as TShotBriefDescription;
-      //     const decomposed = await decomposeVisualDescription(
-      //       senModel,
-      //       shot,
-      //       characters,
-      //     );
-
-      //     // const row = serializeStoryboardRow(
-      //     //   shot,
-      //     //   i,
-      //     //   characters,
-      //     //   decomposed.visualPrompt,
-      //     //   decomposed.motionVideoPrompt,
-      //     // );
-
-      //     console.log(`场景${i}:`, decomposed);
-
-      //     // 逐条流式输出镜头数据
-      //     queue.push({
-      //       type: SSE_EVENT.MSG_CHUNK,
-      //       content: JSON.stringify(decomposed),
-      //     });
-      //   }
+    };
+    try {
+      const hasImage = messages.message.some((item) => item.type === 'image_url');
+      const textModel = hasImage
+        ? await this.models.visionRuntime()
+        : await this.models.runtime(undefined, 'text');
+      const llm = createChatModel(textModel, { temperature: 0.7, maxTokens: 160 });
+      const response = await llm.invoke([{
+        role: 'user',
+        content: [
+          ...messages.message,
+          {
+            type: 'text',
+            text: '请根据以上主体图片和描述创作一句适合该主体说出的自然短台词。只输出台词正文，不要标题、解释、引号或舞台指示。若未提供图片或描述，则创作一句通用问候。',
+          },
+        ] as ContentBlock[],
+      }]);
+      const script = response.text.trim();
+      if (!script) throw new Error('文本模型未返回配音台词');
+      const url = await genAudio({
+        message: [{ type: 'text', text: script }],
+        runtimeModel: audioModel,
+      });
+      yield {
+        type: SSE_EVENT.MSG_CHUNK,
+        content: { status: ChunkStatus.SUCCESS, url },
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      yield {
+        type: SSE_EVENT.MSG_CHUNK,
+        content: { status: ChunkStatus.FAILED, url: null },
+      };
+      yield { type: SSE_EVENT.MSG_ERROR, error: message };
     }
-
-    queue.push({ type: SSE_EVENT.MSG_END });
-    yield* queue.generator();
+    yield { type: SSE_EVENT.MSG_END };
   }
+
 }

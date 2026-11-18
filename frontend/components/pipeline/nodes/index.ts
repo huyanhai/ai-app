@@ -7,6 +7,7 @@ import SubjectNode from "./node/subject";
 import StageNode from "./node/stage";
 import ShotTableNode from "./node/shot-table";
 import ToolboxNode from "./node/toolbox";
+import GroupNode from "./node/group";
 
 export default {
   textNode: TextNode,
@@ -21,4 +22,5 @@ export default {
   movementNode: ToolboxNode,
   stageNode: StageNode,
   shotTableNode: ShotTableNode,
+  group: GroupNode,
 };

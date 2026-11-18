@@ -14,7 +14,6 @@ import {
   type NodeOption,
 } from "./agent-editor";
 import { AttachPopover } from "./attach-popover";
-import { AttachmentTray } from "./attachment-tray";
 import { ContextChips, type ContextRef } from "./context-chips";
 import { ContextRing } from "./context-ring";
 import { ModelPopover } from "./model-popover";
@@ -116,7 +115,7 @@ export function AgentComposer({
 }: {
   text: string;
   onTextChange: (text: string) => void;
-  onSend: () => void;
+  onSend: (message: string) => void;
   onStop: () => void;
   busy: boolean;
   sending: boolean;
@@ -139,15 +138,19 @@ export function AgentComposer({
   const canPickModel = features?.models ?? true;
   const canSkill = features?.skills ?? true;
   const handle = editorRef as { current: AgentEditorHandle | null };
-  const empty = !text.trim();
+  const empty = !text.trim() && selection.length === 0;
   const stopMode = busy && empty;
   const blocked = attachmentBlockReason(attachments.items, vision);
   const ready = !stopMode && !empty && !blocked && !sending;
   const sendLabel = stopMode ? "停止" : (blocked ?? (busy ? "插话" : "发送"));
+  const sendMessage = () => {
+    const message = handle.current?.commitSelection() ?? text;
+    if (ready) onSend(message);
+  };
+  const addAttachments = (files: ArrayLike<File> | null | undefined, kind: "image" | "document") => handle.current?.addAttachments(files, kind);
 
   return (
     <div className="flex flex-col gap-1.5">
-      {canAttach && <AttachmentTray attachments={attachments} />}
       <ContextChips refs={contextRefs} onRemove={onRemoveContextRef} />
       <AgentEditor
         handleRef={editorRef}
@@ -161,15 +164,16 @@ export function AgentComposer({
               "输入想法、剧本或上传参考，支持“/”插入技能，@ 引用节点")
         }
         onChange={onTextChange}
-        onSubmit={() => ready && onSend()}
-        onImages={canAttach ? attachments.add : undefined}
+        onSubmit={sendMessage}
+        onImages={canAttach ? (files) => addAttachments(files, "image") : undefined}
+        attachments={canAttach ? attachments : undefined}
         mentions={canMention}
         skills={canSkill}
       />
       <div className="mt-3 flex min-w-0 flex-nowrap items-center gap-1 text-white/75">
         {canAttach && (
           <>
-            <AttachPopover attachments={attachments} vision={vision} />
+            <AttachPopover onAdd={addAttachments} vision={vision} />
             <span
               aria-hidden
               className="mx-1 h-3.5 w-px shrink-0 bg-white/10"
@@ -191,7 +195,7 @@ export function AgentComposer({
           title={`${sendLabel} · ${stopMode ? "Esc" : "Enter"}`}
           disabled={!stopMode && !ready}
           whileTap={{ scale: 0.94 }}
-          onClick={stopMode ? onStop : onSend}
+          onClick={stopMode ? onStop : sendMessage}
           className={cn(
             "ml-0.5 grid size-9 shrink-0 place-items-center rounded-full outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-500/40",
             ready || stopMode

@@ -322,6 +322,30 @@ test("插话、取消、继续、审批决定：id 是编码串；插话也要�
     },
   ));
 
+test("等待生成审批时不能插话：由审批卡片替代输入框", () =>
+  withApi(
+    {
+      turns: [{ tools: [{ id: "call_g", name: "generate_media", args: { items: [{ nodeId: "n1" }] } }] }],
+      propose: {
+        generate: {
+          payload: { items: [{ node_id: "n1", price: 5 }], quote_credits: 5 },
+          quote_credits: 5,
+          summary: "生成 1 个",
+          content: "等待批准",
+        },
+      },
+    },
+    async (api, e) => {
+      const run = await api.startRun("1", e.sessionId, { message: "生成分镜" });
+      await e.engine.idle();
+      assert.equal(e.run(dec(run.id)).status, "waiting_approval");
+
+      assert.equal(e.run(dec(run.id)).status, "waiting_approval");
+      await assert.rejects(api.interject("1", dec(run.id), "背景换成夜景"), code(60003));
+      assert.ok(!e.persisted("message.user").some((p) => p.steer));
+    },
+  ));
+
 // ---- 撤销 ----
 
 test("撤销：运行得是自己的、已经结束；经平台撤销；真的写了（revision 非零）才发 run.undone", () =>

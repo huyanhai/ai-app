@@ -28,6 +28,7 @@ import { visibleSessions } from "@/lib/agent/drama";
 import { activeRunId, emptySession } from "@/lib/agent/session-state";
 import { buildRunStrip, buildStatusLine, buildTimeline } from "@/lib/agent/timeline";
 import { activeWatches, ensureNotificationPermission, summarizeWatches } from "@/lib/agent/watch";
+import { AgentApiError } from "@/lib/agent/http";
 import { toast } from "@/lib/agent/toast";
 
 const reportError = (error: unknown) => {
@@ -208,25 +209,37 @@ export function useAgentController({
       }
       try {
         const decided = await decideAgentApproval(approvalId, req);
-        // 后台助手：决定的结果立刻并进会话，变更单马上从「待审核」变成结果
-        if (admin && sessionId && decided?.id) {
+        if (sessionId && decided?.id) {
           useAgentStore.getState().ingestApproval(sessionId, decided);
         }
         return "ok";
       } catch (error) {
         reportError(error);
+        if (
+          sessionId &&
+          error instanceof AgentApiError &&
+          Number(error.code) === 60004
+        ) {
+          const store = useAgentStore.getState();
+          try {
+            await store.sync(sessionId);
+          } catch {}
+          const current = useAgentStore.getState().sessions[sessionId]?.approvals[approvalId];
+          if (current?.status === "pending") {
+            useAgentStore.getState().ingestApproval(sessionId, { ...current, status: "expired" });
+          }
+        }
         return "failed";
       }
     },
-    [admin, sessionId, state.approvals],
+    [sessionId, state.approvals],
   );
 
   /**
    * 发送：运行中就是插话，否则发起新一轮。返回是否发出去了（没发出去输入框要保留原文）。
    * 运行正停在一条提问上时，发消息视为新消息：先拒绝（不回答）这个提问，运行恢复后再把消息作为插话交给 Agent，
    * Agent 收到的工具结果是「用户没有回答」；拒绝没成功就不发，输入框保留原文。
-   * 停在其他审批（生成、删除、变更单等）上时，卡片保持待确认：消息直接作为插话发出，Agent 服务先扣着，
-   * 等你做出决定、运行重新开始时再交给模型（期间时间线上它显示为排队中，读到后进入对话）。
+ * 停在其他审批（生成、删除、变更单等）上时，输入框由决定卡片替代，不能插话。
    */
   const send = useCallback(
     async (text: string, attachments?: AgentAttachmentReq[]) => {

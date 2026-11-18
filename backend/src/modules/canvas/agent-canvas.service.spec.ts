@@ -101,20 +101,87 @@ describe('AgentCanvasService', () => {
       }),
       expect.objectContaining({ id: 'image-1', position: { x: 460, y: 20 } }),
     ]);
-    expect(JSON.parse(state.edges)).toEqual([
-      expect.objectContaining({
-        source: 'text-1',
-        target: 'image-1',
-        sourceHandle: 'source-anchor',
-        targetHandle: 'target-anchor',
-      }),
-    ]);
+    expect(JSON.parse(state.edges)).toEqual([]);
     const past = JSON.parse(state.past);
     expect(past).toHaveLength(1);
     expect(past[0]).toEqual(expect.objectContaining({ agentRunId: 'run-1' }));
     expect(past[0].nodes[0]).not.toHaveProperty('measured');
     expect(JSON.parse(state.future)).toEqual([]);
     expect(transaction.canvasState.updateMany).toHaveBeenCalledTimes(2);
+  });
+
+  it('removes existing script edges during agent canvas mutations', async () => {
+    const imageNode = {
+      id: 'image-1',
+      type: 'imageNode',
+      position: { x: 420, y: 0 },
+      data: { url: '' },
+    };
+    const { prisma, state } = makePrisma({
+      id: 'canvas-1',
+      nodes: JSON.stringify([textNode, imageNode]),
+      edges: JSON.stringify([{ id: 'script-edge', source: 'text-1', target: 'image-1' }]),
+      past: '[]',
+      future: '[]',
+      viewport: null,
+      revision: 3,
+    });
+    const service = new AgentCanvasService(prisma as any);
+
+    await service.applyOps('canvas-1', 'run-1', [
+      { action: 'update_node', id: 'image-1', data: { title: '首帧' } },
+    ]);
+
+    expect(JSON.parse(state.edges)).toEqual([]);
+  });
+
+  it('normalizes reversed connections to upstream right and downstream left', async () => {
+    const { prisma, state } = makePrisma();
+    const service = new AgentCanvasService(prisma as any);
+
+    await service.applyOps('canvas-1', 'run-direction', [
+      { action: 'create_node', node: { id: 'asset', type: 'imageNode', data: { title: '角色三视图' } } },
+      { action: 'create_node', node: { id: 'storyboard', type: 'imageNode', data: { title: '镜头 01 · 分镜图' } } },
+      { action: 'create_node', node: { id: 'video', type: 'videoNode', data: { title: '镜头 01 · 视频' } } },
+      { action: 'connect', source: 'storyboard', target: 'asset' },
+      { action: 'connect', source: 'video', target: 'storyboard' },
+    ]);
+
+    expect(JSON.parse(state.edges)).toEqual([
+      expect.objectContaining({
+        source: 'asset', target: 'storyboard',
+        sourceHandle: 'source-anchor', targetHandle: 'target-anchor',
+      }),
+      expect.objectContaining({
+        source: 'storyboard', target: 'video',
+        sourceHandle: 'source-anchor', targetHandle: 'target-anchor',
+      }),
+    ]);
+  });
+
+  it('reads legacy reversed storyboard references in the corrected direction', async () => {
+    const asset = {
+      id: 'asset', type: 'imageNode', position: { x: 0, y: 0 },
+      data: { title: '角色三视图', url: '/character.png' },
+    };
+    const storyboard = {
+      id: 'storyboard', type: 'imageNode', position: { x: 400, y: 0 },
+      data: { title: '镜头 01 · 分镜图', url: '' },
+    };
+    const { prisma } = makePrisma({
+      id: 'canvas-1',
+      nodes: JSON.stringify([asset, storyboard]),
+      edges: JSON.stringify([{ id: 'edge-1', source: storyboard.id, target: asset.id }]),
+      past: '[]', future: '[]', viewport: null, revision: 0,
+    });
+    const service = new AgentCanvasService(prisma as any);
+
+    await expect(service.getState('canvas-1')).resolves.toMatchObject({
+      edges: [{
+        id: 'edge-1', source: asset.id, target: storyboard.id,
+        sourceHandle: 'source-anchor', targetHandle: 'target-anchor',
+      }],
+    });
   });
 
   it('rejects an invalid batch without partially writing earlier operations', async () => {
@@ -133,6 +200,98 @@ describe('AgentCanvasService', () => {
 
     expect(transaction.canvasState.updateMany).not.toHaveBeenCalled();
     expect(JSON.parse(state.nodes)).toEqual([textNode]);
+  });
+
+  it('persists generation status and error fields used by agent tasks', async () => {
+    const { prisma, state } = makePrisma();
+    const service = new AgentCanvasService(prisma as any);
+
+    await service.applyOps('canvas-1', 'run-1', [
+      { action: 'update_node', id: 'text-1', data: { status: 'processing', error: '生成失败' } },
+    ]);
+
+    expect(JSON.parse(state.nodes)[0].data).toMatchObject({ status: 'processing', error: '生成失败' });
+  });
+
+  it('persists subject media bindings', async () => {
+    const { prisma, state } = makePrisma();
+    const service = new AgentCanvasService(prisma as any);
+
+    await service.applyOps('canvas-1', 'run-subject', [{
+      action: 'create_node',
+      node: {
+        id: 'subject-1',
+        type: 'subjectNode',
+        data: {
+          name: '主角',
+          url: '/main.png',
+          voiceUrl: '/voice.mp3',
+        },
+      },
+    }]);
+
+    expect(JSON.parse(state.nodes)).toContainEqual(expect.objectContaining({
+      id: 'subject-1',
+      data: expect.objectContaining({
+        url: '/main.png',
+        voiceUrl: '/voice.mp3',
+      }),
+    }));
+  });
+
+  it('creates shot groups before their members and preserves relative layout fields', async () => {
+    const { prisma, state } = makePrisma();
+    const service = new AgentCanvasService(prisma as any);
+
+    await service.applyOps('canvas-1', 'run-group', [
+      {
+        action: 'create_node',
+        node: {
+          id: 'shot-image', type: 'imageNode', parentId: 'shot-group',
+          position: { x: 440, y: 72 }, data: { title: '分镜图', text: '[倒霉熊]追野餐布' },
+        },
+      },
+      {
+        action: 'create_node',
+        node: {
+          id: 'shot-group', type: 'group', position: { x: 800, y: 100 },
+          width: 1240, height: 560, data: { title: '镜头 01｜追逐' },
+        },
+      },
+    ]);
+
+    const nodes = JSON.parse(state.nodes);
+    expect(nodes[0]).toMatchObject({ id: 'shot-group', width: 1240, height: 560, zIndex: -2000 });
+    expect(nodes.find((node: any) => node.id === 'shot-image')).toMatchObject({
+      parentId: 'shot-group', position: { x: 440, y: 72 },
+    });
+    const groupState = await service.getState('canvas-1', ['shot-group']);
+    expect(groupState.nodes[0]).toMatchObject({ width: 1240, height: 560, zIndex: -2000 });
+  });
+
+  it('converts grouped video prompt text into a referenced video node', async () => {
+    const { prisma, state } = makePrisma();
+    const service = new AgentCanvasService(prisma as any);
+
+    await service.applyOps('canvas-1', 'run-video', [
+      { action: 'create_node', node: { id: 'shot-group', type: 'group', data: { title: '镜头 01' } } },
+      { action: 'create_node', node: { id: 'shot-image', type: 'imageNode', parentId: 'shot-group', data: { title: '镜头01｜分镜图' } } },
+      { action: 'create_node', node: { id: 'shot-video', type: 'textNode', parentId: 'shot-group', data: { title: '镜头01｜视频提示词', text: '时长6秒，镜头缓慢推近。' } } },
+    ]);
+
+    const nodes = JSON.parse(state.nodes);
+    expect(nodes.find((node: any) => node.id === 'shot-video')).toMatchObject({
+      type: 'videoNode',
+      data: {
+        title: '镜头01｜视频',
+        draftText: '参考首帧画面镜头01｜分镜图，时长6秒，镜头缓慢推近。',
+        config: { videoMode: 'imageToVideo' },
+      },
+    });
+    expect(JSON.parse(state.edges)).toContainEqual(expect.objectContaining({
+      source: 'shot-image', target: 'shot-video',
+      sourceHandle: 'source-anchor', targetHandle: 'target-anchor',
+    }));
   });
 
   it('deletes nodes with related edges and arranges only requested nodes', async () => {

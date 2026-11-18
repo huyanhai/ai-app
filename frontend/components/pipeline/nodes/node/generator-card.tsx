@@ -7,6 +7,8 @@ import {
   AtSign,
   Camera,
   ChevronDown,
+  Image as ImageIcon,
+  LoaderCircle,
   Maximize2,
   Palette,
   Play,
@@ -41,6 +43,7 @@ import {
   TAllNodes,
   TNodeBase,
   TNodeImage,
+  TNodeSubject,
   TPaletteSelection,
   VideoModeType,
 } from "../../types";
@@ -49,6 +52,7 @@ import { useModelStore } from "@/store/model-store";
 import { usePipelineStore } from "@/store/pipeline-store";
 import { ChunkStatus } from "backend/src/common/utils/ai-stream-utils";
 import ReferencePicker from "../../reference-picker";
+import type { EditorToken } from "../../editor/nodes";
 import MarkerEditor from "./image/marker-editor";
 import OutpaintEditor from "./image/outpaint-editor";
 import UpscaleEditor from "./image/upscale-editor";
@@ -67,6 +71,47 @@ export const GENERATOR_TYPES: NodeType[] = [
 ];
 
 type TToolboxId = "camera" | "movement" | "palette" | "style";
+
+type PromptReference = TNodeImage | TNodeSubject;
+
+const cleanReferenceLabel = (value: string) => value
+  .replace(/^(?:场景参考图|道具图|角色图)\s*[｜|·:：-]\s*/, "")
+  .replace(/\s*(?:·\s*)?(?:角色|道具)?三视图.*$/, "")
+  .replace(/\s*(?:·\s*)?场景参考图.*$/, "")
+  .trim();
+
+const promptReferenceLabel = (reference: PromptReference) => {
+  const data = reference.data;
+  const title = cleanReferenceLabel(data.title || "");
+  if (reference.type === NodeType.SubjectNode && "name" in data) {
+    const name = cleanReferenceLabel(data.name || "");
+    if (name && !/^主体\s*\d+$/.test(name)) return name;
+  }
+  return title || reference.id;
+};
+
+const promptReferenceAliases = (reference: PromptReference) => {
+  const values = new Set<string>();
+  const add = (value?: string) => {
+    const cleaned = cleanReferenceLabel(value || "");
+    if (!cleaned || /^主体\s*\d+$/.test(cleaned)) return;
+    values.add(cleaned);
+    const base = cleaned.replace(/[（(].*$/, "").trim();
+    if (base) values.add(base);
+    for (const match of cleaned.matchAll(/[（(]([^）)]+)[）)]/g)) {
+      for (const part of match[1].split(/[·•|｜]/)) {
+        const alias = part.replace(/[·\s]*v\d+$/i, "").trim();
+        if (alias) values.add(alias);
+      }
+    }
+  };
+  add(reference.data.title);
+  if ("name" in reference.data) add(reference.data.name);
+  add(promptReferenceLabel(reference));
+  return [...values].sort((left, right) => right.length - left.length);
+};
+
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const areReferencesEqual = (previous: SubjectReference[], current: SubjectReference[]) =>
   previous.length === current.length &&
@@ -137,9 +182,11 @@ const GeneratorCard = ({ node, active }: { node: TAllNodes; active: boolean }) =
 
   const { setNodes, setEdges, getNode } = useReactFlow<TAllNodes>();
   const fileRef = useRef<HTMLInputElement>(null);
+  const legacyPrompt = "text" in data ? data.text : "";
+  const initialPrompt = data.draftText || data.production?.prompt || legacyPrompt || "";
   const [pillsCollapsed, setPillsCollapsed] = useState(false);
   const [toolboxOpen, setToolboxOpen] = useState<TToolboxId | null>(null);
-  const [editorText, setEditorText] = useState(data.draftText || data.production?.prompt || "");
+  const [editorText, setEditorText] = useState(initialPrompt);
   const [referenceQuery, setReferenceQuery] = useState("");
   const [referenceMenuPosition, setReferenceMenuPosition] = useState<{
     left: number;
@@ -147,7 +194,7 @@ const GeneratorCard = ({ node, active }: { node: TAllNodes; active: boolean }) =
   } | null>(null);
   const models = useModelStore((s) => s.models);
   const defaults = useModelStore((s) => s.defaults);
-  const { editorRef, submit, stop, disabled, setIsEmpty, imageNodes, videoNodes, optimizePrompt, isOptimizing, optimizationError } = useGenerate(
+  const { editorRef, submit, stop, disabled, setIsEmpty, imageNodes, videoNodes, subjectNodes, optimizePrompt, isOptimizing, optimizationError } = useGenerate(
     id,
     type,
     data,
@@ -157,6 +204,99 @@ const GeneratorCard = ({ node, active }: { node: TAllNodes; active: boolean }) =
     title: string;
     url: string;
   } | null>(null);
+
+  useEffect(() => {
+    if (editorRef.current?.getContent().tokens.length) return;
+    const references = [...imageNodes, ...subjectNodes];
+    const aliases = references.flatMap((reference) =>
+      promptReferenceAliases(reference).map((label) => ({ reference, label })),
+    ).sort((left, right) => right.label.length - left.label.length);
+    const aliasPattern = [...new Set(aliases.map((item) => item.label))]
+      .map(escapeRegExp).join("|");
+    const pattern = new RegExp(
+      `\\[(角色名|角色|场景名|场景|道具名|道具)\\]\\s*|\\[([^\\]\\n]+)\\]${aliasPattern ? `|${aliasPattern}` : ""}`,
+      "g",
+    );
+    const findReference = (label: string, category = "") => aliases.find((item) => {
+      if (item.label !== label) return false;
+      const title = item.reference.data.title || "";
+      if (category.startsWith("场景")) return title.includes("场景");
+      if (category.startsWith("道具")) return title.includes("道具");
+      if (category.startsWith("角色")) return !title.includes("场景");
+      return true;
+    })?.reference;
+    const makeToken = (reference: PromptReference): EditorToken => {
+      const referenceData = reference.data;
+      const isSubject = reference.type === NodeType.SubjectNode;
+      return {
+        id: reference.id,
+        kind: "subject",
+        label: promptReferenceLabel(reference) || reference.id,
+        description: "description" in referenceData ? referenceData.description : undefined,
+        url: "url" in referenceData ? referenceData.url : undefined,
+        referenceKind: isSubject ? "subject" : "image",
+      };
+    };
+    const content: Array<string | EditorToken> = [];
+    let cursor = 0;
+    let replaced = false;
+
+    for (const match of initialPrompt.matchAll(pattern)) {
+      const index = match.index;
+      if (index < cursor) continue;
+      const category = match[1] || "";
+      let reference: PromptReference | undefined;
+      let end = index + match[0].length;
+      if (category) {
+        const following = initialPrompt.slice(end);
+        const candidate = aliases.find((item) =>
+          following.startsWith(item.label) && findReference(item.label, category),
+        );
+        reference = candidate && findReference(candidate.label, category);
+        if (candidate) end += candidate.label.length;
+      } else {
+        reference = findReference((match[2] ?? match[0]).trim());
+      }
+      content.push(initialPrompt.slice(cursor, index));
+      if (!reference) {
+        content.push(match[0]);
+      } else {
+        content.push(makeToken(reference));
+        replaced = true;
+      }
+      cursor = reference ? end : index + match[0].length;
+    }
+    content.push(initialPrompt.slice(cursor));
+    if (replaced) {
+      const timer = window.setTimeout(() => editorRef.current?.replaceContent(content), 0);
+      return () => window.clearTimeout(timer);
+    }
+  }, [editorRef, imageNodes, initialPrompt, subjectNodes]);
+
+  useEffect(() => {
+    const content = editorRef.current?.getContent();
+    if (!content?.tokens.length) return;
+    const references = new Map([...imageNodes, ...subjectNodes].map((reference) => [reference.id, reference]));
+    let changed = false;
+    const tokens = content.tokens.map((token) => {
+      const reference = references.get(token.id);
+      if (!reference) return token;
+      const referenceData = reference.data;
+      const isSubject = reference.type === NodeType.SubjectNode;
+      const nextToken = {
+        ...token,
+        label: promptReferenceLabel(reference) || token.label,
+        description: "description" in referenceData ? referenceData.description : undefined,
+        url: "url" in referenceData ? referenceData.url : undefined,
+        referenceKind: isSubject ? "subject" as const : "image" as const,
+      };
+      if (nextToken.label !== token.label || nextToken.description !== token.description || nextToken.url !== token.url || nextToken.referenceKind !== token.referenceKind) {
+        changed = true;
+      }
+      return nextToken;
+    });
+    if (changed) editorRef.current?.syncTokens(tokens, undefined, false);
+  }, [editorRef, imageNodes, subjectNodes]);
 
   useEffect(() => {
     if (active) return;
@@ -384,9 +524,13 @@ const GeneratorCard = ({ node, active }: { node: TAllNodes; active: boolean }) =
       title={isOptimizing ? "正在优化提示词" : "优化提示词"}
       onClick={() => void optimizePrompt()}
       disabled={isGenerating || isOptimizing}
-      className="flex size-7 items-center justify-center rounded text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+      className={`flex size-7 items-center justify-center rounded transition-colors disabled:cursor-not-allowed ${
+        isOptimizing
+          ? "bg-white/10 text-white"
+          : "text-white/60 hover:text-white hover:bg-white/10 disabled:opacity-40"
+      }`}
     >
-      <Sparkles size={14} className={isOptimizing ? "animate-pulse" : undefined} />
+      {isOptimizing ? <LoaderCircle size={14} className="animate-spin" /> : <Sparkles size={14} />}
     </button>
   );
 
@@ -478,26 +622,34 @@ const GeneratorCard = ({ node, active }: { node: TAllNodes; active: boolean }) =
                   </button>
                 ) : null;
               })}
-              {imageNodes.map((image, index) => {
-                const title = image.data.title || `图片 ${index + 1}`;
-                return image.data.url ? (
+              {[...imageNodes, ...subjectNodes].map((image, index) => {
+                const title = image.data.title || ("name" in image.data ? image.data.name : "") || `图片 ${index + 1}`;
+                const url = image.data.url;
+                return (
                   <button
                     key={image.id}
                     type="button"
-                    title={`预览${title}`}
-                    onClick={() => setPreviewReference({ kind: "image", title, url: image.data.url })}
-                    className="group relative size-12 shrink-0 cursor-pointer overflow-hidden rounded-xl border border-white/10 bg-black"
+                    title={url ? `预览${title}` : `等待生成${title}`}
+                    disabled={!url}
+                    onClick={() => url && setPreviewReference({ kind: "image", title, url })}
+                    className="group relative size-12 shrink-0 cursor-pointer overflow-hidden rounded-xl border border-white/10 bg-black disabled:cursor-default"
                   >
-                    <img
-                      src={image.data.url}
-                      alt={title}
-                      className="size-full object-cover transition-transform group-hover:scale-105"
-                    />
+                    {url ? (
+                      <img
+                        src={url}
+                        alt={title}
+                        className="size-full object-cover transition-transform group-hover:scale-105"
+                      />
+                    ) : (
+                      <span className="grid size-full place-items-center text-white/30">
+                        <ImageIcon size={18} />
+                      </span>
+                    )}
                     <span className="pointer-events-none absolute inset-x-0 bottom-0 truncate bg-black/65 px-1 py-0.5 text-left text-[9px] leading-3 text-white/90">
                       {title}
                     </span>
                   </button>
-                ) : null;
+                );
               })}
               <button
                 aria-label="添加参考"
@@ -553,11 +705,11 @@ const GeneratorCard = ({ node, active }: { node: TAllNodes; active: boolean }) =
             )}
             <div className="relative min-w-0 flex-1">
               <Editor
-                key={`${id}:${data.production?.prompt ?? ""}`}
+                key={`${id}:${data.production?.prompt ?? ""}:${legacyPrompt}`}
                 ref={editorRef}
                 onSubmit={canSubmit ? submit : () => {}}
                 images={imageNodes}
-                initialState={data.draftState || superjson.stringify(data.draftText || data.production?.prompt || "")}
+                initialState={data.draftState || superjson.stringify(initialPrompt)}
                 noImageMention
                 onStateChange={(value) => {
                   setNodes((nodes) => nodes.map((node) =>
@@ -578,7 +730,7 @@ const GeneratorCard = ({ node, active }: { node: TAllNodes; active: boolean }) =
                 }}
                 onEmptyStateChange={setIsEmpty}
                 placeholder={NODE_PROMPT_PLACEHOLDER[type]}
-                autoFocus={false}
+                autoFocus={active}
               />
             </div>
           </div>
@@ -626,7 +778,13 @@ const GeneratorCard = ({ node, active }: { node: TAllNodes; active: boolean }) =
         document.body,
       )}
 
-      {optimizationError && <div className="mt-2 text-xs text-red-400">{optimizationError}</div>}
+      {isOptimizing && (
+        <div role="status" aria-live="polite" className="mt-2 flex items-center gap-1.5 text-xs text-white/60">
+          <LoaderCircle size={12} className="animate-spin" />
+          正在优化提示词，生成内容会自动替换当前文本…
+        </div>
+      )}
+      {optimizationError && <div role="alert" className="mt-2 text-xs text-red-400">{optimizationError}</div>}
 
       {/* 底部配置条 */}
       <div className="mt-2 flex items-center justify-between">

@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { ChunkStatus } from '@/common/utils/ai-stream-utils';
 import { AgentPlatformService } from './agent-platform.service';
 import { RunContext, decodeRunContext } from './platform.types';
 
@@ -66,6 +67,7 @@ describe('AgentPlatformService', () => {
     const { service } = setup();
     const result = await service.prepare(rc, { message: '创建镜头', max_steps: 12 });
     expect(result.model).toEqual({ name: '文本模型', context_window: 64000, max_tokens: 4096, vision: true });
+    expect(result.system_prompt).toContain('提示词必须使用中文');
     expect(result.first_message).toContain('canvas-uuid');
     expect(result.first_message).toContain('最多 12 步');
     expect(result.tools.map((tool) => tool.name)).toContain('canvas_apply_ops');
@@ -103,17 +105,34 @@ describe('AgentPlatformService', () => {
     }, 'task-1')).rejects.toThrow('不同参数');
   });
 
+  it('normalizes the layout argument before arranging canvas nodes', async () => {
+    const { service, canvas } = setup();
+    const result = await service.tool(rc, 'canvas_arrange', {
+      tool_call_id: 'arrange-layout',
+      args: { layout: 'row', nodeIds: ['image-node'] },
+    }) as any;
+    expect(result.is_error).toBe(false);
+    expect(canvas.arrange).toHaveBeenCalledWith(
+      'canvas-uuid',
+      'run-cuid',
+      { mode: 'row', nodeIds: ['image-node'] },
+      undefined,
+    );
+  });
+
   it('accepts the reference op protocol and resolves temporary node IDs', async () => {
     const { service, canvas } = setup();
     const result = await service.tool(rc, 'canvas_apply_ops', {
       tool_call_id: 'create-text',
       args: { ops: [
-        { op: 'create_node', tempId: 'draft', kind: 'script', label: '剧本', prompt: '第一版', position: { x: 120, y: 160 } },
+        { op: 'create_node', tempId: 'draft', kind: 'script', label: '剧本', prompt: '第一版', position: { x: 120, y: 160 }, width: 600, height: 400 },
         { op: 'update_node', id: 'draft', prompt: '第二版' },
       ] },
     }) as any;
     const operations = (canvas.applyOps.mock.calls as any[])[0][2];
     expect(operations[0]).toMatchObject({ action: 'create_node', node: { type: 'textNode', position: { x: 120, y: 160 } } });
+    expect(operations[0].node.width).toBeUndefined();
+    expect(operations[0].node.height).toBeUndefined();
     expect(operations[1]).toEqual({ action: 'update_node', id: operations[0].node.id, data: { text: '第二版' } });
     expect(result.data.id_map.draft).toBe(operations[0].node.id);
     expect(result.data.changes).toBe(1);
@@ -134,9 +153,120 @@ describe('AgentPlatformService', () => {
     expect(generation.create).toHaveBeenCalledWith(expect.objectContaining({
       kind: 'image', modelId: 'image-model', prompt: '雨夜街道',
     }));
-    expect(canvas.applyOps).toHaveBeenCalled();
+    expect(canvas.applyOps).toHaveBeenCalledWith(rc.canvas_id, rc.run_id, [{
+      action: 'update_node', id: 'image-node', data: expect.objectContaining({ status: ChunkStatus.PROCESSING }),
+    }]);
+    await new Promise(setImmediate);
+    expect(canvas.applyOps).toHaveBeenCalledWith(rc.canvas_id, rc.run_id, [{
+      action: 'update_node', id: 'image-node', data: expect.objectContaining({ status: ChunkStatus.SUCCESS, url: 'https://cdn/image.png' }),
+    }]);
     expect(await service.execute(rc, 'generate', 'approval-cuid', outcome)).toBe(execution);
     expect(generation.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('creates grouped shot nodes with resolved parent IDs and group dimensions', async () => {
+    const { service, canvas } = setup();
+    await service.tool(rc, 'canvas_apply_ops', {
+      tool_call_id: 'create-shot-group',
+      args: { ops: [
+        { op: 'create_node', tempId: 'group', kind: 'group', label: '镜头 01｜追逐', position: { x: 800, y: 100 }, width: 1240, height: 560 },
+        { op: 'create_node', tempId: 'image', kind: 'image', parentId: 'group', label: '分镜图', prompt: '[倒霉熊]追野餐布', position: { x: 440, y: 72 } },
+      ] },
+    });
+    const operations = (canvas.applyOps.mock.calls as any[])[0][2];
+    expect(operations[0].node).toMatchObject({ type: 'group', width: 1240, height: 560 });
+    expect(operations[1].node).toMatchObject({
+      type: 'imageNode', parentId: operations[0].node.id, position: { x: 440, y: 72 },
+    });
+  });
+
+  it('passes every connected character and scene image to agent generation', async () => {
+    const { service, generation, canvas, node } = setup();
+    const character = {
+      id: 'character-image', type: 'imageNode', position: { x: 0, y: 0 },
+      data: { title: '倒霉熊 · 角色三视图', url: '/character.png' },
+    };
+    const scene = {
+      id: 'scene-image', type: 'imageNode', position: { x: 0, y: 0 },
+      data: { title: '夏日公园 · 场景参考图', url: 'https://cdn/scene.png' },
+    };
+    canvas.getState.mockResolvedValue({
+      revision: 3,
+      nodes: [node, character, scene],
+      edges: [
+        { id: 'character-edge', source: character.id, target: node.id },
+        { id: 'scene-edge', source: scene.id, target: node.id },
+      ],
+    } as any);
+    const proposal = await service.propose(rc, 'generate', { items: [{ node_id: node.id }] });
+    const outcome = service.resolve('generate', proposal.payload, { decision: 'approve' });
+
+    await service.execute(rc, 'generate', 'approval-with-references', outcome);
+
+    expect(generation.create).toHaveBeenCalledWith(expect.objectContaining({
+      referenceUrl: '/character.png',
+      config: expect.objectContaining({ referenceUrls: ['/character.png', 'https://cdn/scene.png'] }),
+      prompt: expect.stringContaining('图片1＝倒霉熊 · 角色三视图\n图片2＝夏日公园 · 场景参考图'),
+    }));
+  });
+
+  it('infers and connects storyboard character references when the model omitted edges', async () => {
+    const { service, generation, canvas, node } = setup();
+    node.data.title = '分镜-场景2 野餐布被风吹跑';
+    node.data.text = '倒霉熊追野餐布，小企鹅在旁边笑';
+    const character = {
+      id: 'character-image', type: 'imageNode', position: { x: 0, y: 0 },
+      data: { title: '倒霉熊三视图（夏季服装版）', url: '/character.png' },
+    };
+    canvas.getState.mockResolvedValue({
+      revision: 3, nodes: [node, character], edges: [],
+    } as any);
+    const proposal = await service.propose(rc, 'generate', { items: [{ node_id: node.id }] });
+    const outcome = service.resolve('generate', proposal.payload, { decision: 'approve' });
+
+    await service.execute(rc, 'generate', 'approval-inferred-reference', outcome);
+
+    expect(canvas.applyOps).toHaveBeenCalledWith('canvas-uuid', 'run-cuid', [{
+      action: 'connect', source: character.id, target: node.id,
+    }]);
+    expect(generation.create).toHaveBeenCalledWith(expect.objectContaining({
+      referenceUrl: '/character.png',
+      config: expect.objectContaining({ referenceUrls: ['/character.png'] }),
+      prompt: expect.stringContaining('图片1＝倒霉熊三视图（夏季服装版）'),
+    }));
+  });
+
+  it('keeps storyboard reference labels aligned when multiple nodes share an image URL', async () => {
+    const { service, generation, canvas, node } = setup();
+    node.data.title = '镜头 01 · 分镜图';
+    node.data.text = '[倒霉熊]和[小企鹅]在公园里争抢野餐布';
+    const bear = {
+      id: 'bear', type: 'imageNode', position: { x: 0, y: 0 },
+      data: { title: '倒霉熊 · 角色三视图', url: '/shared.png' },
+    };
+    const duplicate = { ...bear, id: 'bear-duplicate', data: { ...bear.data, title: '重复角色图' } };
+    const penguin = {
+      id: 'penguin', type: 'imageNode', position: { x: 0, y: 0 },
+      data: { title: '小企鹅 · 角色三视图', url: '/penguin.png' },
+    };
+    canvas.getState.mockResolvedValue({
+      revision: 3, nodes: [node, bear, duplicate, penguin],
+      edges: [bear, duplicate, penguin].map((reference) => ({
+        id: `${reference.id}-edge`, source: reference.id, target: node.id,
+      })),
+    } as any);
+    const proposal = await service.propose(rc, 'generate', { items: [{ node_id: node.id }] });
+    const outcome = service.resolve('generate', proposal.payload, { decision: 'approve' });
+
+    await service.execute(rc, 'generate', 'approval-deduplicated-references', outcome);
+
+    expect(generation.create).toHaveBeenCalledWith(expect.objectContaining({
+      referenceUrl: '/shared.png',
+      config: expect.objectContaining({ referenceUrls: ['/shared.png', '/penguin.png'] }),
+      prompt: expect.stringContaining('图片1＝倒霉熊 · 角色三视图\n图片2＝小企鹅 · 角色三视图'),
+    }));
+    expect(generation.create.mock.calls[0][0].prompt).not.toContain('图片3＝');
+    expect(generation.create.mock.calls[0][0].prompt).toContain('禁止复制三视图排版');
   });
 
   it('supports partial delete decisions and rejects empty approvals', async () => {
@@ -195,5 +325,16 @@ describe('AgentPlatformService', () => {
       seq: 1, type: 'run.started', data: {}, created_at: new Date().toISOString(),
     }])).toBeNull();
     expect(() => service.receiveEvents([{ user_id: '1' }])).toThrow(BadRequestException);
+  });
+
+  it('includes task states in task_get events so watches can settle immediately', async () => {
+    const { service } = setup();
+    const result = await service.tool(rc, 'task_get', {
+      tool_call_id: 'query-task', args: { task_ids: ['job-cuid'] },
+    }) as any;
+
+    expect(result.tool_end.task_states).toEqual([
+      expect.objectContaining({ task_id: 'job-cuid', status: 'succeeded' }),
+    ]);
   });
 });

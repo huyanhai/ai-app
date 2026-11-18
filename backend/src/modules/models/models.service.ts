@@ -196,7 +196,7 @@ export class ModelsService {
         return false;
       }
     });
-    if (!model) throw new BadRequestException('请先配置支持看图的文本模型，用于场景参考图验收');
+    if (!model) throw new BadRequestException('请先配置支持看图的文本模型');
     return this.runtime(model.id, 'text');
   }
 }

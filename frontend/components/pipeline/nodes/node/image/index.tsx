@@ -1,5 +1,5 @@
 "use client";
-import { memo, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { NodeProps, useReactFlow, useStore } from "@xyflow/react";
 import { Image, MapPin, Minus, Upload } from "lucide-react";
 import { motion } from "motion/react";
@@ -17,6 +17,7 @@ import { ChunkStatus } from "backend/src/common/utils/ai-stream-utils";
 import { usePipelineStore } from "@/store/pipeline-store";
 
 const IMAGE_HEIGHT = 250;
+const IMAGE_RETRY_DELAYS = [1000, 2000, 3000, 5000, 8000];
 const MARKER_CURSOR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 0 1 16 0Z' fill='black' stroke='white' stroke-width='1.5'/%3E%3C/svg%3E") 12 22, crosshair`;
 
 // 即梦风格图片内容卡片：空态居中图标，生成后展示图片
@@ -46,6 +47,23 @@ const ImageNode = ({ id, data, selected }: NodeProps<TNodeImage>) => {
   const [draft, setDraft] = useState<TImageEditMarker | null>(null);
   const [hoveredMarkerId, setHoveredMarkerId] = useState<string | null>(null);
   const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(null);
+  const [imageAttempt, setImageAttempt] = useState(0);
+  const [imageFailed, setImageFailed] = useState(false);
+  useEffect(() => {
+    setImageAttempt(0);
+    setImageFailed(false);
+  }, [data.url]);
+  useEffect(() => {
+    if (!data.url || !imageFailed || imageAttempt >= IMAGE_RETRY_DELAYS.length) return;
+    const timer = window.setTimeout(() => {
+      setImageAttempt((attempt) => attempt + 1);
+      setImageFailed(false);
+    }, IMAGE_RETRY_DELAYS[imageAttempt]);
+    return () => window.clearTimeout(timer);
+  }, [data.url, imageAttempt, imageFailed]);
+  const imageUrl = data.url && imageAttempt > 0
+    ? `${data.url}${data.url.includes("?") ? "&" : "?"}retry=${imageAttempt}`
+    : data.url;
   const [width, height] = useMemo(() => {
     if (data.config?.ratio) {
       const [w, h] = data.config.ratio.split(":").map(Number);
@@ -204,9 +222,12 @@ const ImageNode = ({ id, data, selected }: NodeProps<TNodeImage>) => {
         {data.url ? (
           <>
             <img
-              src={data.url}
+              key={imageAttempt}
+              src={imageUrl}
               alt="image"
               draggable={false}
+              onLoad={() => setImageFailed(false)}
+              onError={() => setImageFailed(true)}
               className={`w-full h-full ${data.preset ? "object-contain" : "object-cover"} pointer-events-none`}
             />
             {editing && [...markers, ...(draft ? [draft] : [])].map((marker, index) => (

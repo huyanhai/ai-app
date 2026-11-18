@@ -12,7 +12,7 @@ export function AgentLoading({ failed, onRetry }: { failed: boolean; onRetry: ()
         <div className="flex flex-col items-center gap-3 text-center">
           <p className="text-sm font-medium">会话加载失败</p>
           <p className="text-xs text-zinc-500">请检查连接后重试，已有对话不会丢失。</p>
-          <Button variant="outline" size="sm" onClick={onRetry}><RotateCcw />重新加载</Button>
+          <Button size="sm" onClick={onRetry}><RotateCcw />重新加载</Button>
         </div>
       ) : (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full max-w-[280px] space-y-4">

@@ -123,7 +123,7 @@ export default function GenerationDetailPage({ params }: { params: Promise<{ id:
         <GenerationComposer
           key={job.id}
           initialValue={{ kind: job.kind, prompt: job.prompt, modelId: job.modelId, modelName: job.modelName, config: job.config, referenceUrl: job.referenceUrl }}
-          onCreated={(next) => router.push(`/generate/${next.id}`)}
+          onCreated={(next) => router.push(`/generation/${next.id}`)}
           className="mx-auto w-full max-w-6xl"
         />
       </footer>}

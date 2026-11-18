@@ -58,19 +58,21 @@ export class GenerationService {
       where: { id },
       data: { status: 'running', error: null, urls: '[]' },
     });
-    const config = JSON.parse(job.config) as StreamDto['config'];
-    const referenceUrl = job.referenceUrl?.startsWith('/')
-      ? `http://127.0.0.1:3000${job.referenceUrl}`
-      : job.referenceUrl;
+    const { referenceUrls: storedReferenceUrls, ...config } = JSON.parse(job.config) as StreamDto['config'] & {
+      referenceUrls?: string[];
+    };
+    const referenceUrls = [...new Set([job.referenceUrl, ...(storedReferenceUrls || [])]
+      .filter((url): url is string => typeof url === 'string' && Boolean(url)))]
+      .map((url) => url.startsWith('/') ? `http://127.0.0.1:3000${url}` : url);
     const input: StreamDto = {
       message: [
-        ...(referenceUrl ? [{ type: 'image_url' as const, image_url: referenceUrl }] : []),
+        ...referenceUrls.map((url) => ({ type: 'image_url' as const, image_url: url })),
         { type: 'text', text: job.prompt },
       ],
       modelId: job.modelId,
       config: {
         ...config,
-        edit: job.kind === 'image' && Boolean(referenceUrl),
+        edit: job.kind === 'image' && referenceUrls.length > 0,
         ratio: config?.ratio || (job.kind === 'image' ? '1:1' : '16:9'),
       },
     };

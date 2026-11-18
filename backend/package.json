@@ -9,7 +9,7 @@
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
-    "start:dev": "nodemon --watch src --watch ../agents -e ts,json --exec 'ts-node -r tsconfig-paths/register src/main.ts'",
+    "start:dev": "nodemon --watch src -e ts,json --exec 'ts-node -r tsconfig-paths/register src/main.ts'",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "postinstall": "prisma generate",
@@ -41,7 +41,8 @@
     "pdf-parse": "^2.4.5",
     "playwright-core": "^1.60.0",
     "reflect-metadata": "^0.1.13",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "ws": "8.23.0"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",
@@ -51,6 +52,7 @@
     "@types/jest": "^29.5.2",
     "@types/node": "^20.3.1",
     "@types/supertest": "^2.0.12",
+    "@types/ws": "^8.18.2",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
     "eslint": "^8.42.0",

@@ -1,11 +1,10 @@
 "use client";
 import { useState } from "react";
-import { createPortal } from "react-dom";
-import { AnimatePresence, motion } from "motion/react";
 import { useReactFlow } from "@xyflow/react";
-import { Download, Maximize2, X } from "lucide-react";
-import { Markdown } from "@/components/markdown";
+import { Download, Maximize2 } from "lucide-react";
+import { ChunkStatus } from "backend/src/common/utils/ai-stream-utils";
 import { TAllNodes } from "./types";
+import TextEditorDialog from "./text-editor-dialog";
 
 // 文本节点背景色选项（对齐即梦「背景色」）
 const BG_COLORS = ["#1f1f22", "#16324a", "#1d3a2a", "#2d2440", "#3a3320"];
@@ -17,6 +16,7 @@ const TextToolbar = ({ node }: { node: TAllNodes }) => {
   const { setNodes } = useReactFlow<TAllNodes>();
   const text = (node.data as { text?: string }).text;
   const currentBg = (node.data as { bg?: string }).bg || BG_COLORS[0];
+  const streaming = "status" in node.data && node.data.status === ChunkStatus.PROCESSING;
 
   const setBg = (bg: string) => {
     setNodes(
@@ -37,6 +37,12 @@ const TextToolbar = ({ node }: { node: TAllNodes }) => {
     a.download = `${node.data.title || "文本"}.txt`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const saveText = (value: string) => {
+    setNodes((nodes) => nodes.map((item) =>
+      item.id === node.id ? { ...item, data: { ...item.data, text: value } } : item,
+    ) as TAllNodes[]);
   };
 
   return (
@@ -86,41 +92,14 @@ const TextToolbar = ({ node }: { node: TAllNodes }) => {
         </button>
       </div>
 
-      {typeof document !== "undefined" &&
-        createPortal(
-          <AnimatePresence>
-            {fullscreen && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15 }}
-                onClick={() => setFullscreen(false)}
-                className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-              >
-                <div
-                  onClick={(e) => e.stopPropagation()}
-                  className="relative max-h-[70vh] w-[560px] overflow-y-auto rounded-2xl border border-white/10 p-6"
-                  style={{ backgroundColor: currentBg }}
-                >
-                  <button
-                    aria-label="关闭"
-                    onClick={() => setFullscreen(false)}
-                    className="absolute top-3 right-3 text-white/40 hover:text-white transition-colors cursor-pointer"
-                  >
-                    <X size={16} />
-                  </button>
-                  {text ? (
-                    <Markdown>{text}</Markdown>
-                  ) : (
-                    <span className="text-sm text-white/30">暂无内容</span>
-                  )}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>,
-          document.body,
-        )}
+      <TextEditorDialog
+        open={fullscreen}
+        onOpenChange={setFullscreen}
+        title={node.data.title || "文本"}
+        text={text || ""}
+        editable={!streaming}
+        onSave={saveText}
+      />
     </>
   );
 };

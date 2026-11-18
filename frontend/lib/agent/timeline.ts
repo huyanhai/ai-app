@@ -513,7 +513,6 @@ export function buildTimeline(
   }
 
   const out = groupTools(items, summaries);
-  keepLastActivityOpen(out, state);
   if (state.stream.text || state.stream.thinking) {
     out.push({
       type: "assistant",
@@ -618,22 +617,6 @@ function groupTools(
   return out;
 }
 
-/**
- * 运行还在进行时，最后一个活动块在工具之间的空档（模型思考中）也算进行中，保持展开；
- * 后面已经有正文输出，或运行已经结束，就按各自的调用结果收起。
- */
-function keepLastActivityOpen(out: TimelineItem[], state: AgentSessionState) {
-  for (let i = out.length - 1; i >= 0; i--) {
-    const item = out[i];
-    if (item.type === "assistant" && item.text) return;
-    if (item.type !== "activity") continue;
-    const live: AgentRunLive | undefined = state.runs[item.runId];
-    if (live && ACTIVE_RUN_STATUSES.includes(live.status) && item.status === "done")
-      out[i] = { ...item, status: "running" };
-    return;
-  }
-}
-
 /** 置顶计划条的内容 */
 export type RunStrip = {
   /** 哪一轮运行的计划 */
@@ -704,7 +687,7 @@ function latestRunId(state: AgentSessionState, ids: string[]): string {
 /** 消息流末尾的状态行：运行中唯一的实时指示 */
 export type StatusLine = {
   runId: string;
-  /** 思考中… / 正在{工具}… / 等你确认 / 等你回答 */
+  /** 思考中… / 执行中… / 等你确认 / 等你回答 */
   text: string;
   /** 在等用户：静态显示，不流光不计时 */
   waiting: boolean;
@@ -717,7 +700,7 @@ export type StatusLine = {
  * - 没有进行中的运行：不显示
  * - 等批准、等回答：静态提示
  * - 正文正在流式输出：不显示（有闪烁光标，避免重复）
- * - 其余：有进行中的工具就说「正在{工具}…」，否则「思考中…」
+ * - 工具开始前显示「思考中…」；开始生成、修改画布等操作后显示「执行中…」
  */
 export function buildStatusLine(state: AgentSessionState): StatusLine | null {
   const runId = activeRunId(state);
@@ -730,13 +713,17 @@ export function buildStatusLine(state: AgentSessionState): StatusLine | null {
   if (state.stream.text) return null;
 
   const open = new Map<string, string>();
+  let hasToolActivity = false;
   let since: number | null = null;
   let prev = "";
   for (const ev of state.events) {
     if (ev.run_id !== runId) continue;
     const d = ev.data ?? {};
-    if (ev.type === "tool.start")
+    if (ev.type === "message.user") hasToolActivity = open.size > 0;
+    if (ev.type === "tool.start") {
+      hasToolActivity = true;
       open.set(str(d.id) || `e${ev.seq}`, toolLabel(str(d.name), str(d.label)));
+    }
     if (ev.type === "tool.end") open.delete(str(d.id) || `e${ev.seq}`);
     if (ev.type === "run.status") {
       const status = str(d.status);
@@ -757,8 +744,10 @@ export function buildStatusLine(state: AgentSessionState): StatusLine | null {
       : state.compacting === runId
         ? "正在整理较早的对话…"
         : running
-          ? `正在${running}…`
-          : "思考中…";
+          ? `执行中：${running}…`
+          : hasToolActivity
+            ? "执行中…"
+            : "思考中…";
   return { runId, text, waiting: false, since };
 }
 

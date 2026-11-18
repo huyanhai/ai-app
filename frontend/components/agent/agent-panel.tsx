@@ -12,6 +12,7 @@ import type { AgentEditorHandle, NodeOption } from "./agent-editor";
 import { AgentEmpty, type AgentEmptyCopy } from "./agent-empty";
 import { AgentHeader } from "./agent-header";
 import { AgentLoading } from "./agent-loading";
+import { ApprovalCard } from "./approval-card";
 import type { ContextRef } from "./context-chips";
 import { MessageList } from "./message-list";
 import { RunStrip } from "./run-strip";
@@ -103,7 +104,7 @@ export function AgentPanel({
       <div className="rounded-[22px] border border-white/10 bg-[#101010] p-3 shadow-[0_-12px_40px_rgba(0,0,0,0.12)]">
         <AnimatePresence initial={false}>{ctl.strip && <RunStrip key={ctl.strip.runId} strip={ctl.strip} onHide={ctl.hidePlan} />}</AnimatePresence>
         <SteerTray items={steerQueue} />
-        <AgentComposer text={text} onTextChange={setText} onSend={() => void send(text)} onStop={() => void ctl.stop()} busy={ctl.busy} sending={ctl.sending} models={models} modelKey={ctl.modelKey} context={ctl.context} selection={selection} refNodes={refNodes} editorRef={editor} nodes={nodes} attachments={attachments} vision={vision} features={features} placeholder={placeholder} contextRefs={contextRefs} onRemoveContextRef={onRemoveContextRef} />
+        {ctl.pending ? <div className="agent-scroll max-h-[60vh] overflow-y-auto"><ApprovalCard key={ctl.pending.id} approval={ctl.pending} ctl={ctl} /></div> : <AgentComposer text={text} onTextChange={setText} onSend={(message) => void send(message)} onStop={() => void ctl.stop()} busy={ctl.busy} sending={ctl.sending} models={models} modelKey={ctl.modelKey} context={ctl.context} selection={selection} refNodes={refNodes} editorRef={editor} nodes={nodes} attachments={attachments} vision={vision} features={features} placeholder={placeholder} contextRefs={contextRefs} onRemoveContextRef={onRemoveContextRef} />}
       </div>
     </div>
     <AgentToastHost />

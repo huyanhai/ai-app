@@ -46,7 +46,7 @@ export type AgentSyncDeps<N extends MergeNode, E extends MergeEdge> = {
 export type AgentSync = {
   /** 收到 Agent 对画布的一次改动 */
   handlePatch: (patch: CanvasPatchDto) => Promise<void>;
-  /** 无 WebSocket 时在运行期间拉取增量，运行结束后再对账一次 */
+  /** WebSocket 断开时在运行期间拉取增量，运行结束后再对账一次 */
   refresh: (force?: boolean) => Promise<number | null>;
   /** 保存撞上 409：别处的改动是 Agent 写的就自动合并，返回合并后的服务端版本；不能合并返回 null */
   autoMerge: () => Promise<number | null>;
@@ -59,7 +59,7 @@ export type AgentSync = {
  * - 收到 canvas.patch 且接得上本地版本（revision_before 等于本地版本）：把这批改动并进本地，版本接到 revision_after
  * - 接不上（漏了一条、顺序乱了）：拉最新画布，和「服务端上一次已知内容」比出差异，同样并进本地
  * - 保存撞上 409 且这张画布被 Agent 动过：同上自动合并后重试，不弹冲突窗
- * 并进本地时用户改过的字段保持用户的值（见 applyChanges 的 guard），下一次保存会把它写回服务端，两边最终一致。
+ * Agent 改过的字段以服务端为准，其它本地字段保留；有未保存改动时会在合并后继续保存。
  * 所有合并排成一队，不会交错。
  */
 export function createAgentSync<N extends MergeNode, E extends MergeEdge>(
@@ -88,7 +88,7 @@ export function createAgentSync<N extends MergeNode, E extends MergeEdge>(
   const applyRemote = (changes: GraphChange[]) => {
     if (changes.length === 0) return;
     const quiet = !deps.hasUnsaved();
-    const r = applyChanges(deps.getLocal(), changes, { guard: true, ...deps.merge });
+    const r = applyChanges(deps.getLocal(), changes, { guard: false, ...deps.merge });
     if (r.applied > 0) {
       const alive = new Set(r.nodes.map((n) => n.id));
       const touchedIds = changes
